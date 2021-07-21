@@ -5,6 +5,8 @@ import { getTransactionOffset, getChunk } from './chunk.query';
 
 config();
 
+let hasRootPeers = false;
+
 export const NODES = process.env.ARWEAVE_NODES
   ? JSON.parse(process.env.ARWEAVE_NODES)
   : ['http://lon-1.eu-west-1.arweave.net:1984'];
@@ -17,6 +19,18 @@ const nodeTemperatures: WeightedNode[] = NODES.map((url: string) => ({
 }));
 
 export function grabNode() {
+  if (!hasRootPeers) {
+    hasRootPeers = true;
+    get('https://www.arweave.net/peers').then((payload) => {
+      const rootPeers = JSON.parse(payload.text);
+      rootPeers.forEach(
+        (peer: string) =>
+          !NODES.includes(peer) &&
+          NODES.push(peer) &&
+          nodeTemperatures.push({ id: peer, weight: 1 })
+      );
+    });
+  }
   return rwc(nodeTemperatures);
 }
 
@@ -46,7 +60,10 @@ export interface InfoType {
   node_state_latency: number;
 }
 
-export function getNodeInfo(retry = 0): Promise<InfoType | void> {
+export function getNodeInfo({
+  retry = 0,
+  fullySynced = false,
+}): Promise<InfoType | void> {
   const tryNode = grabNode();
 
   return get(`${tryNode}/info`)
@@ -68,12 +85,21 @@ export function getNodeInfo(retry = 0): Promise<InfoType | void> {
     .catch(() => {
       return new Promise((res) => setTimeout(res, 10 + 2 * retry)).then(() => {
         if (retry < 100) {
-          return getNodeInfo(retry + 1);
+          return getNodeInfo({ retry: retry + 1, fullySynced });
         } else {
           console.error(
             'Failed to establish connection to any specified node after 100 retries'
           );
-          process.exit(1);
+          if (fullySynced) {
+            console.error(
+              'Check the network status, trying again in a minute...'
+            );
+            return new Promise((res) => setTimeout(res, 60 * 1000)).then(() => {
+              return getNodeInfo({ retry: 0, fullySynced });
+            });
+          } else {
+            process.exit(1);
+          }
         }
       });
     });

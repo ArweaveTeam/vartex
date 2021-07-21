@@ -57,6 +57,7 @@ export function block(height: number): Promise<BlockType | void> {
         poa: {
           option: body.poa?.option,
           tx_path: body.poa?.tx_path,
+          data_path: body.poa?.data_path,
           chunk: body.poa?.chunk,
         },
       };

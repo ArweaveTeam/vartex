@@ -14,7 +14,7 @@
     "lint": "eslint \"test/*.ts\" \"test/**/*.ts\" \"src/*.ts\" \"src/**/*.ts\" \"migrations/*.ts\" \"knexfile.ts\"",
     "gql": "npx graphql-codegen --config codegen.yml",
     "build": "npm run gql && tsc",
-    "start": "npm run build && node dist/src/Gateway.js",
+    "start": "node dist/src/Gateway.js",
     "restart": "npm run migrate:down && npm run migrate:latest && npm run start",
     "import:transaction": "npm run build && node dist/src/import/transaction.import.js",
     "import:tags": "npm run build && node dist/src/import/tags.import.ts",
@@ -27,8 +27,7 @@
     "migrate:reset": "knex migrate:down && knex migrate:latest",
     "docker:start": "docker-compose up --build -d",
     "docker:stop": "docker-compose down",
-    "docker:clean": "docker-compose down -v --rmi all",
-    "start": "npm run migrate:latest && node dist/src/Gateway.js"
+    "docker:clean": "docker-compose down -v --rmi all"
   },
   "dependencies": {
     "apollo-server-express": "^2.19.2",
@@ -36,6 +35,7 @@
     "arweave-bundles": "^1.0.3",
     "bip39": "^3.0.3",
     "body-parser": "^1.19.0",
+    "cassandra-driver": "^4.6.3",
     "colors": "^1.4.0",
     "cors": "^2.8.5",
     "crypto-random-string": "^3.3.1",
@@ -93,6 +93,6 @@
     "mocha": "^8.3.1",
     "nyc": "^15.1.0",
     "ts-node": "^9.1.1",
-    "typescript": "^4.1.3"
+    "typescript": "^4.3.5"
   }
 }

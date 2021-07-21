@@ -1,10 +1,10 @@
-import {config} from 'dotenv';
-import {QueryBuilder} from 'knex';
-import {connection} from '../database/connection.database';
-import {indices} from '../utility/order.utility';
-import {ISO8601DateTimeString} from '../utility/encoding.utility';
-import {TagFilter} from './types';
-import {tagToB64, toB64url} from '../query/transaction.query';
+import { config } from 'dotenv';
+import { QueryBuilder } from 'knex';
+import { connection } from '../database/connection.database';
+import { indices } from '../utility/order.utility';
+import { ISO8601DateTimeString } from '../utility/encoding.utility';
+import { TagFilter } from './types';
+import { tagToB64, toB64url } from '../query/transaction.query';
 
 config();
 
@@ -38,87 +38,102 @@ export interface QueryParams {
   maxHeight?: number;
 }
 
-export async function generateQuery(params: QueryParams): Promise<QueryBuilder> {
-  const {to, from, tags, id, ids, status = 'confirmed', select} = params;
-  const {limit = 10, sortOrder = 'HEIGHT_DESC'} = params;
-  const {since = new Date().toISOString(), offset = 0, minHeight = -1, maxHeight = -1} = params;
+export async function generateQuery(params: QueryParams): Promise<any> {}
 
-  const query = connection
-      .queryBuilder()
-      .select(select || {id: 'transactions.id', height: 'transactions.height', tags: 'transactions.tags'})
-      .from('transactions');
+// export async function generateQuery(
+//   params: QueryParams
+// ): Promise<QueryBuilder> {
+//   const { to, from, tags, id, ids, status = 'confirmed', select } = params;
+//   const { limit = 10, sortOrder = 'HEIGHT_DESC' } = params;
+//   const {
+//     since = new Date().toISOString(),
+//     offset = 0,
+//     minHeight = -1,
+//     maxHeight = -1,
+//   } = params;
 
-  if (id) {
-    query.where('transactions.id', id);
-  }
+//   const query = connection
+//     .queryBuilder()
+//     .select(
+//       select || {
+//         id: 'transactions.id',
+//         height: 'transactions.height',
+//         tags: 'transactions.tags',
+//       }
+//     )
+//     .from('transactions');
 
-  if (ids) {
-    query.whereIn('transactions.id', ids);
-  }
+//   if (id) {
+//     query.where('transactions.id', id);
+//   }
 
-  query.leftJoin('blocks', 'transactions.height', 'blocks.height');
+//   if (ids) {
+//     query.whereIn('transactions.id', ids);
+//   }
 
-  if (since) {
-    query.where('blocks.mined_at', '<', since);
-  }
+//   query.leftJoin('blocks', 'transactions.height', 'blocks.height');
 
-  if (status === 'confirmed') {
-    query.whereNotNull('transactions.height');
-  }
+//   if (since) {
+//     query.where('blocks.mined_at', '<', since);
+//   }
 
-  if (to) {
-    query.whereIn('transactions.target', to);
-  }
+//   if (status === 'confirmed') {
+//     query.whereNotNull('transactions.height');
+//   }
 
-  if (from) {
-    query.whereIn('transactions.owner_address', from);
-  }
+//   if (to) {
+//     query.whereIn('transactions.target', to);
+//   }
 
-  if (tags) {
-    const tagsConverted = tagToB64(tags);
+//   if (from) {
+//     query.whereIn('transactions.owner_address', from);
+//   }
 
-    tagsConverted.forEach((tag) => {
-      let indexed = false;
+//   if (tags) {
+//     const tagsConverted = tagToB64(tags);
 
-      for (let i = 0; i < indices.length; i++) {
-        const index = toB64url(indices[i]);
+//     tagsConverted.forEach((tag) => {
+//       let indexed = false;
 
-        if (tag.name === index) {
-          query.whereIn(`transactions.${indices[i]}`, tag.values);
-          indexed = true;
-        }
-      }
+//       for (let i = 0; i < indices.length; i++) {
+//         const index = toB64url(indices[i]);
 
-      if (indexed === false) {
-        query.whereIn('transactions.id', (subQuery) => {
-          return subQuery
-              .select('tx_id')
-              .from('tags')
-              .where('tags.name', tag.name)
-              .whereIn('tags.value', tag.values);
-        });
-      }
-    });
-  }
+//         if (tag.name === index) {
+//           query.whereIn(`transactions.${indices[i]}`, tag.values);
+//           indexed = true;
+//         }
+//       }
 
-  if (minHeight >= 0) {
-    query.where('transactions.height', '>=', minHeight);
-  }
+//       if (indexed === false) {
+//         query.whereIn('transactions.id', (subQuery: any) => {
+//           return subQuery
+//             .select('tx_id')
+//             .from('tags')
+//             .where('tags.name', tag.name)
+//             .whereIn('tags.value', tag.values);
+//         });
+//       }
+//     });
+//   }
 
-  if (maxHeight >= 0) {
-    query.where('transactions.height', '<=', maxHeight);
-  }
+//   if (minHeight >= 0) {
+//     query.where('transactions.height', '>=', minHeight);
+//   }
 
-  if (Object.keys(orderByClauses).includes(sortOrder)) {
-    query.orderByRaw(orderByClauses[sortOrder]);
-  }
+//   if (maxHeight >= 0) {
+//     query.where('transactions.height', '<=', maxHeight);
+//   }
 
-  query.limit(limit).offset(offset);
+//   if (Object.keys(orderByClauses).includes(sortOrder)) {
+//     query.orderByRaw(orderByClauses[sortOrder]);
+//   }
 
-  query.orderByRaw('transactions.id ASC');
+//   query.limit(limit).offset(offset);
 
-  return query;
-}
+//   query.orderByRaw('transactions.id ASC');
+
+//   return query;
+// }
 
 export const blockOrderByClauses = {
   HEIGHT_ASC: 'blocks.height ASC NULLS LAST, id ASC',
@@ -139,8 +154,20 @@ export interface BlockQueryParams {
   maxHeight?: number;
 }
 
-export async function generateBlockQuery(params: BlockQueryParams): Promise<QueryBuilder> {
-  const {id, ids, limit, offset, select, before, sortOrder, minHeight, maxHeight} = params;
+export async function generateBlockQuery(
+  params: BlockQueryParams
+): Promise<QueryBuilder> {
+  const {
+    id,
+    ids,
+    limit,
+    offset,
+    select,
+    before,
+    sortOrder,
+    minHeight,
+    maxHeight,
+  } = params;
 
   const query = connection.queryBuilder().select(select).from('blocks');
 

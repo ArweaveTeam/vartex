@@ -3,18 +3,18 @@ import Fluture from 'fluture';
 import * as F from 'fluture';
 import { DataItemJson } from 'arweave-bundles';
 import { config } from 'dotenv';
-import { getLastBlock } from '../utility/height.utility';
+import { types as CassandraTypes } from 'cassandra-driver';
 import {
   serializeBlock,
   serializeTransaction,
   serializeAnsTransaction,
   serializeTags,
 } from '../utility/serialize.utility';
-import {
-  streams,
-  initStreams,
-  resetCacheStreams,
-} from '../utility/csv.utility';
+// import {
+//   streams,
+//   initStreams,
+//   resetCacheStreams,
+// } from '../utility/csv.utility';
 import { log } from '../utility/log.utility';
 import { ansBundles } from '../utility/ans.utility';
 import { mkdir } from '../utility/file.utility';
@@ -24,6 +24,11 @@ import { getNodeInfo } from '../query/node.query';
 import { block } from '../query/block.query';
 import { transaction, tagValue, Tag } from '../query/transaction.query';
 import { getDataFromChunks } from '../query/node.query';
+import {
+  cassandraClient,
+  getMaxHeightBlock,
+  makeBlockImportQuery,
+} from './cassandra.database';
 import {
   importBlocks,
   importTransactions,
@@ -43,6 +48,32 @@ export let topHeight = 0;
 export let currentHeight = 0;
 export let timer = setTimeout(() => {}, 0);
 
+let queueIsProcessing = false;
+const blockQueue: unknown = {};
+
+const processQueue = (batchSize: number) => {
+  const items: any = Object.keys(blockQueue as any)
+    .sort()
+    .slice(0, batchSize);
+
+  queueIsProcessing = true;
+  cassandraClient
+    .batch(
+      items.map((i: number) => (blockQueue as any)[i]),
+      { prepare: true }
+    )
+    .then(function () {
+      items.forEach((i: number) => {
+        delete (blockQueue as any)[i];
+      });
+      queueIsProcessing = false;
+    })
+    .catch(function (err) {
+      console.error('FATAL', err);
+      process.exit(1);
+    });
+};
+
 export function configureSyncBar(start: number, end: number) {
   bar = new ProgressBar(':current/:total blocks synced :percent', {
     curr: start,
@@ -51,36 +82,72 @@ export function configureSyncBar(start: number, end: number) {
   bar.curr = start;
 }
 
-export function startSync() {
-  getLastBlock().then((startHeight) => {
-    log.info(`[database] starting sync`);
+async function startPolling(): Promise<void> {
+  const nodeInfo = await getNodeInfo({ fullySynced: true });
+  if ((nodeInfo && nodeInfo.height) <= currentHeight || !nodeInfo) {
+    // wait 30 seconds before polling again
+    await new Promise((res) => setTimeout(res, 30 * 1000));
+    return startPolling();
+  } else if (nodeInfo) {
+    const newBlock = await block(nodeInfo.height);
+    if (newBlock) {
+      currentHeight = Math.max(currentHeight, newBlock.height);
+      (blockQueue as any)[
+        typeof newBlock.height === 'string'
+          ? parseInt(newBlock.height)
+          : newBlock.height || 0
+      ] = makeBlockImportQuery(newBlock);
+      processQueue(1);
+    }
+    await new Promise((res) => setTimeout(res, 30 * 1000));
+    return startPolling();
+  }
+}
 
-    initStreams();
+export function startSync() {
+  getMaxHeightBlock().then((startHeight: CassandraTypes.Long) => {
+    log.info(`[database] starting sync`);
     signalHook();
 
-    getNodeInfo().then((nodeInfo) => {
+    getNodeInfo({ fullySynced: false }).then((nodeInfo) => {
       if (nodeInfo) {
-        configureSyncBar(startHeight, nodeInfo.height);
-        topHeight = nodeInfo.height;
-        bar.tick();
-        // await parallelize(0);
+        configureSyncBar(startHeight.toInt(), nodeInfo.height);
+        if (startHeight.lessThan(nodeInfo.height)) {
+          topHeight = nodeInfo.height;
+          bar.tick();
 
-        F.fork((reason: string | void) => {
-          console.error('Fatal', reason || '');
-          process.exit(1);
-        })(() => console.log('DONE!'))(
-          F.parallel(
-            (isNaN as any)(process.env['PARALLEL'])
-              ? 36
-              : parseInt(process.env['PARALLEL'] || '36')
-          )(
-            Array.from(
-              Array(Math.abs(nodeInfo.height) - Math.abs(startHeight)).keys()
-            ).map((h) => {
-              return storeBlock(h + startHeight, bar);
-            })
-          )
-        );
+          F.fork((reason: string | void) => {
+            console.error('Fatal', reason || '');
+            process.exit(1);
+          })(() => {
+            console.log(
+              'Database fully in sync at block height',
+              currentHeight,
+              'starting polling...'
+            );
+            startPolling();
+          })(
+            F.parallel(
+              (isNaN as any)(process.env['PARALLEL'])
+                ? 36
+                : parseInt(process.env['PARALLEL'] || '36')
+            )(
+              Array.from(
+                // Array(100).keys()
+                Array(
+                  Math.abs(nodeInfo.height) - Math.abs(startHeight.toInt())
+                ).keys()
+              ).map((h) => {
+                return storeBlock(startHeight.add(h).toInt(), bar);
+              })
+            )
+          );
+        } else {
+          console.log(
+            'database was found to be in sync, starting to poll for new blocks...'
+          );
+          startPolling();
+        }
       } else {
         console.error(
           'Failed to establish any connection to Nodes after 100 retries'
@@ -100,17 +167,27 @@ export function storeBlock(height: number, bar: ProgressBar): Promise<void> {
           block(height)
             .then((currentBlock) => {
               if (currentBlock) {
-                const { formattedBlock, input } = serializeBlock(
-                  currentBlock,
-                  height
-                );
+                // const { formattedBlock, input } = serializeBlock(
+                //   currentBlock,
+                //   height
+                // );
+                // console.log(currentBlock, 'FORM', formattedBlock, 'inp', input);
+                // initStreams();
 
-                streams.block.cache.write(input);
-
-                storeTransaction(
-                  JSON.parse(formattedBlock.txs) as Array<string>,
-                  height
-                );
+                currentHeight = Math.max(currentHeight, currentBlock.height);
+                (blockQueue as any)[
+                  typeof currentBlock.height === 'string'
+                    ? parseInt(currentBlock.height)
+                    : currentBlock.height || 0
+                ] = makeBlockImportQuery(currentBlock);
+                // streams.block.cache.write(input);
+                // storeTransaction(
+                //   JSON.parse(formattedBlock.txs) as Array<string>,
+                //   height
+                // );
+                if (Object.keys(blockQueue as any).length >= 1) {
+                  processQueue(1);
+                }
                 bar.tick();
                 resolve();
               } else {
@@ -152,7 +229,7 @@ export async function storeTransaction(tx: string, height: number) {
       height
     );
 
-    streams.transaction.cache.write(input);
+    // streams.transaction.cache.write(input);
 
     storeTags(formattedTransaction.id, preservedTags);
 
@@ -185,7 +262,7 @@ export async function processAns(
       log.info(
         `[database] malformed ANS payload at height ${height} for tx ${id}`
       );
-      streams.rescan.cache.write(`${id}|${height}|ans\n`);
+      // streams.rescan.cache.write(`${id}|${height}|ans\n`);
     }
   }
 }
@@ -198,7 +275,7 @@ export async function processANSTransaction(
     const ansTx = ansTxs[i];
     const { ansTags, input } = serializeAnsTransaction(ansTx, height);
 
-    streams.transaction.cache.write(input);
+    // streams.transaction.cache.write(input);
 
     for (let ii = 0; ii < ansTags.length; ii++) {
       const ansTag = ansTags[ii];
@@ -213,7 +290,7 @@ export async function processANSTransaction(
 
       const input = `"${tag.tx_id}"|"${tag.index}"|"${tag.name}"|"${tag.value}"\n`;
 
-      streams.tags.cache.write(input);
+      // streams.tags.cache.write(input);
     }
   }
 }
@@ -222,7 +299,7 @@ export function storeTags(tx_id: string, tags: Array<Tag>) {
   for (let i = 0; i < tags.length; i++) {
     const tag = tags[i];
     const { input } = serializeTags(tx_id, i, tag);
-    streams.tags.cache.write(input);
+    // streams.tags.cache.write(input);
   }
 }
 

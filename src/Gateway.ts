@@ -1,21 +1,24 @@
 import 'colors';
-import express, {Express} from 'express';
-import {config} from 'dotenv';
+import express, { Express } from 'express';
+import { config } from 'dotenv';
 import cors from 'cors';
-import {jsonMiddleware} from './middleware/json.middleware';
-import {logMiddleware} from './middleware/log.middleware';
-import {manifestMiddleware} from './middleware/manifest.middleware';
-import {log} from './utility/log.utility';
-import {sessionMiddleware, sessionPinningMiddleware} from './utility/session.utility';
-import {graphServer} from './graphql/server.graphql';
-import {statusRoute} from './route/status.route';
-import {transactionRoute} from './route/transaction.route';
-import {syncRoute} from './route/sync.route';
-import {proxyRoute} from './route/proxy.route';
-import {dataRouteRegex, dataRoute} from './route/data.route';
-import {peerRoute} from './route/peer.route';
-import {koiLogger, koiLogsRoute, koiLogsRawRoute} from './route/koi.route';
-import {startSync} from './database/sync.database';
+import { jsonMiddleware } from './middleware/json.middleware';
+import { logMiddleware } from './middleware/log.middleware';
+import { manifestMiddleware } from './middleware/manifest.middleware';
+import { log } from './utility/log.utility';
+import {
+  sessionMiddleware,
+  sessionPinningMiddleware,
+} from './utility/session.utility';
+import { graphServer } from './graphql/server.graphql';
+import { statusRoute } from './route/status.route';
+import { transactionRoute } from './route/transaction.route';
+import { syncRoute } from './route/sync.route';
+import { proxyRoute } from './route/proxy.route';
+import { dataRouteRegex, dataRoute } from './route/data.route';
+import { peerRoute } from './route/peer.route';
+import { koiLogger, koiLogsRoute, koiLogsRawRoute } from './route/koi.route';
+import { startSync } from './database/sync.database';
 
 config();
 
@@ -37,7 +40,10 @@ export function start() {
 
   app.get(dataRouteRegex, dataRoute);
 
-  graphServer({introspection: true, playground: true}).applyMiddleware({app, path: '/graphql'});
+  // graphServer({ introspection: true, playground: true }).applyMiddleware({
+  //   app,
+  //   path: '/graphql',
+  // });
 
   app.post('/tx', transactionRoute);
   app.get('/peers', peerRoute);
@@ -51,6 +57,5 @@ export function start() {
     startSync();
   });
 }
-
 
 (async () => await start())();

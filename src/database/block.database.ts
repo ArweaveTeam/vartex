@@ -1,14 +1,14 @@
 import moment from 'moment';
-import {pick} from 'lodash';
-import {BlockType} from '../query/block.query';
+import { pick } from 'lodash';
+import { BlockType } from '../query/block.query';
 
 export interface BlockDatabaseType {
-    id: string;
-    previous_block: string;
-    mined_at: string;
-    height: number;
-    txs: string;
-    extended: string;
+  id: string;
+  previous_block: string;
+  mined_at: string;
+  height: number;
+  txs: string;
+  extended: string;
 }
 
 export const blockExtendedFields = [

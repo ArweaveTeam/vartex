@@ -1,4 +1,5 @@
 import fs from 'fs';
+import * as cassandra from 'cassandra-driver';
 import { PoolClient } from 'pg';
 import { config } from 'dotenv';
 import { indices } from '../utility/order.utility';

@@ -1,3 +1,5 @@
+import fs from 'fs/promises';
+import * as R from 'rambda';
 import { config } from 'dotenv';
 import { get } from 'superagent';
 import rwc from 'random-weighted-choice';
@@ -70,6 +72,7 @@ export function getNodeInfo({
     .then((payload) => {
       const body = JSON.parse(payload.text);
       warmNode(tryNode);
+
       return {
         network: body.network,
         version: body.version,
@@ -83,6 +86,7 @@ export function getNodeInfo({
       };
     })
     .catch(() => {
+      coolNode(tryNode);
       return new Promise((res) => setTimeout(res, 10 + 2 * retry)).then(() => {
         if (retry < 100) {
           return getNodeInfo({ retry: retry + 1, fullySynced });
@@ -100,6 +104,34 @@ export function getNodeInfo({
           } else {
             process.exit(1);
           }
+        }
+      });
+    });
+}
+
+export function getHashList({ retry = 0 }): Promise<string[] | void> {
+  const tryNode = grabNode();
+
+  return get(`${tryNode}/hash_list`)
+    .then((payload) => {
+      // TODO: when it hits 100mb+ look into streaming solutions
+      // https://github.com/uhop/stream-json
+      const body = R.reverse(JSON.parse(payload.text));
+      warmNode(tryNode);
+      return fs
+        .writeFile('cache/hash_list.json', JSON.stringify(body, undefined, 2))
+        .then(() => body);
+    })
+    .catch(() => {
+      coolNode(tryNode);
+      return new Promise((res) => setTimeout(res, 10 + 2 * retry)).then(() => {
+        if (retry < 100) {
+          return getHashList({ retry: retry + 1 });
+        } else {
+          console.error(
+            'Failed to establish connection to any specified node after 100 retries'
+          );
+          process.exit(1);
         }
       });
     });

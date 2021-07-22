@@ -20,8 +20,8 @@ import { ansBundles } from '../utility/ans.utility';
 import { mkdir } from '../utility/file.utility';
 import { sleep } from '../utility/sleep.utility';
 import { TestSuite } from '../utility/mocha.utility';
-import { getNodeInfo } from '../query/node.query';
-import { block } from '../query/block.query';
+import { getHashList, getNodeInfo } from '../query/node.query';
+import { getBlock } from '../query/block.query';
 import { transaction, tagValue, Tag } from '../query/transaction.query';
 import { getDataFromChunks } from '../query/node.query';
 import {
@@ -45,35 +45,69 @@ export let SIGINT: boolean = false;
 export let SIGKILL: boolean = false;
 export let bar: ProgressBar;
 export let topHeight = 0;
+export let currentHash: string = '';
 export let currentHeight = 0;
 export let unsyncedBlocks = [];
 export let timer = setTimeout(() => {}, 0);
 
-let queueIsProcessing = false;
+interface QueueState {
+  isProcessing: boolean;
+  isStarted: boolean;
+}
+
+let isQueueProcessorStarted = false;
 const blockQueue: unknown = {};
+const txQueue: unknown = {};
+const tagsQueue: unknown = {};
+const blockQueueState: QueueState = { isProcessing: false, isStarted: false };
+const txQueueState: QueueState = { isProcessing: false, isStarted: false };
+const tagsQueueState: QueueState = { isProcessing: false, isStarted: false };
 
-const processQueue = (batchSize: number) => {
-  const items: any = Object.keys(blockQueue as any)
-    .sort()
-    .slice(0, batchSize);
-
-  queueIsProcessing = true;
-  cassandraClient
-    .batch(
-      items.map((i: number) => (blockQueue as any)[i]),
-      { prepare: true }
+const createQueue = (queueSource: any, queueState: QueueState) => (): void => {
+  if (queueState.isProcessing) return;
+  // 5 is arbitrary but low enough to prevent "Batch too large" errors
+  const items: any = Object.keys(queueSource as any);
+  if (items.length > 0) {
+    queueState.isProcessing = true;
+    Promise.all(
+      items
+        .sort()
+        .slice(0, 5)
+        .map((item) => {
+          cassandraClient.execute(item);
+        })
     )
-    .then(function () {
-      items.forEach((i: number) => {
-        delete (blockQueue as any)[i];
+      .then(function () {
+        items.forEach((i: number) => {
+          delete (blockQueue as any)[i];
+        });
+        queueState.isProcessing = false;
+      })
+      .catch(function (err) {
+        console.error('FATAL', err);
+        process.exit(1);
       });
-      queueIsProcessing = false;
-    })
-    .catch(function (err) {
-      console.error('FATAL', err);
-      process.exit(1);
-    });
+  }
 };
+
+const processBlockQueue = createQueue(blockQueue, blockQueueState);
+const processTxQueue = createQueue(txQueue, txQueueState);
+const processTagsQueue = createQueue(tagsQueue, tagsQueueState);
+
+function startQueueProcessors() {
+  if (!blockQueueState.isStarted) {
+    blockQueueState.isStarted = true;
+    setInterval(processBlockQueue, 10);
+  }
+  if (!processTxQueue.isStarted) {
+    processTxQueue.isStarted = true;
+    setInterval(processTxQueue, 10);
+  }
+  if (!tagsQueueState.isStarted) {
+    tagsQueueState.isStarted = true;
+    setInterval(tagsQueueState, 10);
+  }
+}
 
 export function configureSyncBar(start: number, end: number) {
   bar = new ProgressBar(':current/:total blocks synced :percent', {
@@ -85,12 +119,16 @@ export function configureSyncBar(start: number, end: number) {
 
 async function startPolling(): Promise<void> {
   const nodeInfo = await getNodeInfo({ fullySynced: true });
-  if ((nodeInfo && nodeInfo.height) <= currentHeight || !nodeInfo) {
-    // wait 30 seconds before polling again
-    await new Promise((res) => setTimeout(res, 30 * 1000));
+  if (nodeInfo.current === currentHash) {
+    // wait 5 seconds before polling again
+    await new Promise((res) => setTimeout(res, 5 * 1000));
     return startPolling();
   } else if (nodeInfo) {
-    const newBlock = await block(nodeInfo.height);
+    // TODO fork recovery
+    const newBlock = await getBlock({
+      height: nodeInfo.height,
+      hash: nodeInfo.current,
+    });
     if (newBlock) {
       currentHeight = Math.max(currentHeight, newBlock.height);
       (blockQueue as any)[
@@ -98,37 +136,37 @@ async function startPolling(): Promise<void> {
           ? parseInt(newBlock.height)
           : newBlock.height || 0
       ] = makeBlockImportQuery(newBlock);
-      processQueue(1);
     }
-    await new Promise((res) => setTimeout(res, 30 * 1000));
+    await new Promise((res) => setTimeout(res, 5 * 1000));
     return startPolling();
   }
 }
 
-async function prepareBlockStatuses(unsyncedBlocks) {
+async function prepareBlockStatuses(unsyncedBlocks, hashList) {
   for (const blockHeight of unsyncedBlocks) {
     await cassandraClient.execute(
-      `INSERT INTO gateway.block IF NOT EXISTS (block_height, synced) (?, ?)`,
-      [blockHeight, false],
+      `INSERT INTO gateway.block_status IF NOT EXISTS (block_hash, block_height, synced) (?, ?, ?)`,
+      [hashList[blockHeight + 1], blockHeight, false],
       { prepare: true }
     );
   }
 }
 
 export function startSync() {
+  startQueueProcessor();
   getMaxHeightBlock().then((currentDbMax: CassandraTypes.Long) => {
     const startHeight = currentDbMax.add(1);
     log.info(`[database] starting sync`);
     signalHook();
 
-    getNodeInfo({ fullySynced: false }).then((nodeInfo) => {
-      if (nodeInfo) {
-        configureSyncBar(startHeight.toInt(), nodeInfo.height);
-        if (startHeight.lessThan(nodeInfo.height)) {
-          topHeight = nodeInfo.height;
-          unsyncedBlocks = R.range(startHeight.toInt(), topHeight + 1);
-          prepareBlockStatuses.then(() => {
-            bar.tick();
+    getHashList({}).then((hashList) => {
+      if (hashList) {
+        topHeight = hashList.length;
+        configureSyncBar(startHeight.toInt(), hashList.length);
+        if (startHeight.lessThan(hashList.length)) {
+          unsyncedBlocks = R.range(startHeight.toInt(), topHeight);
+          prepareBlockStatuses(unsyncedBlocks, hashList).then(() => {
+            // bar.tick();
 
             F.fork((reason: string | void) => {
               console.error('Fatal', reason || '');
@@ -146,8 +184,12 @@ export function startSync() {
                   ? 36
                   : parseInt(process.env['PARALLEL'] || '36')
               )(
-                unsyncedBlocks.map((h) => {
-                  return storeBlock(startHeight, bar);
+                R.slice(
+                  0,
+                  topHeight - 50
+                )(unsyncedBlocks).map((height) => {
+                  // WIP: we store the last 50 in mute-able tables
+                  return storeBlock(height, hashList);
                 })
               )
             );
@@ -168,22 +210,15 @@ export function startSync() {
   });
 }
 
-export function storeBlock(height: number, bar: ProgressBar): Promise<void> {
+export function storeBlock(height: number, hashList: string[]): Promise<void> {
   return Fluture(
     (reject: (reason: string | void) => void, resolve: () => void) => {
       let isCancelled = false;
       function getBlock(retry = 0) {
         !isCancelled &&
-          block(height)
+          getBlock({ hash: hashList[height - 1], height })
             .then((currentBlock) => {
               if (currentBlock) {
-                // const { formattedBlock, input } = serializeBlock(
-                //   currentBlock,
-                //   height
-                // );
-                // console.log(currentBlock, 'FORM', formattedBlock, 'inp', input);
-                // initStreams();
-
                 currentHeight = Math.max(currentHeight, currentBlock.height);
                 const thisBlockHeight =
                   typeof currentBlock.height === 'string'
@@ -192,20 +227,7 @@ export function storeBlock(height: number, bar: ProgressBar): Promise<void> {
                 (blockQueue as any)[thisBlockHeight] = makeBlockImportQuery(
                   currentBlock
                 );
-                // streams.block.cache.write(input);
-                // storeTransaction(
-                //   JSON.parse(formattedBlock.txs) as Array<string>,
-                //   height
-                // );
-                log.info(
-                  `Sending block height ${thisBlockHeight} to the queue (${
-                    Object.keys(blockQueue as any).length
-                  }/5)`
-                );
-                // 5 is arbitrary but low enough to prevent "Batch too large" errors
-                if (Object.keys(blockQueue as any).length >= 5) {
-                  processQueue(5);
-                }
+
                 bar.tick();
                 resolve();
               } else {

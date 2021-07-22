@@ -28,39 +28,32 @@ export interface BlockType {
   };
 }
 
-export function block(height: number): Promise<BlockType | void> {
+// get block by hash is optional (needs proper decoupling)
+export function getBlock({
+  hash,
+  height,
+}: {
+  hash: string | undefined;
+  height: number;
+}): Promise<BlockType | void> {
   const tryNode = grabNode();
-  return get(`${tryNode}/block/height/${height}`)
+  return get(
+    hash ? `${tryNode}/block/hash/${hash}` : `${tryNode}/block/height/${height}`
+  )
     .then((payload) => {
       const body = JSON.parse(payload.text);
+      if (hash && height !== body.height) {
+        // REVIEW: does assuming re-forking condition work better than fatal error?
+        console.error(
+          "FATAL, hash height from hash_list doesn't match up:",
+          height,
+          '!=',
+          body.height
+        );
+        process.exit(1);
+      }
       warmNode(tryNode);
-      return {
-        nonce: body.nonce,
-        previous_block: body.previous_block,
-        timestamp: body.timestamp,
-        last_retarget: body.last_retarget,
-        diff: body.diff,
-        height: body.height,
-        hash: body.hash,
-        indep_hash: body.indep_hash,
-        txs: body.txs,
-        tx_root: body.tx_root,
-        tx_tree: body.tx_tree,
-        wallet_list: body.wallet_list,
-        reward_addr: body.reward_addr,
-        tags: body.tags,
-        reward_pool: body.reward_pool,
-        weave_size: body.weave_size,
-        block_size: body.block_size,
-        cumulative_diff: body.cumulative_diff,
-        hash_list_merkle: body.hash_list_merkle,
-        poa: {
-          option: body.poa?.option,
-          tx_path: body.poa?.tx_path,
-          data_path: body.poa?.data_path,
-          chunk: body.poa?.chunk,
-        },
-      };
+      return body;
     })
     .catch(() => {
       coolNode(tryNode);
@@ -72,33 +65,7 @@ export async function currentBlock(): Promise<BlockType | void> {
   return get(`${tryNode}/block/current`)
     .then((payload) => {
       const body = JSON.parse(payload.text);
-
-      return {
-        nonce: body.nonce,
-        previous_block: body.previous_block,
-        timestamp: body.timestamp,
-        last_retarget: body.last_retarget,
-        diff: body.diff,
-        height: body.height,
-        hash: body.hash,
-        indep_hash: body.indep_hash,
-        txs: body.txs,
-        tx_root: body.tx_root,
-        tx_tree: body.tx_tree,
-        wallet_list: body.wallet_list,
-        reward_addr: body.reward_addr,
-        tags: body.tags,
-        reward_pool: body.reward_pool,
-        weave_size: body.weave_size,
-        block_size: body.block_size,
-        cumulative_diff: body.cumulative_diff,
-        hash_list_merkle: body.hash_list_merkle,
-        poa: {
-          option: body.poa.option,
-          tx_path: body.poa.tx_path,
-          chunk: body.poa.chunk,
-        },
-      };
+      return body;
     })
     .catch(() => {
       coolNode(tryNode);

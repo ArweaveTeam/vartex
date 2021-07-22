@@ -1,8 +1,11 @@
 import * as cassandra from 'cassandra-driver';
+import * as R from 'rambda';
 import { types as CassandraTypes } from 'cassandra-driver';
 import { config } from 'dotenv';
 
 config();
+
+const currentSessionId = CassandraTypes.TimeUuid.now();
 
 const isNumeric = (s: any) => !(isNaN as any)(s);
 
@@ -17,6 +20,23 @@ const contactPoints = process.env.CASSANDRA_CONTACT_POINTS
   ? JSON.parse(process.env.CASSANDRA_CONTACT_POINTS)
   : ['localhost:9042'];
 
+export const newSession = async () => {
+  let lastSessionHeight = 0;
+  let lastSessionHash = '';
+
+  try {
+    const maybeLastSession = cassandraClient.execute(
+      `SELECT height FROM gateway.sync_status limit 1`
+    );
+  } catch (error) {
+    console.error('ERROR LOOK:', error);
+  }
+  process.exit(1);
+  await cassandraClient.execute(
+    'INSERT INTO gateway.sync_status IF NOT EXISTS ()'
+  );
+};
+
 export const cassandraClient = new cassandra.Client({
   contactPoints,
   localDataCenter: 'datacenter1',
@@ -26,13 +46,20 @@ export const cassandraClient = new cassandra.Client({
   },
 });
 
-const poaKeys = ['option', 'tx_path', 'data_path', 'chunk', 'block_height'];
+const poaKeys = [
+  'option',
+  'tx_path',
+  'data_path',
+  'chunk',
+  'block_hash',
+  'block_height',
+];
 
-const importStatusKeys = ['last_block_height', 'session_uuid'];
+const syncStatusKeys = ['last_block_hash', 'last_block_height', 'session_uuid'];
 
 // const blockStatusKeys = ['block_height', 'synced'];
 
-const txTagKeys = ['tx_id', 'index', 'name', 'value'];
+const txTagKeys = ['tx_id', 'tag_index', 'name', 'value'];
 
 const transactionKeys = [
   'data',
@@ -71,6 +98,18 @@ const blockKeys = [
   'weave_size',
 ];
 
+const transformPoaKeys = (key: string, obj: any) => {
+  const poa = obj['poa'] && typeof obj['poa'] === 'object' ? obj['poa'] : {};
+  const poaObj = {};
+  poaObj[poa['option'] || ''];
+  poaObj[poa['tx_path'] || ''];
+  poaObj[poa['data_path'] || ''];
+  poaObj[poa['chunk'] || ''];
+  poaObj[poa['block_hash'] || ''];
+  poaObj[poa['block_height'] || ''];
+  return poaObj;
+};
+
 // note for optimization reasons
 // we may store the data differently than we serve it (eg. bigint->string)
 const transformBlockKey = (key: string, obj: any) => {
@@ -93,21 +132,7 @@ const transformBlockKey = (key: string, obj: any) => {
       });
       return tagSet;
     }
-    case 'poa': {
-      const poa = obj[key] && typeof obj[key] === 'object' ? obj[key] : {};
-      const tuple = []; // new Map();
-      tuple.push(poa['option'] || '');
-      tuple.push(poa['tx_path'] || '');
-      tuple.push(poa['data_path'] || '');
-      tuple.push(poa['chunk'] || '');
 
-      return new (cassandra as any).types.Tuple(
-        tuple[0],
-        tuple[1],
-        tuple[2],
-        tuple[3]
-      );
-    }
     case 'block_size':
     case 'diff':
     case 'height':
@@ -145,6 +170,14 @@ const transformBlockKey = (key: string, obj: any) => {
   }
 };
 
+const poaInsertQuery = `INSERT INTO gateway.poa (${poaKeys.join(
+  ', '
+)}) VALUES (${poaKeys.map(() => '?').join(', ')})`;
+
+const syncStatusInsertQuery = `INSERT INTO gateway.poa (${syncStatusKeys.join(
+  ', '
+)}) VALUES (${syncStatusKeys.map(() => '?').join(', ')})`;
+
 const blockInsertQuery = `INSERT INTO gateway.block (${blockKeys.join(
   ', '
 )}) VALUES (${blockKeys.map(() => '?').join(', ')})`;
@@ -158,14 +191,21 @@ const blockStatusUpdateQuery = `
 export const makeBlockImportQuery = (input: any) =>
   cassandraClient.batch(
     [
+      {
+        query: poaInsertQuery,
+        params: transformPoaKeys(input.poa),
+      },
       { query: blockStatusUpdateQuery, params: [toLong(input.height)] },
       {
         query: blockInsertQuery,
-        params: blockKeys.reduce((paramz: Array<any>, key: string) => {
-          paramz.push(transformBlockKey(key, input));
-          // console.log(input, transformBlockKey(key, input));
-          return paramz;
-        }, []),
+        params: R.dissoc(blockKeys, 'poa').reduce(
+          (paramz: Array<any>, key: string) => {
+            paramz.push(transformBlockKey(key, input));
+            // console.log(input, transformBlockKey(key, input));
+            return paramz;
+          },
+          []
+        ),
       },
     ],
     { prepare: true }

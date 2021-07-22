@@ -22,19 +22,24 @@ client
          option text,
          tx_path text,
          data_path text,
-         chunk text
+         chunk text,
+         block_hash text,
          block_height bigint,
-         PRIMARY KEY (block_height)
+         PRIMARY KEY (block_hash)
       )`,
-      `CREATE TABLE IF NOT EXISTS import_status (
+      // because iterating all the rows is expensive
+      `CREATE TABLE IF NOT EXISTS sync_status (
+         last_block_hash text,
          last_block_height bigint,
          session_uuid timeuuid,
          PRIMARY KEY (session_uuid)
        )`,
+      // because iterating all the rows is expensive
       `CREATE TABLE IF NOT EXISTS block_status (
-         block_height bigint
+         block_hash text,
+         block_height bigint,
          synced boolean,
-         PRIMARY KEY (block_height)
+         PRIMARY KEY (block_hash)
        )`,
       `CREATE TABLE IF NOT EXISTS block (
          block_size bigint,
@@ -56,14 +61,17 @@ client
          txs frozen<list<text>>,
          wallet_list text,
          weave_size bigint,
-         PRIMARY KEY (height)
+         PRIMARY KEY (hash)
        )`,
-      `CREATE TABLE IF NOT EXIST tx_tag (
+      // optimize for search
+      // tag id is tx_id + tag_index
+      `CREATE TABLE IF NOT EXISTS tx_tag (
+         tag_id text,
+         tag_index int,
          tx_id text,
-         index int,
          name text,
          value text,
-         PRIMARY KEY (tx_id, index)
+         PRIMARY KEY (tag_id)
       )`,
       `CREATE TABLE IF NOT EXISTS transaction (
         data text,

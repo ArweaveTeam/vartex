@@ -98,15 +98,24 @@ const blockKeys = [
   'weave_size',
 ];
 
-const transformPoaKeys = (key: string, obj: any) => {
+interface Poa {
+  option: string;
+  tx_path: string;
+  data_path: string;
+  chunk: string;
+  block_hash: string;
+  block_height: string;
+}
+
+const transformPoaKeys = (obj: any): Poa => {
   const poa = obj['poa'] && typeof obj['poa'] === 'object' ? obj['poa'] : {};
-  const poaObj = {};
-  poaObj[poa['option'] || ''];
-  poaObj[poa['tx_path'] || ''];
-  poaObj[poa['data_path'] || ''];
-  poaObj[poa['chunk'] || ''];
-  poaObj[poa['block_hash'] || ''];
-  poaObj[poa['block_height'] || ''];
+  const poaObj = {} as Poa;
+  poaObj['option'] = poa['option'] || '';
+  poaObj['tx_path'] = poa['tx_path'] || '';
+  poaObj['data_path'] = poa['data_path'] || '';
+  poaObj['chunk'] = poa['chunk'] || '';
+  poaObj['block_hash'] = poa['block_hash'] || '';
+  poaObj['block_height'] = poa['block_height'] || '';
   return poaObj;
 };
 
@@ -198,14 +207,11 @@ export const makeBlockImportQuery = (input: any) =>
       { query: blockStatusUpdateQuery, params: [toLong(input.height)] },
       {
         query: blockInsertQuery,
-        params: R.dissoc(blockKeys, 'poa').reduce(
-          (paramz: Array<any>, key: string) => {
-            paramz.push(transformBlockKey(key, input));
-            // console.log(input, transformBlockKey(key, input));
-            return paramz;
-          },
-          []
-        ),
+        params: blockKeys.reduce((paramz: Array<any>, key: string) => {
+          paramz.push(transformBlockKey(key, input));
+          // console.log(input, transformBlockKey(key, input));
+          return paramz;
+        }, []),
       },
     ],
     { prepare: true }

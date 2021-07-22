@@ -120,7 +120,7 @@ export function getHashList({ retry = 0 }): Promise<string[] | void> {
       warmNode(tryNode);
       return fs
         .writeFile('cache/hash_list.json', JSON.stringify(body, undefined, 2))
-        .then(() => body);
+        .then(() => body as string[]);
     })
     .catch(() => {
       coolNode(tryNode);

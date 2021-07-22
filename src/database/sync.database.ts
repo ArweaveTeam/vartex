@@ -1,4 +1,5 @@
 import ProgressBar from 'progress';
+import * as R from 'rambda';
 import Fluture from 'fluture';
 import * as F from 'fluture';
 import { DataItemJson } from 'arweave-bundles';
@@ -21,7 +22,7 @@ import { mkdir } from '../utility/file.utility';
 import { sleep } from '../utility/sleep.utility';
 import { TestSuite } from '../utility/mocha.utility';
 import { getHashList, getNodeInfo } from '../query/node.query';
-import { getBlock } from '../query/block.query';
+import { getBlock as queryGetBlock } from '../query/block.query';
 import { transaction, tagValue, Tag } from '../query/transaction.query';
 import { getDataFromChunks } from '../query/node.query';
 import {
@@ -68,17 +69,17 @@ const createQueue = (queueSource: any, queueState: QueueState) => (): void => {
   // 5 is arbitrary but low enough to prevent "Batch too large" errors
   const items: any = Object.keys(queueSource as any);
   if (items.length > 0) {
+    // name could be misleading as this can be a batch of db-batches
+    const batch = items
+      .sort()
+      .slice(0, 5)
+      .map((item: any) => {
+        cassandraClient.execute(item);
+      });
     queueState.isProcessing = true;
-    Promise.all(
-      items
-        .sort()
-        .slice(0, 5)
-        .map((item) => {
-          cassandraClient.execute(item);
-        })
-    )
+    Promise.all(batch)
       .then(function () {
-        items.forEach((i: number) => {
+        batch.forEach((i: number) => {
           delete (blockQueue as any)[i];
         });
         queueState.isProcessing = false;
@@ -99,13 +100,13 @@ function startQueueProcessors() {
     blockQueueState.isStarted = true;
     setInterval(processBlockQueue, 10);
   }
-  if (!processTxQueue.isStarted) {
-    processTxQueue.isStarted = true;
+  if (!txQueueState.isStarted) {
+    txQueueState.isStarted = true;
     setInterval(processTxQueue, 10);
   }
   if (!tagsQueueState.isStarted) {
     tagsQueueState.isStarted = true;
-    setInterval(tagsQueueState, 10);
+    setInterval(processTagsQueue, 10);
   }
 }
 
@@ -119,13 +120,13 @@ export function configureSyncBar(start: number, end: number) {
 
 async function startPolling(): Promise<void> {
   const nodeInfo = await getNodeInfo({ fullySynced: true });
-  if (nodeInfo.current === currentHash) {
+  if (!nodeInfo || nodeInfo.current === currentHash) {
     // wait 5 seconds before polling again
     await new Promise((res) => setTimeout(res, 5 * 1000));
     return startPolling();
   } else if (nodeInfo) {
     // TODO fork recovery
-    const newBlock = await getBlock({
+    const newBlock = await queryGetBlock({
       height: nodeInfo.height,
       hash: nodeInfo.current,
     });
@@ -142,7 +143,10 @@ async function startPolling(): Promise<void> {
   }
 }
 
-async function prepareBlockStatuses(unsyncedBlocks, hashList) {
+async function prepareBlockStatuses(
+  unsyncedBlocks: number[],
+  hashList: string[]
+) {
   for (const blockHeight of unsyncedBlocks) {
     await cassandraClient.execute(
       `INSERT INTO gateway.block_status IF NOT EXISTS (block_hash, block_height, synced) (?, ?, ?)`,
@@ -153,7 +157,7 @@ async function prepareBlockStatuses(unsyncedBlocks, hashList) {
 }
 
 export function startSync() {
-  startQueueProcessor();
+  startQueueProcessors();
   getMaxHeightBlock().then((currentDbMax: CassandraTypes.Long) => {
     const startHeight = currentDbMax.add(1);
     log.info(`[database] starting sync`);
@@ -164,7 +168,10 @@ export function startSync() {
         topHeight = hashList.length;
         configureSyncBar(startHeight.toInt(), hashList.length);
         if (startHeight.lessThan(hashList.length)) {
-          unsyncedBlocks = R.range(startHeight.toInt(), topHeight);
+          const unsyncedBlocks: number[] = R.range(
+            startHeight.toInt(),
+            topHeight
+          );
           prepareBlockStatuses(unsyncedBlocks, hashList).then(() => {
             // bar.tick();
 
@@ -216,7 +223,7 @@ export function storeBlock(height: number, hashList: string[]): Promise<void> {
       let isCancelled = false;
       function getBlock(retry = 0) {
         !isCancelled &&
-          getBlock({ hash: hashList[height - 1], height })
+          queryGetBlock({ hash: hashList[height - 1], height })
             .then((currentBlock) => {
               if (currentBlock) {
                 currentHeight = Math.max(currentHeight, currentBlock.height);

@@ -11,11 +11,6 @@ import {
   serializeAnsTransaction,
   serializeTags,
 } from '../utility/serialize.utility';
-// import {
-//   streams,
-//   initStreams,
-//   resetCacheStreams,
-// } from '../utility/csv.utility';
 import { log } from '../utility/log.utility';
 import { ansBundles } from '../utility/ans.utility';
 import { mkdir } from '../utility/file.utility';
@@ -29,6 +24,7 @@ import {
   cassandraClient,
   getMaxHeightBlock,
   makeBlockImportQuery,
+  toLong,
 } from './cassandra.database';
 import {
   importBlocks,
@@ -147,11 +143,13 @@ async function prepareBlockStatuses(
   unsyncedBlocks: number[],
   hashList: string[]
 ) {
+  log.info(
+    `[database] intitializing placeholder fields for blocks in cassandra...`
+  );
   for (const blockHeight of unsyncedBlocks) {
     await cassandraClient.execute(
-      `INSERT INTO gateway.block_status IF NOT EXISTS (block_hash, block_height, synced) (?, ?, ?)`,
-      [hashList[blockHeight + 1], blockHeight, false],
-      { prepare: true }
+      `INSERT INTO gateway.block_status (block_hash, block_height, synced) VALUES (?, ?, ?) IF NOT EXISTS`,
+      [hashList[blockHeight + 1], toLong(blockHeight), false]
     );
   }
 }
@@ -179,10 +177,8 @@ export function startSync() {
               console.error('Fatal', reason || '');
               process.exit(1);
             })(() => {
-              console.log(
-                'Database fully in sync at block height',
-                currentHeight,
-                'starting polling...'
+              log.info(
+                `Database fully in sync with block_list height ${currentHeight}`
               );
               startPolling();
             })(

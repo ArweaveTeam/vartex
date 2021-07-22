@@ -9,7 +9,7 @@ const currentSessionId = CassandraTypes.TimeUuid.now();
 
 const isNumeric = (s: any) => !(isNaN as any)(s);
 
-const toLong = (anyValue: any): CassandraTypes.Long =>
+export const toLong = (anyValue: any): CassandraTypes.Long =>
   !anyValue
     ? (cassandra as any).types.Long.fromNumber(0)
     : anyValue === 'string'

@@ -1,8 +1,10 @@
+import { existsSync } from 'fs';
 import fs from 'fs/promises';
 import * as R from 'rambda';
 import { config } from 'dotenv';
 import { get } from 'superagent';
 import rwc from 'random-weighted-choice';
+import { log } from '../utility/log.utility';
 import { getTransactionOffset, getChunk } from './chunk.query';
 
 config();
@@ -110,31 +112,43 @@ export function getNodeInfo({
 }
 
 export function getHashList({ retry = 0 }): Promise<string[] | void> {
-  const tryNode = grabNode();
+  const hashListCachePath = 'cache/hash_list.json';
+  const cacheExists = existsSync(hashListCachePath);
 
-  return get(`${tryNode}/hash_list`)
-    .then((payload) => {
-      // TODO: when it hits 100mb+ look into streaming solutions
-      // https://github.com/uhop/stream-json
-      const body = R.reverse(JSON.parse(payload.text));
-      warmNode(tryNode);
-      return fs
-        .writeFile('cache/hash_list.json', JSON.stringify(body, undefined, 2))
-        .then(() => body as string[]);
-    })
-    .catch(() => {
-      coolNode(tryNode);
-      return new Promise((res) => setTimeout(res, 10 + 2 * retry)).then(() => {
-        if (retry < 100) {
-          return getHashList({ retry: retry + 1 });
-        } else {
-          console.error(
-            'Failed to establish connection to any specified node after 100 retries'
-          );
-          process.exit(1);
-        }
-      });
+  if (cacheExists) {
+    log.info(`[database] using hash_list from cache`);
+    return fs.readFile(hashListCachePath).then((hashListBuf) => {
+      return JSON.parse(hashListBuf.toString());
     });
+  } else {
+    const tryNode = grabNode();
+    log.info(`[database] fetching the hash_list, this may take a while...`);
+    return get(`${tryNode}/hash_list`)
+      .then((payload) => {
+        // TODO: when it hits 100mb+ look into streaming solutions
+        // https://github.com/uhop/stream-json
+        const body = R.reverse(JSON.parse(payload.text));
+        warmNode(tryNode);
+        return fs
+          .writeFile('cache/hash_list.json', JSON.stringify(body, undefined, 2))
+          .then(() => body as string[]);
+      })
+      .catch(() => {
+        coolNode(tryNode);
+        return new Promise((res) => setTimeout(res, 10 + 2 * retry)).then(
+          () => {
+            if (retry < 100) {
+              return getHashList({ retry: retry + 1 });
+            } else {
+              console.error(
+                'Failed to establish connection to any specified node after 100 retries'
+              );
+              process.exit(1);
+            }
+          }
+        );
+      });
+  }
 }
 
 export async function getData(id: string): Promise<any> {

@@ -6648,6 +6648,11 @@ queue-microtask@^1.2.2:
   resolved "https://registry.yarnpkg.com/queue-microtask/-/queue-microtask-1.2.3.tgz#4929228bbc724dfac43e0efb058caf7b6cfb6243"
   integrity sha512-NuaNSa6flKT5JaSYQzJok04JzTL1CA6aGhv5rfLW3PgqA+M2ChpZQnAC8h8i4ZFkBS8X5RqkDBHA7r4hej3K9A==
 
+rambda@^6.8.2:
+  version "6.8.2"
+  resolved "https://registry.yarnpkg.com/rambda/-/rambda-6.8.2.tgz#77c54b8fea19b8d1c93b1244028569ca9a3c1779"
+  integrity sha512-fIVr6nuqfHfJTguthGsWF930DkNq/ENraeSpYBj1kYvO/ieacux7rj2NW27JwwFrllFJwXkLpGyFMz99EwCJ3Q==
+
 random-bytes@~1.0.0:
   version "1.0.0"
   resolved "https://registry.yarnpkg.com/random-bytes/-/random-bytes-1.0.0.tgz#4f68a1dc0ae58bd3fb95848c30324db75d64360b"

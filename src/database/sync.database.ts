@@ -46,6 +46,7 @@ export let SIGKILL: boolean = false;
 export let bar: ProgressBar;
 export let topHeight = 0;
 export let currentHeight = 0;
+export let unsyncedBlocks = [];
 export let timer = setTimeout(() => {}, 0);
 
 let queueIsProcessing = false;
@@ -104,8 +105,19 @@ async function startPolling(): Promise<void> {
   }
 }
 
+async function prepareBlockStatuses(unsyncedBlocks) {
+  for (const blockHeight of unsyncedBlocks) {
+    await cassandraClient.execute(
+      `INSERT INTO gateway.block IF NOT EXISTS (block_height, synced) (?, ?)`,
+      [blockHeight, false],
+      { prepare: true }
+    );
+  }
+}
+
 export function startSync() {
-  getMaxHeightBlock().then((startHeight: CassandraTypes.Long) => {
+  getMaxHeightBlock().then((currentDbMax: CassandraTypes.Long) => {
+    const startHeight = currentDbMax.add(1);
     log.info(`[database] starting sync`);
     signalHook();
 
@@ -114,34 +126,32 @@ export function startSync() {
         configureSyncBar(startHeight.toInt(), nodeInfo.height);
         if (startHeight.lessThan(nodeInfo.height)) {
           topHeight = nodeInfo.height;
-          bar.tick();
+          unsyncedBlocks = R.range(startHeight.toInt(), topHeight + 1);
+          prepareBlockStatuses.then(() => {
+            bar.tick();
 
-          F.fork((reason: string | void) => {
-            console.error('Fatal', reason || '');
-            process.exit(1);
-          })(() => {
-            console.log(
-              'Database fully in sync at block height',
-              currentHeight,
-              'starting polling...'
+            F.fork((reason: string | void) => {
+              console.error('Fatal', reason || '');
+              process.exit(1);
+            })(() => {
+              console.log(
+                'Database fully in sync at block height',
+                currentHeight,
+                'starting polling...'
+              );
+              startPolling();
+            })(
+              F.parallel(
+                (isNaN as any)(process.env['PARALLEL'])
+                  ? 36
+                  : parseInt(process.env['PARALLEL'] || '36')
+              )(
+                unsyncedBlocks.map((h) => {
+                  return storeBlock(startHeight, bar);
+                })
+              )
             );
-            startPolling();
-          })(
-            F.parallel(
-              (isNaN as any)(process.env['PARALLEL'])
-                ? 36
-                : parseInt(process.env['PARALLEL'] || '36')
-            )(
-              Array.from(
-                // Array(100).keys()
-                Array(
-                  Math.abs(nodeInfo.height) - Math.abs(startHeight.toInt())
-                ).keys()
-              ).map((h) => {
-                return storeBlock(startHeight.add(h).toInt(), bar);
-              })
-            )
-          );
+          });
         } else {
           console.log(
             'database was found to be in sync, starting to poll for new blocks...'
@@ -175,18 +185,26 @@ export function storeBlock(height: number, bar: ProgressBar): Promise<void> {
                 // initStreams();
 
                 currentHeight = Math.max(currentHeight, currentBlock.height);
-                (blockQueue as any)[
+                const thisBlockHeight =
                   typeof currentBlock.height === 'string'
                     ? parseInt(currentBlock.height)
-                    : currentBlock.height || 0
-                ] = makeBlockImportQuery(currentBlock);
+                    : currentBlock.height || 0;
+                (blockQueue as any)[thisBlockHeight] = makeBlockImportQuery(
+                  currentBlock
+                );
                 // streams.block.cache.write(input);
                 // storeTransaction(
                 //   JSON.parse(formattedBlock.txs) as Array<string>,
                 //   height
                 // );
-                if (Object.keys(blockQueue as any).length >= 1) {
-                  processQueue(1);
+                log.info(
+                  `Sending block height ${thisBlockHeight} to the queue (${
+                    Object.keys(blockQueue as any).length
+                  }/5)`
+                );
+                // 5 is arbitrary but low enough to prevent "Batch too large" errors
+                if (Object.keys(blockQueue as any).length >= 5) {
+                  processQueue(5);
                 }
                 bar.tick();
                 resolve();
@@ -213,6 +231,7 @@ export function storeBlock(height: number, bar: ProgressBar): Promise<void> {
               }
             });
       }
+      console.log('fetching', height);
       getBlock();
       return () => {
         isCancelled = true;

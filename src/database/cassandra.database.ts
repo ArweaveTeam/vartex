@@ -6,6 +6,13 @@ config();
 
 const isNumeric = (s: any) => !(isNaN as any)(s);
 
+const toLong = (anyValue: any): CassandraTypes.Long =>
+  !anyValue
+    ? (cassandra as any).types.Long.fromNumber(0)
+    : anyValue === 'string'
+    ? (cassandra as any).types.Long.fromString(anyValue)
+    : (cassandra as any).types.Long.fromNumber(anyValue);
+
 const contactPoints = process.env.CASSANDRA_CONTACT_POINTS
   ? JSON.parse(process.env.CASSANDRA_CONTACT_POINTS)
   : ['localhost:9042'];
@@ -19,6 +26,28 @@ export const cassandraClient = new cassandra.Client({
   },
 });
 
+const poaKeys = ['option', 'tx_path', 'data_path', 'chunk', 'block_height'];
+
+const importStatusKeys = ['last_block_height', 'session_uuid'];
+
+// const blockStatusKeys = ['block_height', 'synced'];
+
+const txTagKeys = ['tx_id', 'index', 'name', 'value'];
+
+const transactionKeys = [
+  'data',
+  'data_root',
+  'data_tree',
+  'format',
+  'id',
+  'last_tx',
+  'owner',
+  'quantity',
+  'reward',
+  'signature',
+  'tag_count',
+];
+
 const blockKeys = [
   'block_size',
   'cumulative_diff',
@@ -29,7 +58,7 @@ const blockKeys = [
   'indep_hash',
   'last_retarget',
   'nonce',
-  'poa',
+  // 'poa',
   'previous_block',
   'reward_addr',
   'reward_pool',
@@ -116,18 +145,31 @@ const transformBlockKey = (key: string, obj: any) => {
   }
 };
 
-const blockImportQuery = `INSERT INTO gateway.block (${blockKeys.join(
+const blockInsertQuery = `INSERT INTO gateway.block (${blockKeys.join(
   ', '
 )}) VALUES (${blockKeys.map(() => '?').join(', ')})`;
 
-export const makeBlockImportQuery = (input: any) => ({
-  query: blockImportQuery,
-  params: blockKeys.reduce((paramz: Array<any>, key: string) => {
-    paramz.push(transformBlockKey(key, input));
-    // console.log(input, transformBlockKey(key, input));
-    return paramz;
-  }, []),
-});
+const blockStatusUpdateQuery = `
+  UPDATE gateway.block_status
+  SET synced = true
+  WHERE block_height = ?`;
+
+// these updates and inserts need to be atomic
+export const makeBlockImportQuery = (input: any) =>
+  cassandraClient.batch(
+    [
+      { query: blockStatusUpdateQuery, params: [toLong(input.height)] },
+      {
+        query: blockInsertQuery,
+        params: blockKeys.reduce((paramz: Array<any>, key: string) => {
+          paramz.push(transformBlockKey(key, input));
+          // console.log(input, transformBlockKey(key, input));
+          return paramz;
+        }, []),
+      },
+    ],
+    { prepare: true }
+  );
 
 // unsafe and slow!
 export const getMaxHeightBlock = async (): Promise<CassandraTypes.Long> => {
@@ -136,6 +178,6 @@ export const getMaxHeightBlock = async (): Promise<CassandraTypes.Long> => {
   );
   return (
     response.rows[0]['system.max(height)'] ||
-    (cassandra as any).types.Long.fromNumber(0)
+    (cassandra as any).types.Long.fromNumber(-1)
   );
 };

@@ -147,11 +147,20 @@ async function prepareBlockStatuses(
     `[database] intitializing placeholder fields for blocks in cassandra...`
   );
   for (const blockHeight of unsyncedBlocks) {
+    // only show progress on first run
+    if (
+      unsyncedBlocks.length > 0 &&
+      unsyncedBlocks[0] === 0 &&
+      blockHeight % 1000 === 0
+    ) {
+      console.log(`${blockHeight} / ${unsyncedBlocks.length}`);
+    }
     await cassandraClient.execute(
       `INSERT INTO gateway.block_status (block_hash, block_height, synced) VALUES (?, ?, ?) IF NOT EXISTS`,
       [hashList[blockHeight + 1], toLong(blockHeight), false]
     );
   }
+  log.info(`[database] done intitializing`);
 }
 
 export function startSync() {

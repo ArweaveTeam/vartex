@@ -205,7 +205,7 @@ const blockStatusUpdateQuery = `
   WHERE block_height = ?`;
 
 const syncStatusUpdateQuery = `
-  UPDATE gateway.block_status
+  UPDATE gateway.sync_status
   SET last_block_hash = ?
   SET last_block_height = ?
   WHERE session_uuid = ?

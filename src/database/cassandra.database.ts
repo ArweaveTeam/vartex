@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import * as cassandra from 'cassandra-driver';
 import * as R from 'rambda';
 import { types as CassandraTypes } from 'cassandra-driver';
@@ -6,6 +7,7 @@ import { config } from 'dotenv';
 config();
 
 const currentSessionId = CassandraTypes.TimeUuid.now();
+const currentSessionRandomId = crypto.randomBytes(16);
 
 const isNumeric = (s: any) => !(isNaN as any)(s);
 
@@ -28,25 +30,32 @@ export const newSession = async (): Promise<[string, number]> => {
 
   try {
     const maybeLastSession = await cassandraClient.execute(
-      `SELECT height FROM gateway.sync_status limit 1`
+      `SELECT last_block_height,last_block_hash FROM gateway.sync_status limit 1`
     );
-    lastSessionHeight = maybeLastSession?.rows[0]['last_block_height'];
-    lastSessionHash = maybeLastSession?.rows[0]['last_block_hash'];
+    const tuple = maybeLastSession.rows[0];
+    if (tuple) {
+      lastSessionHash = tuple.last_block_hash;
+      lastSessionHeight = tuple.last_block_height.toInt();
+    }
   } catch (error) {
     if (!error.toString().includes('Undefined column name height')) {
       process.exit(1);
     }
   }
 
-  await cassandraClient.execute(
-    'INSERT INTO gateway.sync_status (last_block, session_uuid)' +
-      'VALUES (?, ?) IF NOT EXISTS',
-    [
-      new CassandraTypes.Tuple(lastSessionHash, toLong(lastSessionHeight)),
-      currentSessionId,
-    ],
-    { prepare: true }
-  );
+  if (lastSessionHash) {
+    await cassandraClient.execute(
+      'INSERT INTO gateway.sync_status (last_block_height,last_block_hash,session_uuid,random_uuid)' +
+        'VALUES (?, ?, ?, ?) IF NOT EXISTS',
+      [
+        toLong(lastSessionHeight),
+        lastSessionHash,
+        currentSessionId,
+        currentSessionRandomId,
+      ],
+      { prepare: true }
+    );
+  }
   return [lastSessionHash, lastSessionHeight];
 };
 
@@ -56,6 +65,11 @@ export const cassandraClient = new cassandra.Client({
   encoding: {
     map: Map,
     set: Set,
+  },
+  protocolOptions: {
+    maxSchemaAgreementWaitSeconds: process.env['DB_TIMEOUT']
+      ? parseInt(process.env['DB_TIMEOUT'])
+      : 30,
   },
 });
 
@@ -203,17 +217,16 @@ const blockInsertQuery = (nonNilBlockKeys: string[]) =>
 const blockStatusUpdateQuery = `
   UPDATE gateway.block_status
   SET synced = true
-  WHERE block_hash = ?`;
+  WHERE block_height = ? and block_hash = ?`;
 
 // Note the last synced block isn't
 // nececcarily the latest one, than
 // always needs verification on init
 const syncStatusUpdateQuery = `
   UPDATE gateway.sync_status
-  SET last_block = ?
-  WHERE session_uuid = ?`;
+  SET last_block_height = ?, last_block_hash = ?
+  WHERE session_uuid = ? and random_uuid = ?`;
 
-// these updates and inserts need to be atomic
 export const makeBlockImportQuery = (input: any) => () => {
   const nonNilBlockKeys: string[] = [];
   const blockInsertParams = blockKeys.reduce(
@@ -228,25 +241,32 @@ export const makeBlockImportQuery = (input: any) => () => {
     },
     []
   );
-  const batch = [
-    {
-      query: poaInsertQuery,
-      params: transformPoaKeys(input),
-    },
-    { query: blockStatusUpdateQuery, params: [input.hash] },
-    {
-      query: blockInsertQuery(nonNilBlockKeys),
-      params: blockInsertParams,
-    },
-    {
-      query: syncStatusUpdateQuery,
-      params: [
-        new CassandraTypes.Tuple(input.hash, toLong(input.height)),
+
+  return [
+    cassandraClient.execute(poaInsertQuery, transformPoaKeys(input), {
+      prepare: true,
+    }),
+    cassandraClient.execute(
+      blockStatusUpdateQuery,
+      [input.height, input.indep_hash],
+      { prepare: true }
+    ),
+    cassandraClient.execute(
+      blockInsertQuery(nonNilBlockKeys),
+      blockInsertParams,
+      { prepare: true }
+    ),
+    cassandraClient.execute(
+      syncStatusUpdateQuery,
+      [
+        toLong(input.height),
+        input.indep_hash,
         currentSessionId,
+        currentSessionRandomId,
       ],
-    },
+      { prepare: true }
+    ),
   ];
-  return cassandraClient.batch(batch, { prepare: true });
 };
 
 // unsafe and slow!
@@ -265,13 +285,9 @@ export const getPlaceholderCount = async (): Promise<CassandraTypes.Long> => {
   let cnt = (cassandra as any).types.Long.fromNumber(0);
   try {
     const response = await cassandraClient.execute(
-      `SELECT * FROM gateway.block_status limit 100;`
+      `SELECT * FROM gateway.block_status limit 1;`
     );
-    for (const resp of response.rows) {
-      if (resp.block_height.gt(cnt)) {
-        cnt = resp.block_height;
-      }
-    }
+    cnt = response.rows[0].block_height;
   } catch (error) {}
 
   return cnt;

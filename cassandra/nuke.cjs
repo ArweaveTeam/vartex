@@ -21,7 +21,7 @@ client
        WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1' }`,
       'USE gateway',
       `DROP TABLE IF EXISTS poa`,
-      `DROP TABLE IF EXISTS import_status`,
+      `DROP TABLE IF EXISTS sync_status`,
       `DROP TABLE IF EXISTS block_status`,
       `DROP TABLE IF EXISTS block`,
       `DROP TABLE IF EXISTS tx_tag`,

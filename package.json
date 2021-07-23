@@ -40,6 +40,7 @@
     "gauge": "^3.0.0",
     "graphql": "^15.5.1",
     "graphql-fields": "^2.0.3",
+    "graphql-playground-html": "^1.6.29",
     "js-sha256": "^0.9.0",
     "koi-logs": "https://github.com/koii-network/logs",
     "lodash": "^4.17.21",

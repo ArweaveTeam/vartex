@@ -54,6 +54,21 @@ interface QueueState {
   isStarted: boolean;
 }
 
+const developmentSyncStart: number | undefined = R.isEmpty(
+  process.env['DEVELOPMENT_SYNC_START']
+)
+  ? undefined
+  : parseInt(process.env['DEVELOPMENT_SYNC_START'] as string);
+const developmentSyncEnd: number | undefined = R.isEmpty(
+  process.env['DEVELOPMENT_SYNC_END']
+)
+  ? undefined
+  : parseInt(process.env['DEVELOPMENT_SYNC_END'] as string);
+
+if (developmentSyncStart == NaN || developmentSyncEnd === NaN) {
+  console.error('Development sync range variables produced, illegal value NaN');
+}
+
 let isQueueProcessorStarted = false;
 const blockQueue: { [v: number]: any } = {};
 const txQueue: { [v: number]: any } = {};
@@ -67,24 +82,19 @@ const createQueue = (
   queueState: QueueState
 ) => (): void => {
   if (queueState.isProcessing) return;
-  // 5 is arbitrary but low enough to prevent "Batch too large" errors
+
   const items: number[] = R.keys(queueSource);
   if (items.length > 0) {
     // name could be misleading as this can be a batch of db-batches
-    const batch: number[] = items.sort().slice(0, 5);
+    const batchPrio: number = items.sort()[0];
     queueState.isProcessing = true;
-    Promise.all(
-      batch.map((item) => {
-        return blockQueue[item]();
-      })
-    )
+    const batch = blockQueue[batchPrio]();
+    (Array.isArray(batch) ? Promise.all(batch) : batch)
       .then(function (ret: any) {
-        batch.forEach((i: number) => {
-          delete (blockQueue as any)[i];
-        });
+        delete (blockQueue as any)[batchPrio];
         queueState.isProcessing = false;
       })
-      .catch(function (err) {
+      .catch(function (err: any) {
         console.error('FATAL', err);
         process.exit(1);
       });
@@ -109,14 +119,6 @@ function startQueueProcessors() {
     setInterval(processTagsQueue, 10);
   }
 }
-
-// export function configureSyncBar(start: number, end: number) {
-//   bar = new ProgressBar(':current/:total blocks synced :percent', {
-//     curr: start,
-//     total: end,
-//   });
-//   bar.curr = start;
-// }
 
 async function startPolling(): Promise<void> {
   const nodeInfo = await getNodeInfo({ fullySynced: true });
@@ -150,20 +152,26 @@ async function prepareBlockStatuses(
   log.info(
     `[database] intitializing placeholder fields for blocks in cassandra...`
   );
+
+  const gauge = new Gauge(process.stderr, {
+    template: [
+      { type: 'progressbar', length: 0 },
+      { type: 'activityIndicator', kerning: 1, length: 2 },
+      { type: 'section', kerning: 1, default: '' },
+      { type: 'subsection', kerning: 1, default: '' },
+    ],
+  });
+  gauge.setTheme(trackerTheme);
+  gauge.enable();
   for (const blockHeight of unsyncedBlocks) {
-    // only show progress on first run
-    if (
-      unsyncedBlocks.length > 0 &&
-      unsyncedBlocks[0] === 0 &&
-      blockHeight % 1000 === 0
-    ) {
-      console.log(`${blockHeight} / ${unsyncedBlocks.length}`);
-    }
+    gauge.show(`${blockHeight}/${topHeight}`);
+
     await cassandraClient.execute(
-      `INSERT INTO gateway.block_status (block_hash, block_height, synced) VALUES (?, ?, ?) IF NOT EXISTS`,
-      [hashList[blockHeight], toLong(blockHeight), false]
+      `INSERT INTO gateway.block_status (block_height, block_hash, synced) VALUES (?, ?, ?) IF NOT EXISTS`,
+      [toLong(blockHeight), hashList[blockHeight], false]
     );
   }
+  gauge.disable();
   log.info(`[database] done intitializing`);
 }
 
@@ -183,15 +191,23 @@ export function startSync() {
         ],
       });
       gauge.setTheme(trackerTheme);
+      gauge.enable();
       getHashList({}).then((hashList) => {
         if (hashList) {
           topHeight = hashList.length;
-          // configureSyncBar(startHeight.toInt(), hashList.length);
           if (startHeight < hashList.length) {
-            const unsyncedBlocks: number[] = R.range(startHeight, topHeight);
+            const unsyncedBlocks: number[] = R.range(
+              developmentSyncStart ? developmentSyncStart : startHeight,
+              developmentSyncEnd ? developmentSyncEnd : topHeight
+            );
             getPlaceholderCount().then((currentCount) => {
               prepareBlockStatuses(
-                R.range(currentCount.toInt(), topHeight),
+                R.range(
+                  developmentSyncStart
+                    ? developmentSyncStart
+                    : currentCount.toInt(),
+                  developmentSyncEnd ? developmentSyncEnd : topHeight
+                ),
                 hashList
               ).then(() => {
                 F.fork((reason: string | void) => {
@@ -200,9 +216,11 @@ export function startSync() {
                 })(() => {
                   gauge.disable();
                   log.info(
-                    `Database fully in sync with block_list height ${currentHeight}`
+                    `Database fully in sync with block_list height ${
+                      developmentSyncEnd ? developmentSyncEnd : topHeight
+                    }`
                   );
-                  startPolling();
+                  // startPolling();
                 })(
                   F.parallel(
                     (isNaN as any)(process.env['PARALLEL'])
@@ -211,7 +229,8 @@ export function startSync() {
                   )(
                     R.slice(
                       0,
-                      topHeight - 50
+                      // topHeight - 50
+                      100
                     )(unsyncedBlocks).map((height) => {
                       // WIP: we store the last 50 in mute-able tables
                       return storeBlock(height, hashList, gauge);

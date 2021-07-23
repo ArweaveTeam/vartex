@@ -1,6 +1,10 @@
 import { get } from 'superagent';
 import { grabNode, warmNode, coolNode } from './node.query';
 
+const HTTP_TIMEOUT_SECONDS = process.env['HTTP_TIMEOUT_SECONDS']
+  ? parseInt(process.env['HTTP_TIMEOUT_SECONDS'])
+  : 15;
+
 export interface BlockType {
   nonce: string;
   previous_block: string;
@@ -46,6 +50,7 @@ export function getBlock({
     : `${tryNode}/block/height/${height}`;
   gauge && gauge.show(`${completed || ''} ${url}`);
   return get(url)
+    .timeout(HTTP_TIMEOUT_SECONDS * 1000)
     .then((payload) => {
       const body = JSON.parse(payload.text);
       if (hash && height !== body.height) {

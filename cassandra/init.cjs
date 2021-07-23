@@ -25,22 +25,27 @@ client
          chunk text,
          block_hash text,
          block_height bigint,
-         PRIMARY KEY (block_hash)
-      )`,
+         PRIMARY KEY (block_hash, block_height)
+      )
+      WITH CLUSTERING ORDER BY (block_height DESC)`,
       // because iterating all the rows is expensive
       // last_block = tuple :: hash | height
       `CREATE TABLE IF NOT EXISTS sync_status (
-         last_block tuple<text,bigint>,
+         last_block_height bigint,
+         last_block_hash text,
+         random_uuid uuid,
          session_uuid timeuuid,
-         PRIMARY KEY (session_uuid)
-       )`,
+         PRIMARY KEY (random_uuid,session_uuid)
+       )
+       WITH CLUSTERING ORDER BY (session_uuid DESC)`,
       // because iterating all the rows is expensive
       `CREATE TABLE IF NOT EXISTS block_status (
-         block_hash text,
          block_height bigint,
+         block_hash text,
          synced boolean,
-         PRIMARY KEY (block_hash)
-       )`,
+         PRIMARY KEY (block_hash, block_height)
+       )
+       WITH CLUSTERING ORDER BY (block_height DESC)`,
       `CREATE TABLE IF NOT EXISTS block (
          block_size bigint,
          cumulative_diff text,
@@ -61,18 +66,19 @@ client
          txs frozen<list<text>>,
          wallet_list text,
          weave_size bigint,
-         PRIMARY KEY (hash)
-       )`,
+         PRIMARY KEY (hash, height)
+       )
+       WITH CLUSTERING ORDER BY (height DESC)`,
       // optimize for search
       // tag id is tx_id + tag_index
       `CREATE TABLE IF NOT EXISTS tx_tag (
-         tag_id text,
          tag_index int,
          tx_id text,
          name text,
          value text,
-         PRIMARY KEY (tag_id)
-      )`,
+         PRIMARY KEY (tag_index, tx_id)
+      )
+      WITH CLUSTERING ORDER BY (tx_id DESC)`,
       `CREATE TABLE IF NOT EXISTS transaction (
         data text,
         data_root text,
@@ -85,15 +91,17 @@ client
         reward text,
         signature text,
         tag_count int,
-        PRIMARY KEY (id)
-      )`,
+        PRIMARY KEY (signature, id)
+      )
+      WITH CLUSTERING ORDER BY (id DESC)`,
       `CREATE TABLE IF NOT EXISTS manifest (
          manifest_url text,
          manifest_id text,
          tx_id text,
          path text,
          PRIMARY KEY(manifest_id, tx_id)
-       )`,
+       )
+       WITH CLUSTERING ORDER BY (tx_id DESC)`,
     ];
     let p = Promise.resolve();
     // Create the schema executing the queries serially

@@ -1,5 +1,6 @@
 import 'colors';
-import express, { Express } from 'express';
+import express, { Express, Request, Response } from 'express';
+import { renderPlaygroundPage } from 'graphql-playground-html';
 import { config } from 'dotenv';
 import cors from 'cors';
 import { jsonMiddleware } from './middleware/json.middleware';
@@ -56,6 +57,12 @@ export function start(): void {
         path: '/graphql',
       });
       startSync();
+    });
+    app.get('/graphql', (req: Request, res: Response) => {
+      res.setHeader('Content-Type', 'text/html');
+      const playground = renderPlaygroundPage({});
+      res.write(playground);
+      res.end();
     });
   });
 }

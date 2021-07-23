@@ -26,6 +26,13 @@ npm run start
 yarn start
 ```
 
+While developing you can specify a linear range of blocks you wish to sync by specifying
+
+```bash
+DEVELOPMENT_SYNC_START={{start point from 0 to lastBlock - 1}}
+DEVELOPMENT_SYNC_END={{start point from 1 to lastBlock}}
+```
+
 ## Endpoints
 
 You can test if the server and the GraphQL queries are working properly by navigating to.

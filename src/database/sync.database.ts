@@ -1,8 +1,8 @@
-import ProgressBar from 'progress';
 import * as R from 'rambda';
 import Fluture from 'fluture';
 import * as F from 'fluture';
 import { DataItemJson } from 'arweave-bundles';
+import { TrackerGroup } from 'are-we-there-yet';
 import { config } from 'dotenv';
 import { types as CassandraTypes } from 'cassandra-driver';
 import {
@@ -15,7 +15,6 @@ import { log } from '../utility/log.utility';
 import { ansBundles } from '../utility/ans.utility';
 import { mkdir } from '../utility/file.utility';
 import { sleep } from '../utility/sleep.utility';
-import { TestSuite } from '../utility/mocha.utility';
 import { getHashList, getNodeInfo } from '../query/node.query';
 import { getBlock as queryGetBlock } from '../query/block.query';
 import { transaction, tagValue, Tag } from '../query/transaction.query';
@@ -23,24 +22,20 @@ import { getDataFromChunks } from '../query/node.query';
 import {
   cassandraClient,
   getMaxHeightBlock,
+  getPlaceholderCount,
   makeBlockImportQuery,
   toLong,
 } from './cassandra.database';
-import {
-  importBlocks,
-  importTransactions,
-  importTags,
-} from './import.database';
 import { DatabaseTag } from './transaction.database';
 import { cacheANSEntries } from '../caching/ans.entry.caching';
 
 config();
 mkdir('cache');
-F.debugMode(true);
+
+const syncProgressTracker = new TrackerGroup('sync');
 
 export let SIGINT: boolean = false;
 export let SIGKILL: boolean = false;
-export let bar: ProgressBar;
 export let topHeight = 0;
 export let currentHash: string = '';
 export let currentHeight = 0;
@@ -106,13 +101,13 @@ function startQueueProcessors() {
   }
 }
 
-export function configureSyncBar(start: number, end: number) {
-  bar = new ProgressBar(':current/:total blocks synced :percent', {
-    curr: start,
-    total: end,
-  });
-  bar.curr = start;
-}
+// export function configureSyncBar(start: number, end: number) {
+//   bar = new ProgressBar(':current/:total blocks synced :percent', {
+//     curr: start,
+//     total: end,
+//   });
+//   bar.curr = start;
+// }
 
 async function startPolling(): Promise<void> {
   const nodeInfo = await getNodeInfo({ fullySynced: true });
@@ -157,7 +152,7 @@ async function prepareBlockStatuses(
     }
     await cassandraClient.execute(
       `INSERT INTO gateway.block_status (block_hash, block_height, synced) VALUES (?, ?, ?) IF NOT EXISTS`,
-      [hashList[blockHeight + 1], toLong(blockHeight), false]
+      [hashList[blockHeight], toLong(blockHeight), false]
     );
   }
   log.info(`[database] done intitializing`);
@@ -173,38 +168,47 @@ export function startSync() {
     getHashList({}).then((hashList) => {
       if (hashList) {
         topHeight = hashList.length;
-        configureSyncBar(startHeight.toInt(), hashList.length);
+        // configureSyncBar(startHeight.toInt(), hashList.length);
         if (startHeight.lessThan(hashList.length)) {
           const unsyncedBlocks: number[] = R.range(
             startHeight.toInt(),
             topHeight
           );
-          prepareBlockStatuses(unsyncedBlocks, hashList).then(() => {
-            // bar.tick();
-
-            F.fork((reason: string | void) => {
-              console.error('Fatal', reason || '');
-              process.exit(1);
-            })(() => {
-              log.info(
-                `Database fully in sync with block_list height ${currentHeight}`
+          getPlaceholderCount().then((currentCount) => {
+            prepareBlockStatuses(
+              R.range(currentCount.toInt(), topHeight),
+              hashList
+            ).then(() => {
+              // bar.tick();
+              const syncDatabaseJobTracker = syncProgressTracker.newItem(
+                'database',
+                unsyncedBlocks.length
               );
-              startPolling();
-            })(
-              F.parallel(
-                (isNaN as any)(process.env['PARALLEL'])
-                  ? 36
-                  : parseInt(process.env['PARALLEL'] || '36')
-              )(
-                R.slice(
-                  0,
-                  topHeight - 50
-                )(unsyncedBlocks).map((height) => {
-                  // WIP: we store the last 50 in mute-able tables
-                  return storeBlock(height, hashList);
-                })
-              )
-            );
+              F.fork((reason: string | void) => {
+                console.error('Fatal', reason || '');
+                process.exit(1);
+              })(() => {
+                syncDatabaseJobTracker.finish();
+                log.info(
+                  `Database fully in sync with block_list height ${currentHeight}`
+                );
+                startPolling();
+              })(
+                F.parallel(
+                  (isNaN as any)(process.env['PARALLEL'])
+                    ? 36
+                    : parseInt(process.env['PARALLEL'] || '36')
+                )(
+                  R.slice(
+                    0,
+                    topHeight - 50
+                  )(unsyncedBlocks).map((height) => {
+                    // WIP: we store the last 50 in mute-able tables
+                    return storeBlock(height, hashList, syncDatabaseJobTracker);
+                  })
+                )
+              );
+            });
           });
         } else {
           console.log(
@@ -222,7 +226,11 @@ export function startSync() {
   });
 }
 
-export function storeBlock(height: number, hashList: string[]): Promise<void> {
+export function storeBlock(
+  height: number,
+  hashList: string[],
+  tracker: any
+): Promise<void> {
   return Fluture(
     (reject: (reason: string | void) => void, resolve: () => void) => {
       let isCancelled = false;
@@ -239,9 +247,8 @@ export function storeBlock(height: number, hashList: string[]): Promise<void> {
                 (blockQueue as any)[thisBlockHeight] = makeBlockImportQuery(
                   currentBlock
                 );
-
-                bar.tick();
                 resolve();
+                tracker.completeWork(1);
               } else {
                 new Promise((res) => setTimeout(res, 100)).then(() => {
                   if (retry >= 250) {
@@ -357,19 +364,17 @@ export function storeTags(tx_id: string, tags: Array<Tag>) {
 }
 
 export function signalHook() {
-  if (!TestSuite) {
-    process.on('SIGINT', () => {
-      log.info(
-        '[database] ensuring all blocks are stored before exit, you may see some extra output in console'
-      );
-      SIGKILL = true;
-      setInterval(() => {
-        if (SIGINT === false) {
-          log.info('[database] block sync state preserved, now exiting');
-          console.log('');
-          process.exit();
-        }
-      }, 100);
-    });
-  }
+  process.on('SIGINT', () => {
+    log.info(
+      '[database] ensuring all blocks are stored before exit, you may see some extra output in console'
+    );
+    SIGKILL = true;
+    setInterval(() => {
+      if (SIGINT === false) {
+        log.info('[database] block sync state preserved, now exiting');
+        console.log('');
+        process.exit();
+      }
+    }, 100);
+  });
 }

@@ -227,3 +227,17 @@ export const getMaxHeightBlock = async (): Promise<CassandraTypes.Long> => {
     (cassandra as any).types.Long.fromNumber(-1)
   );
 };
+
+// unsafe and slow as well, should only be run pre-start
+export const getPlaceholderCount = async (): Promise<CassandraTypes.Long> => {
+  let response: any;
+  try {
+    response = await cassandraClient.execute(
+      `SELECT MAX(block_height) FROM gateway.block_status;`
+    );
+  } catch (error) {}
+
+  return response?.rows[0]['system.max(block_height)']
+    ? response.rows[0]['system.max(block_height)']
+    : (cassandra as any).types.Long.fromNumber(0);
+};

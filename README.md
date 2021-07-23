@@ -1,8 +1,6 @@
 # Arweave Gateway
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
-[![Build Status](https://travis-ci.org/ArweaveTeam/gateway.svg?branch=master)](https://travis-ci.org/ArweaveTeam/gateway)
-[![codecov](https://codecov.io/gh/ArweaveTeam/gateway/branch/master/graph/badge.svg)](https://codecov.io/gh/ArweaveTeam/gateway)
 
 Review the [documentation](https://arweaveteam.github.io/gateway/#/) to learn more about setting up and deploying a Gateway.
 
@@ -10,7 +8,7 @@ Review the [documentation](https://arweaveteam.github.io/gateway/#/) to learn mo
 
 1. A Unix OS
 
-2. Docker and Docker Compose LTS
+2. Docker or Cassandra 4.x
 
 ### Suggested Hardware
 
@@ -24,66 +22,26 @@ There are several million transactions on the Arweave chain. In order to effecti
 
 ## Environment
 
-By default, there is a default environment you can use located at `.env.docker` in the repository.
+By default, there is a default environment you can use located at `.env.example` in the repository.
 
-```env
-ARWEAVE_NODES=["https://arweave.net"]
-
-DATABASE_HOST=postgres
-DATABASE_PORT=5432
-DATABASE_USER=arweave
-DATABASE_PASSWORD=arweave
-DATABASE_NAME=arweave
-
-ENVIRONMENT=public
-PORT=3000
-
-PARALLEL=4
-
-INDICES=["App-Name", "app", "domain", "namespace"]
-
-CACHING=1
-CACHE_FOLDER=/gateway/cache
-CACHE_OFFSET=0
-
-MANIFEST_PREFIX=amp-gw.online
-```
 
 Make sure you copy this configuration to `.env`.
 
 ```bash
-cp .env.docker .env
+cp .env.example .env
 ```
 
 ## Compilation
 
-You can start the server with `docker-compose`.
-
 ```bash
 # with npm
-npm run docker:start
+npm run start
 
 # with yarn
-yarn docker:start
-
-# with pure docker-compose
-docker-compose up --build -d
+yarn start
 ```
 
-You can spin down the `docker-compose` cluster with.
-
-```bash
-# with npm
-npm run docker:stop
-
-# with yarn
-yarn docker:stop
-
-# with pure docker-compose
-docker-compose down
-```
-
-## Testing
+## Endpoints
 
 You can test if the server and the GraphQL queries are working properly by navigating to.
 

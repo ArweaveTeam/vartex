@@ -40,17 +40,17 @@ export function start() {
 
   app.get(dataRouteRegex, dataRoute);
 
-  // graphServer({ introspection: true, playground: true }).applyMiddleware({
-  //   app,
-  //   path: '/graphql',
-  // });
+  graphServer().applyMiddleware({
+    app,
+    path: '/graphql',
+  });
 
   app.post('/tx', transactionRoute);
   app.get('/peers', peerRoute);
   app.get('/logs', koiLogsRoute);
   app.get('/logs/raw', koiLogsRawRoute);
 
-  app.all('*', proxyRoute);
+  // app.all('*', proxyRoute);
 
   app.listen(process.env.PORT || 3000, () => {
     log.info(`[app] started on http://localhost:${process.env.PORT || 3000}`);

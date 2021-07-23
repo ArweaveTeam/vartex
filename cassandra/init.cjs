@@ -87,6 +87,13 @@ client
         tag_count int,
         PRIMARY KEY (id)
       )`,
+      `CREATE TABLE IF NOT EXISTS manifest (
+         manifest_url text,
+         manifest_id text,
+         tx_id text,
+         path text,
+         PRIMARY KEY(manifest_id, tx_id)
+       )`,
     ];
     let p = Promise.resolve();
     // Create the schema executing the queries serially

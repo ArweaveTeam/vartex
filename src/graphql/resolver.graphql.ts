@@ -1,17 +1,46 @@
 import moment from 'moment';
-import {config} from 'dotenv';
-import {IResolvers} from 'apollo-server-express';
-import {QueryTransactionsArgs, QueryBlockArgs, QueryBlocksArgs} from './types';
-import {ISO8601DateTimeString, winstonToAr, utf8DecodeTag} from '../utility/encoding.utility';
-import {TransactionHeader} from '../types/arweave.types';
-import {QueryParams, generateQuery, generateBlockQuery} from './query.graphql';
+import { config } from 'dotenv';
+import {
+  QueryTransactionsArgs,
+  QueryBlockArgs,
+  QueryBlocksArgs,
+} from './types';
+import {
+  ISO8601DateTimeString,
+  winstonToAr,
+  utf8DecodeTag,
+} from '../utility/encoding.utility';
+import { TransactionHeader } from '../types/arweave.types';
+import {
+  QueryParams,
+  generateQuery,
+  generateBlockQuery,
+} from './query.graphql';
 
 config();
 
-type Resolvers = IResolvers;
-
 const DEFAULT_PAGE_SIZE = parseInt(process.env.DEFAULT_PAGE_SIZE || '10');
 const MAX_PAGE_SIZE = parseInt(process.env.MAX_PAGE_SIZE || '100');
+
+interface FieldMap {
+  id: string;
+  anchor: string;
+  recipient: string;
+  tags: any[];
+  fee: string;
+  quantity: string;
+  data_size: number;
+  data_type: string;
+  parent: FieldMap;
+  owner: string;
+  owner_address: string;
+  signature: string;
+  timestamp: number;
+  block_id: string;
+  block_timestamp: string;
+  block_height: string;
+  block_previous: string;
+}
 
 const fieldMap = {
   id: 'transactions.id',
@@ -40,9 +69,13 @@ const blockFieldMap = {
   extended: 'blocks.extended',
 };
 
-export const resolvers: Resolvers = {
+export const resolvers = {
   Query: {
-    transaction: async (parent, queryParams, {req, connection}) => {
+    transaction: async (
+      parent: FieldMap,
+      queryParams: { id: string },
+      { req, connection }: any
+    ) => {
       req.log.info('[graphql/v2] transaction/request', queryParams);
 
       const params: QueryParams = {
@@ -53,11 +86,21 @@ export const resolvers: Resolvers = {
 
       const result = (await generateQuery(params)).first();
 
-      return await result as TransactionHeader;
+      return (await result) as TransactionHeader;
     },
-    transactions: async (parent, queryParams: QueryTransactionsArgs, {req, connection}, info) => {
-      const {timestamp, offset} = parseCursor(queryParams.after || newCursor());
-      const pageSize = Math.min(queryParams.first || DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
+    transactions: async (
+      parent: string,
+      queryParams: QueryTransactionsArgs,
+      { req, connection }: any,
+      info: any
+    ) => {
+      const { timestamp, offset } = parseCursor(
+        queryParams.after || newCursor()
+      );
+      const pageSize = Math.min(
+        queryParams.first || DEFAULT_PAGE_SIZE,
+        MAX_PAGE_SIZE
+      );
 
       const params: QueryParams = {
         limit: pageSize + 1,
@@ -84,26 +127,41 @@ export const resolvers: Resolvers = {
         edges: async () => {
           return results.slice(0, pageSize).map((result: any, index) => {
             return {
-              cursor: encodeCursor({timestamp, offset: offset + index + 1}),
+              cursor: encodeCursor({ timestamp, offset: offset + index + 1 }),
               node: result,
             };
           });
         },
       };
     },
-    block: async (parent, queryParams: QueryBlockArgs, {req, connection}) => {
+    block: async (
+      parent: string,
+      queryParams: QueryBlockArgs,
+      { req, connection }: any
+    ) => {
       if (queryParams.id) {
-        return (await generateBlockQuery({
-          select: blockFieldMap,
-          id: queryParams.id,
-        })).first();
+        return (
+          await generateBlockQuery({
+            select: blockFieldMap,
+            id: queryParams.id,
+          })
+        ).first();
       } else {
         return null;
       }
     },
-    blocks: async (parent, queryParams: QueryBlocksArgs, {req, connection}) => {
-      const {timestamp, offset} = parseCursor(queryParams.after || newCursor());
-      const pageSize = Math.min(queryParams.first || DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
+    blocks: async (
+      parent: FieldMap,
+      queryParams: QueryBlocksArgs,
+      { req, connection }: any
+    ) => {
+      const { timestamp, offset } = parseCursor(
+        queryParams.after || newCursor()
+      );
+      const pageSize = Math.min(
+        queryParams.first || DEFAULT_PAGE_SIZE,
+        MAX_PAGE_SIZE
+      );
 
       let ids: Array<string> = [];
       let minHeight = 0;
@@ -132,7 +190,7 @@ export const resolvers: Resolvers = {
         before: timestamp,
       });
 
-      const results = (await query);
+      const results = await query;
       const hasNextPage = results.length > pageSize;
 
       return {
@@ -140,42 +198,44 @@ export const resolvers: Resolvers = {
           hasNextPage,
         },
         edges: async () => {
-          return results.slice(0, pageSize).map((result: any, index: number) => {
-            return {
-              cursor: encodeCursor({timestamp, offset: offset + index + 1}),
-              node: result,
-            };
-          });
+          return results
+            .slice(0, pageSize)
+            .map((result: any, index: number) => {
+              return {
+                cursor: encodeCursor({ timestamp, offset: offset + index + 1 }),
+                node: result,
+              };
+            });
         },
       };
     },
   },
   Transaction: {
-    tags: (parent) => {
+    tags: (parent: FieldMap) => {
       return parent.tags.map(utf8DecodeTag);
     },
-    recipient: (parent) => {
+    recipient: (parent: FieldMap) => {
       return parent.recipient.trim();
     },
-    data: (parent) => {
+    data: (parent: FieldMap) => {
       return {
         size: parent.data_size || 0,
         type: parent.data_type,
       };
     },
-    quantity: (parent) => {
+    quantity: (parent: FieldMap) => {
       return {
-        ar: winstonToAr(parent.quantity || 0),
-        winston: parent.quantity || 0,
+        ar: winstonToAr(parent.quantity || ('0' as const)),
+        winston: parent.quantity || '0',
       };
     },
-    fee: (parent) => {
+    fee: (parent: FieldMap) => {
       return {
-        ar: winstonToAr(parent.fee || 0),
-        winston: parent.fee || 0,
+        ar: winstonToAr(parent.fee || '0'),
+        winston: parent.fee || '0',
       };
     },
-    block: (parent) => {
+    block: (parent: FieldMap) => {
       if (parent.block_id) {
         return {
           id: parent.block_id,
@@ -185,13 +245,13 @@ export const resolvers: Resolvers = {
         };
       }
     },
-    owner: (parent) => {
+    owner: (parent: FieldMap) => {
       return {
         address: parent.owner_address,
         key: parent.owner,
       };
     },
-    parent: (parent) => {
+    parent: (parent: FieldMap) => {
       if (parent.parent) {
         return {
           id: parent.parent,
@@ -211,7 +271,7 @@ export const resolvers: Resolvers = {
       return parent.extended?.block_size;
     },
     */
-    timestamp: (parent) => {
+    timestamp: (parent: FieldMap) => {
       return moment(parent?.timestamp).unix();
     },
   },
@@ -223,18 +283,20 @@ export interface Cursor {
 }
 
 export function newCursor(): string {
-  return encodeCursor({timestamp: moment().toISOString(), offset: 0});
+  return encodeCursor({ timestamp: moment().toISOString(), offset: 0 });
 }
 
-export function encodeCursor({timestamp, offset}: Cursor): string {
+export function encodeCursor({ timestamp, offset }: Cursor): string {
   const string = JSON.stringify([timestamp, offset]);
   return Buffer.from(string).toString('base64');
-};
+}
 
 export function parseCursor(cursor: string): Cursor {
   try {
-    const [timestamp, offset] = JSON.parse(Buffer.from(cursor, 'base64').toString()) as [ISO8601DateTimeString, number];
-    return {timestamp, offset};
+    const [timestamp, offset] = JSON.parse(
+      Buffer.from(cursor, 'base64').toString()
+    ) as [ISO8601DateTimeString, number];
+    return { timestamp, offset };
   } catch (error) {
     throw new Error('invalid cursor');
   }

@@ -1,6 +1,4 @@
 import { config } from 'dotenv';
-import { QueryBuilder } from 'knex';
-import { connection } from '../database/connection.database';
 import { indices } from '../utility/order.utility';
 import { ISO8601DateTimeString } from '../utility/encoding.utility';
 import { TagFilter } from './types';
@@ -156,54 +154,44 @@ export interface BlockQueryParams {
 
 export async function generateBlockQuery(
   params: BlockQueryParams
-): Promise<QueryBuilder> {
-  const {
-    id,
-    ids,
-    limit,
-    offset,
-    select,
-    before,
-    sortOrder,
-    minHeight,
-    maxHeight,
-  } = params;
-
-  const query = connection.queryBuilder().select(select).from('blocks');
-
-  if (id) {
-    query.where('blocks.id', id);
-  }
-
-  if (ids) {
-    query.whereIn('blocks.id', ids);
-  }
-
-  if (before) {
-    query.where('blocks.created_at', '<', before);
-  }
-
-  if (minHeight && minHeight >= 0) {
-    query.where('blocks.height', '>=', minHeight);
-  }
-
-  if (maxHeight && maxHeight >= 0) {
-    query.where('blocks.height', '<=', maxHeight);
-  }
-
-  if (limit) {
-    query.limit(limit);
-  }
-
-  if (offset) {
-    query.offset(offset);
-  }
-
-  if (sortOrder) {
-    if (Object.keys(blockOrderByClauses).includes(sortOrder)) {
-      query.orderByRaw(blockOrderByClauses[sortOrder]);
-    }
-  }
-
-  return query;
+): Promise<any> {
+  // const {
+  //   id,
+  //   ids,
+  //   limit,
+  //   offset,
+  //   select,
+  //   before,
+  //   sortOrder,
+  //   minHeight,
+  //   maxHeight,
+  // } = params;
+  // const query = connection.queryBuilder().select(select).from('blocks');
+  // if (id) {
+  //   query.where('blocks.id', id);
+  // }
+  // if (ids) {
+  //   query.whereIn('blocks.id', ids);
+  // }
+  // if (before) {
+  //   query.where('blocks.created_at', '<', before);
+  // }
+  // if (minHeight && minHeight >= 0) {
+  //   query.where('blocks.height', '>=', minHeight);
+  // }
+  // if (maxHeight && maxHeight >= 0) {
+  //   query.where('blocks.height', '<=', maxHeight);
+  // }
+  // if (limit) {
+  //   query.limit(limit);
+  // }
+  // if (offset) {
+  //   query.offset(offset);
+  // }
+  // if (sortOrder) {
+  //   if (Object.keys(blockOrderByClauses).includes(sortOrder)) {
+  //     query.orderByRaw(blockOrderByClauses[sortOrder]);
+  //   }
+  // }
+  // return query;
 }

@@ -20,21 +20,29 @@ const contactPoints = process.env.CASSANDRA_CONTACT_POINTS
   ? JSON.parse(process.env.CASSANDRA_CONTACT_POINTS)
   : ['localhost:9042'];
 
-export const newSession = async () => {
+export const newSession = async (): Promise<[string, number]> => {
   let lastSessionHeight = 0;
   let lastSessionHash = '';
 
   try {
-    const maybeLastSession = cassandraClient.execute(
+    const maybeLastSession = await cassandraClient.execute(
       `SELECT height FROM gateway.sync_status limit 1`
     );
+    lastSessionHeight = maybeLastSession?.rows[0]['last_block_height'];
+    lastSessionHash = maybeLastSession?.rows[0]['last_block_hash'];
   } catch (error) {
-    console.error('ERROR LOOK:', error);
+    if (!error.toString().includes('Undefined column name height')) {
+      console.error('FATAL unknown error:', error);
+      process.exit(1);
+    }
   }
-  process.exit(1);
+
   await cassandraClient.execute(
-    'INSERT INTO gateway.sync_status IF NOT EXISTS ()'
+    'INSERT INTO gateway.sync_status (last_block_hash, last_block_height, session_uuid)' +
+      'VALUES (?, ?, ?) IF NOT EXISTS',
+    [lastSessionHash, toLong(lastSessionHeight), currentSessionId]
   );
+  return [lastSessionHash, lastSessionHeight];
 };
 
 export const cassandraClient = new cassandra.Client({
@@ -183,9 +191,9 @@ const poaInsertQuery = `INSERT INTO gateway.poa (${poaKeys.join(
   ', '
 )}) VALUES (${poaKeys.map(() => '?').join(', ')})`;
 
-const syncStatusInsertQuery = `INSERT INTO gateway.poa (${syncStatusKeys.join(
-  ', '
-)}) VALUES (${syncStatusKeys.map(() => '?').join(', ')})`;
+// const syncStatusInsertQuery = `INSERT INTO gateway.sync_status (${syncStatusKeys.join(
+//   ', '
+// )}) VALUES (${syncStatusKeys.map(() => '?').join(', ')})`;
 
 const blockInsertQuery = `INSERT INTO gateway.block (${blockKeys.join(
   ', '
@@ -195,6 +203,13 @@ const blockStatusUpdateQuery = `
   UPDATE gateway.block_status
   SET synced = true
   WHERE block_height = ?`;
+
+const syncStatusUpdateQuery = `
+  UPDATE gateway.block_status
+  SET last_block_hash = ?
+  SET last_block_height = ?
+  WHERE session_uuid = ?
+  IF last_block_height < ?`;
 
 // these updates and inserts need to be atomic
 export const makeBlockImportQuery = (input: any) =>
@@ -212,6 +227,15 @@ export const makeBlockImportQuery = (input: any) =>
           // console.log(input, transformBlockKey(key, input));
           return paramz;
         }, []),
+      },
+      {
+        query: syncStatusUpdateQuery,
+        params: [
+          input.hash,
+          toLong(input.height),
+          currentSessionId,
+          toLong(input.height),
+        ],
       },
     ],
     { prepare: true }

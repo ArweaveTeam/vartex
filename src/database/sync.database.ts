@@ -24,6 +24,7 @@ import {
   getMaxHeightBlock,
   getPlaceholderCount,
   makeBlockImportQuery,
+  newSession,
   toLong,
 } from './cassandra.database';
 import { DatabaseTag } from './transaction.database';
@@ -160,70 +161,73 @@ async function prepareBlockStatuses(
 
 export function startSync() {
   startQueueProcessors();
-  getMaxHeightBlock().then((currentDbMax: CassandraTypes.Long) => {
-    const startHeight = currentDbMax.add(1);
-    log.info(`[database] starting sync`);
-    signalHook();
+  newSession().then(
+    ([lastSessionHash, lastSessionHeight]: [string, number]) => {
+      const startHeight = lastSessionHeight || 0;
+      log.info(`[database] starting sync at block: ${startHeight}`);
+      signalHook();
 
-    getHashList({}).then((hashList) => {
-      if (hashList) {
-        topHeight = hashList.length;
-        // configureSyncBar(startHeight.toInt(), hashList.length);
-        if (startHeight.lessThan(hashList.length)) {
-          const unsyncedBlocks: number[] = R.range(
-            startHeight.toInt(),
-            topHeight
-          );
-          getPlaceholderCount().then((currentCount) => {
-            prepareBlockStatuses(
-              R.range(currentCount.toInt(), topHeight),
-              hashList
-            ).then(() => {
-              // bar.tick();
-              const syncDatabaseJobTracker = syncProgressTracker.newItem(
-                'database',
-                unsyncedBlocks.length
-              );
-              F.fork((reason: string | void) => {
-                console.error('Fatal', reason || '');
-                process.exit(1);
-              })(() => {
-                syncDatabaseJobTracker.finish();
-                log.info(
-                  `Database fully in sync with block_list height ${currentHeight}`
+      getHashList({}).then((hashList) => {
+        if (hashList) {
+          topHeight = hashList.length;
+          // configureSyncBar(startHeight.toInt(), hashList.length);
+          if (startHeight < hashList.length) {
+            const unsyncedBlocks: number[] = R.range(startHeight, topHeight);
+            getPlaceholderCount().then((currentCount) => {
+              prepareBlockStatuses(
+                R.range(currentCount.toInt(), topHeight),
+                hashList
+              ).then(() => {
+                // bar.tick();
+                const syncDatabaseJobTracker = syncProgressTracker.newItem(
+                  'database',
+                  unsyncedBlocks.length
                 );
-                startPolling();
-              })(
-                F.parallel(
-                  (isNaN as any)(process.env['PARALLEL'])
-                    ? 36
-                    : parseInt(process.env['PARALLEL'] || '36')
-                )(
-                  R.slice(
-                    0,
-                    topHeight - 50
-                  )(unsyncedBlocks).map((height) => {
-                    // WIP: we store the last 50 in mute-able tables
-                    return storeBlock(height, hashList, syncDatabaseJobTracker);
-                  })
-                )
-              );
+                F.fork((reason: string | void) => {
+                  console.error('Fatal', reason || '');
+                  process.exit(1);
+                })(() => {
+                  syncDatabaseJobTracker.finish();
+                  log.info(
+                    `Database fully in sync with block_list height ${currentHeight}`
+                  );
+                  startPolling();
+                })(
+                  F.parallel(
+                    (isNaN as any)(process.env['PARALLEL'])
+                      ? 36
+                      : parseInt(process.env['PARALLEL'] || '36')
+                  )(
+                    R.slice(
+                      0,
+                      topHeight - 50
+                    )(unsyncedBlocks).map((height) => {
+                      // WIP: we store the last 50 in mute-able tables
+                      return storeBlock(
+                        height,
+                        hashList,
+                        syncDatabaseJobTracker
+                      );
+                    })
+                  )
+                );
+              });
             });
-          });
+          } else {
+            console.log(
+              'database was found to be in sync, starting to poll for new blocks...'
+            );
+            startPolling();
+          }
         } else {
-          console.log(
-            'database was found to be in sync, starting to poll for new blocks...'
+          console.error(
+            'Failed to establish any connection to Nodes after 100 retries'
           );
-          startPolling();
+          process.exit(1);
         }
-      } else {
-        console.error(
-          'Failed to establish any connection to Nodes after 100 retries'
-        );
-        process.exit(1);
-      }
-    });
-  });
+      });
+    }
+  );
 }
 
 export function storeBlock(
@@ -236,7 +240,7 @@ export function storeBlock(
       let isCancelled = false;
       function getBlock(retry = 0) {
         !isCancelled &&
-          queryGetBlock({ hash: hashList[height - 1], height })
+          queryGetBlock({ hash: hashList[height], height })
             .then((currentBlock) => {
               if (currentBlock) {
                 currentHeight = Math.max(currentHeight, currentBlock.height);
@@ -272,7 +276,7 @@ export function storeBlock(
               }
             });
       }
-      console.log('fetching', height);
+      // console.log('fetching', height, hashList.slice(0, 10));
       getBlock();
       return () => {
         isCancelled = true;

@@ -24,7 +24,7 @@ config();
 
 export const app: Express = express();
 
-export function start() {
+export function start(): void {
   app.set('trust proxy', 1);
 
   app.use(cors());
@@ -40,11 +40,6 @@ export function start() {
 
   app.get(dataRouteRegex, dataRoute);
 
-  graphServer().applyMiddleware({
-    app,
-    path: '/graphql',
-  });
-
   app.post('/tx', transactionRoute);
   app.get('/peers', peerRoute);
   app.get('/logs', koiLogsRoute);
@@ -54,8 +49,15 @@ export function start() {
 
   app.listen(process.env.PORT || 3000, () => {
     log.info(`[app] started on http://localhost:${process.env.PORT || 3000}`);
-    startSync();
+    const graphqlServer = graphServer({ introspection: true });
+    graphqlServer.start().then(() => {
+      graphqlServer.applyMiddleware({
+        app,
+        path: '/graphql',
+      });
+      startSync();
+    });
   });
 }
 
-(async () => await start())();
+start();

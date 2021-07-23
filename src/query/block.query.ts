@@ -48,7 +48,9 @@ export function getBlock({
           "FATAL, hash height from hash_list doesn't match up:",
           height,
           '!=',
-          body.height
+          body.height,
+          'from',
+          `${tryNode}/block/hash/${hash}`
         );
         process.exit(1);
       }

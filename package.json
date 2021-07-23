@@ -14,13 +14,12 @@
     "gql": "npx graphql-codegen --config codegen.yml",
     "build": "npm run gql && tsc",
     "start": "node dist/src/Gateway.js",
-    "start:dev": "ts-node src/Gateway.ts",
+    "start:dev": "TS_NODE_FILES=true ts-node --project ./tsconfig.json src/Gateway.ts",
     "migrate:init": "node cassandra/init.cjs",
     "migrate:nuke-all": "node cassandra/nuke.cjs"
   },
   "dependencies": {
     "apollo-server-express": "^3.0.2",
-    "are-we-there-yet": "^1.1.5",
     "arweave": "^1.10.16",
     "arweave-bundles": "^1.0.3",
     "bip39": "^3.0.4",
@@ -38,6 +37,7 @@
     "fluture": "^14.0.0",
     "fs": "^0.0.1-security",
     "fs-jetpack": "^4.1.0",
+    "gauge": "^3.0.0",
     "graphql": "^15.5.1",
     "graphql-fields": "^2.0.3",
     "js-sha256": "^0.9.0",

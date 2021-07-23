@@ -1,12 +1,13 @@
 {
   "compilerOptions": {
-    "target": "es5",
+    "target": "es2015",
+    "lib": ["es2015", "dom"],
+    "baseUrl": ".",
     "module": "CommonJS",
     "moduleResolution": "node",
-    "lib": ["ESNext"],
-    "declaration": true,
-    "declarationMap": true,
+    "declaration": false,
     "sourceMap": true,
+    "inlineSources": true,
     "outDir": "./dist",
     "composite": true,
     "removeComments": true,
@@ -17,14 +18,9 @@
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
     "preserveSymlinks": true,
-    "allowUmdGlobalAccess": true,
-    "forceConsistentCasingInFileNames": true
+    "skipLibCheck": true,
+    "allowUmdGlobalAccess": true
   },
-  "include": [
-    "src/**/*.ts",
-    "test/**/*.ts"
-  ],
-  "exclude": [
-    "node_modules"
-  ]
+  "include": ["src/**/*", "test/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
 }

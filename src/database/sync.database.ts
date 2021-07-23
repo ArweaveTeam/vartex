@@ -2,7 +2,8 @@ import * as R from 'rambda';
 import Fluture from 'fluture';
 import * as F from 'fluture';
 import { DataItemJson } from 'arweave-bundles';
-import { TrackerGroup } from 'are-we-there-yet';
+import Gauge from 'gauge';
+import GaugeThemes from 'gauge/themes';
 import { config } from 'dotenv';
 import { types as CassandraTypes } from 'cassandra-driver';
 import {
@@ -33,7 +34,12 @@ import { cacheANSEntries } from '../caching/ans.entry.caching';
 config();
 mkdir('cache');
 
-const syncProgressTracker = new TrackerGroup('sync');
+const trackerTheme = GaugeThemes.newTheme(
+  GaugeThemes({
+    hasUnicode: false,
+    hasColor: true,
+  })
+);
 
 export let SIGINT: boolean = false;
 export let SIGKILL: boolean = false;
@@ -49,28 +55,30 @@ interface QueueState {
 }
 
 let isQueueProcessorStarted = false;
-const blockQueue: unknown = {};
-const txQueue: unknown = {};
-const tagsQueue: unknown = {};
+const blockQueue: { [v: number]: any } = {};
+const txQueue: { [v: number]: any } = {};
+const tagsQueue: { [v: number]: any } = {};
 const blockQueueState: QueueState = { isProcessing: false, isStarted: false };
 const txQueueState: QueueState = { isProcessing: false, isStarted: false };
 const tagsQueueState: QueueState = { isProcessing: false, isStarted: false };
 
-const createQueue = (queueSource: any, queueState: QueueState) => (): void => {
+const createQueue = (
+  queueSource: Record<number, any>,
+  queueState: QueueState
+) => (): void => {
   if (queueState.isProcessing) return;
   // 5 is arbitrary but low enough to prevent "Batch too large" errors
-  const items: any = Object.keys(queueSource as any);
+  const items: number[] = R.keys(queueSource);
   if (items.length > 0) {
     // name could be misleading as this can be a batch of db-batches
-    const batch = items
-      .sort()
-      .slice(0, 5)
-      .map((item: any) => {
-        cassandraClient.execute(item);
-      });
+    const batch: number[] = items.sort().slice(0, 5);
     queueState.isProcessing = true;
-    Promise.all(batch)
-      .then(function () {
+    Promise.all(
+      batch.map((item) => {
+        return blockQueue[item]();
+      })
+    )
+      .then(function (ret: any) {
         batch.forEach((i: number) => {
           delete (blockQueue as any)[i];
         });
@@ -166,7 +174,15 @@ export function startSync() {
       const startHeight = lastSessionHeight || 0;
       log.info(`[database] starting sync at block: ${startHeight}`);
       signalHook();
-
+      const gauge = new Gauge(process.stderr, {
+        template: [
+          { type: 'progressbar', length: 0 },
+          { type: 'activityIndicator', kerning: 1, length: 2 },
+          { type: 'section', kerning: 1, default: '' },
+          { type: 'subsection', kerning: 1, default: '' },
+        ],
+      });
+      gauge.setTheme(trackerTheme);
       getHashList({}).then((hashList) => {
         if (hashList) {
           topHeight = hashList.length;
@@ -178,16 +194,11 @@ export function startSync() {
                 R.range(currentCount.toInt(), topHeight),
                 hashList
               ).then(() => {
-                // bar.tick();
-                const syncDatabaseJobTracker = syncProgressTracker.newItem(
-                  'database',
-                  unsyncedBlocks.length
-                );
                 F.fork((reason: string | void) => {
                   console.error('Fatal', reason || '');
                   process.exit(1);
                 })(() => {
-                  syncDatabaseJobTracker.finish();
+                  gauge.disable();
                   log.info(
                     `Database fully in sync with block_list height ${currentHeight}`
                   );
@@ -203,11 +214,7 @@ export function startSync() {
                       topHeight - 50
                     )(unsyncedBlocks).map((height) => {
                       // WIP: we store the last 50 in mute-able tables
-                      return storeBlock(
-                        height,
-                        hashList,
-                        syncDatabaseJobTracker
-                      );
+                      return storeBlock(height, hashList, gauge);
                     })
                   )
                 );
@@ -233,14 +240,20 @@ export function startSync() {
 export function storeBlock(
   height: number,
   hashList: string[],
-  tracker: any
+  gauge: any
 ): Promise<void> {
+  const syncDatabaseJobTracker = `${height}/${hashList.length}`;
   return Fluture(
     (reject: (reason: string | void) => void, resolve: () => void) => {
       let isCancelled = false;
       function getBlock(retry = 0) {
         !isCancelled &&
-          queryGetBlock({ hash: hashList[height], height })
+          queryGetBlock({
+            hash: hashList[height],
+            height,
+            gauge,
+            completed: syncDatabaseJobTracker,
+          })
             .then((currentBlock) => {
               if (currentBlock) {
                 currentHeight = Math.max(currentHeight, currentBlock.height);
@@ -252,7 +265,6 @@ export function storeBlock(
                   currentBlock
                 );
                 resolve();
-                tracker.completeWork(1);
               } else {
                 new Promise((res) => setTimeout(res, 100)).then(() => {
                   if (retry >= 250) {

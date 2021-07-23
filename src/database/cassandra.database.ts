@@ -10,10 +10,12 @@ const currentSessionId = CassandraTypes.TimeUuid.now();
 const isNumeric = (s: any) => !(isNaN as any)(s);
 
 export const toLong = (anyValue: any): CassandraTypes.Long =>
-  !anyValue
+  !anyValue && typeof anyValue !== 'string'
     ? (cassandra as any).types.Long.fromNumber(0)
-    : anyValue === 'string'
-    ? (cassandra as any).types.Long.fromString(anyValue)
+    : typeof anyValue === 'string'
+    ? (cassandra as any).types.Long.fromString(
+        R.isEmpty(anyValue) ? '0' : anyValue
+      )
     : (cassandra as any).types.Long.fromNumber(anyValue);
 
 const contactPoints = process.env.CASSANDRA_CONTACT_POINTS
@@ -32,15 +34,18 @@ export const newSession = async (): Promise<[string, number]> => {
     lastSessionHash = maybeLastSession?.rows[0]['last_block_hash'];
   } catch (error) {
     if (!error.toString().includes('Undefined column name height')) {
-      console.error('FATAL unknown error:', error);
       process.exit(1);
     }
   }
 
   await cassandraClient.execute(
-    'INSERT INTO gateway.sync_status (last_block_hash, last_block_height, session_uuid)' +
-      'VALUES (?, ?, ?) IF NOT EXISTS',
-    [lastSessionHash, toLong(lastSessionHeight), currentSessionId]
+    'INSERT INTO gateway.sync_status (last_block, session_uuid)' +
+      'VALUES (?, ?) IF NOT EXISTS',
+    [
+      new CassandraTypes.Tuple(lastSessionHash, toLong(lastSessionHeight)),
+      currentSessionId,
+    ],
+    { prepare: true }
   );
   return [lastSessionHash, lastSessionHeight];
 };
@@ -63,7 +68,7 @@ const poaKeys = [
   'block_height',
 ];
 
-const syncStatusKeys = ['last_block_hash', 'last_block_height', 'session_uuid'];
+const syncStatusKeys = ['last_block', 'session_uuid'];
 
 // const blockStatusKeys = ['block_height', 'synced'];
 
@@ -112,18 +117,18 @@ interface Poa {
   data_path: string;
   chunk: string;
   block_hash: string;
-  block_height: string;
+  block_height: CassandraTypes.Long;
 }
 
 const transformPoaKeys = (obj: any): Poa => {
-  const poa = obj['poa'] && typeof obj['poa'] === 'object' ? obj['poa'] : {};
+  const poa = obj['poa'] ? obj['poa'] : {};
   const poaObj = {} as Poa;
   poaObj['option'] = poa['option'] || '';
   poaObj['tx_path'] = poa['tx_path'] || '';
   poaObj['data_path'] = poa['data_path'] || '';
   poaObj['chunk'] = poa['chunk'] || '';
-  poaObj['block_hash'] = poa['block_hash'] || '';
-  poaObj['block_height'] = poa['block_height'] || '';
+  poaObj['block_hash'] = obj['hash'] || '';
+  poaObj['block_height'] = toLong(obj['height']);
   return poaObj;
 };
 
@@ -139,29 +144,29 @@ const transformBlockKey = (key: string, obj: any) => {
     case 'tags': {
       const tagSet = new Set();
       const tags = obj[key] && Array.isArray(obj[key]) ? obj[key] : [];
-      tags.forEach((tag = {} as any) => {
-        tagSet.add(
-          new (cassandra as any).types.Tuple(
-            tag['name'] || '',
-            tag['value'] || ''
-          )
-        );
-      });
-      return tagSet;
+      if (tags.length === 0) {
+        return [];
+      } else {
+        tags.forEach((tag = {} as any) => {
+          tagSet.add(
+            new (cassandra as any).types.Tuple(
+              tag['name'] || '',
+              tag['value'] || ''
+            )
+          );
+        });
+        return tagSet;
+      }
     }
 
     case 'block_size':
     case 'diff':
     case 'height':
+    case 'last_retarget':
     case 'reward_pool':
+    case 'timestamp':
     case 'weave_size': {
-      if (isNumeric(obj[key])) {
-        return typeof cassandra === 'string'
-          ? (cassandra as any).types.Long.fromString(obj[key])
-          : (cassandra as any).types.Long.fromNumber(obj[key]);
-      } else {
-        return (cassandra as any).types.Long.fromNumber(0);
-      }
+      return toLong(obj[key]);
     }
     case 'cumulative_diff':
     case 'hash':
@@ -172,12 +177,11 @@ const transformBlockKey = (key: string, obj: any) => {
     case 'reward_addr':
     case 'tx_root':
     case 'wallet_list':
-    case 'last_retarget':
-    case 'timestamp': {
+    case 'last_retarget': {
       if (obj[key] || isNumeric(obj[key])) {
         return typeof obj[key] === 'string' ? obj[key] : obj[key].toString();
       } else {
-        return null;
+        return '';
       }
     }
 
@@ -191,55 +195,59 @@ const poaInsertQuery = `INSERT INTO gateway.poa (${poaKeys.join(
   ', '
 )}) VALUES (${poaKeys.map(() => '?').join(', ')})`;
 
-// const syncStatusInsertQuery = `INSERT INTO gateway.sync_status (${syncStatusKeys.join(
-//   ', '
-// )}) VALUES (${syncStatusKeys.map(() => '?').join(', ')})`;
-
-const blockInsertQuery = `INSERT INTO gateway.block (${blockKeys.join(
-  ', '
-)}) VALUES (${blockKeys.map(() => '?').join(', ')})`;
+const blockInsertQuery = (nonNilBlockKeys: string[]) =>
+  `INSERT INTO gateway.block (${nonNilBlockKeys.join(
+    ', '
+  )}) VALUES (${nonNilBlockKeys.map(() => '?').join(', ')})`;
 
 const blockStatusUpdateQuery = `
   UPDATE gateway.block_status
   SET synced = true
-  WHERE block_height = ?`;
+  WHERE block_hash = ?`;
 
+// Note the last synced block isn't
+// nececcarily the latest one, than
+// always needs verification on init
 const syncStatusUpdateQuery = `
   UPDATE gateway.sync_status
-  SET last_block_hash = ?
-  SET last_block_height = ?
-  WHERE session_uuid = ?
-  IF last_block_height < ?`;
+  SET last_block = ?
+  WHERE session_uuid = ?`;
 
 // these updates and inserts need to be atomic
-export const makeBlockImportQuery = (input: any) =>
-  cassandraClient.batch(
-    [
-      {
-        query: poaInsertQuery,
-        params: transformPoaKeys(input.poa),
-      },
-      { query: blockStatusUpdateQuery, params: [toLong(input.height)] },
-      {
-        query: blockInsertQuery,
-        params: blockKeys.reduce((paramz: Array<any>, key: string) => {
-          paramz.push(transformBlockKey(key, input));
-          // console.log(input, transformBlockKey(key, input));
-          return paramz;
-        }, []),
-      },
-      {
-        query: syncStatusUpdateQuery,
-        params: [
-          input.hash,
-          toLong(input.height),
-          currentSessionId,
-          toLong(input.height),
-        ],
-      },
-    ],
-    { prepare: true }
+export const makeBlockImportQuery = (input: any) => () => {
+  const nonNilBlockKeys: string[] = [];
+  const blockInsertParams = blockKeys.reduce(
+    (paramz: Array<any>, key: string) => {
+      const nextVal = transformBlockKey(key, input);
+      if (nextVal && !R.isEmpty(nextVal)) {
+        paramz.push(nextVal);
+        nonNilBlockKeys.push(key);
+      }
+
+      return paramz;
+    },
+    []
   );
+  const batch = [
+    {
+      query: poaInsertQuery,
+      params: transformPoaKeys(input),
+    },
+    { query: blockStatusUpdateQuery, params: [input.hash] },
+    {
+      query: blockInsertQuery(nonNilBlockKeys),
+      params: blockInsertParams,
+    },
+    {
+      query: syncStatusUpdateQuery,
+      params: [
+        new CassandraTypes.Tuple(input.hash, toLong(input.height)),
+        currentSessionId,
+      ],
+    },
+  ];
+  return cassandraClient.batch(batch, { prepare: true });
+};
 
 // unsafe and slow!
 export const getMaxHeightBlock = async (): Promise<CassandraTypes.Long> => {
@@ -252,16 +260,19 @@ export const getMaxHeightBlock = async (): Promise<CassandraTypes.Long> => {
   );
 };
 
-// unsafe and slow as well, should only be run pre-start
+// doesn't need to accurate this one
 export const getPlaceholderCount = async (): Promise<CassandraTypes.Long> => {
-  let response: any;
+  let cnt = (cassandra as any).types.Long.fromNumber(0);
   try {
-    response = await cassandraClient.execute(
-      `SELECT MAX(block_height) FROM gateway.block_status;`
+    const response = await cassandraClient.execute(
+      `SELECT * FROM gateway.block_status limit 100;`
     );
+    for (const resp of response.rows) {
+      if (resp.block_height.gt(cnt)) {
+        cnt = resp.block_height;
+      }
+    }
   } catch (error) {}
 
-  return response?.rows[0]['system.max(block_height)']
-    ? response.rows[0]['system.max(block_height)']
-    : (cassandra as any).types.Long.fromNumber(0);
+  return cnt;
 };

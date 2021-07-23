@@ -28,9 +28,9 @@ client
          PRIMARY KEY (block_hash)
       )`,
       // because iterating all the rows is expensive
+      // last_block = tuple :: hash | height
       `CREATE TABLE IF NOT EXISTS sync_status (
-         last_block_hash text,
-         last_block_height bigint,
+         last_block tuple<text,bigint>,
          session_uuid timeuuid,
          PRIMARY KEY (session_uuid)
        )`,

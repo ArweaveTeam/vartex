@@ -21,7 +21,7 @@ export function logConfigurationMiddleware(
   return next();
 }
 
-morgan.token('trace', (req: Request) => {
+morgan.token('trace', (req: Request & { id?: string }) => {
   return req.id || 'UNKNOWN';
 });
 

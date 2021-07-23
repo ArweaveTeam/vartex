@@ -32,14 +32,20 @@ export interface BlockType {
 export function getBlock({
   hash,
   height,
+  gauge,
+  completed,
 }: {
   hash: string | undefined;
   height: number;
+  gauge?: any;
+  completed?: string;
 }): Promise<BlockType | void> {
   const tryNode = grabNode();
-  return get(
-    hash ? `${tryNode}/block/hash/${hash}` : `${tryNode}/block/height/${height}`
-  )
+  const url = hash
+    ? `${tryNode}/block/hash/${hash}`
+    : `${tryNode}/block/height/${height}`;
+  gauge && gauge.show(`${completed || ''} ${url}`);
+  return get(url)
     .then((payload) => {
       const body = JSON.parse(payload.text);
       if (hash && height !== body.height) {

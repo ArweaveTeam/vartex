@@ -38,16 +38,23 @@ client
          PRIMARY KEY (random_uuid,session_uuid)
        )
        WITH CLUSTERING ORDER BY (session_uuid DESC)`,
-      // because iterating all the rows is expensive
+      `CREATE TABLE IF NOT EXISTS poll_status (
+         current_block_height bigint,
+         current_block_hash text,
+         random_uuid uuid,
+         time_uuid timeuuid,
+         PRIMARY KEY (random_uuid,time_uuid)
+       )
+       WITH CLUSTERING ORDER BY (time_uuid DESC)`,
       `CREATE TABLE IF NOT EXISTS block_status (
          block_height bigint,
          block_hash text,
          synced boolean,
+         txs_synced boolean,
          PRIMARY KEY (block_hash, block_height)
        )
        WITH CLUSTERING ORDER BY (block_height DESC)`,
-      // map block_height->block_hash
-      `CREATE TABLE IF NOT EXISTS block_hash (
+      `CREATE TABLE IF NOT EXISTS block_height_by_block_hash (
          block_height bigint,
          block_hash text,
          PRIMARY KEY (block_height)
@@ -85,21 +92,38 @@ client
          PRIMARY KEY (tag_index, tx_id)
       )
       WITH CLUSTERING ORDER BY (tx_id DESC)`,
+      `CREATE TABLE IF NOT EXISTS block_by_tx_id (
+         tx_id text,
+         tx_uuid timeuuid,
+         block_height bigint,
+         block_hash text,
+         PRIMARY KEY (tx_id)
+       )`,
       `CREATE TABLE IF NOT EXISTS transaction (
+        block_height bigint,
+        block_hash text,
         data text,
         data_root text,
+        data_size bigint,
         data_tree frozen<list<text>>,
-        format bigint,
+        format int,
         id text,
         last_tx text,
         owner text,
-        quantity text,
-        reward text,
+        quantity bigint,
+        reward bigint,
         signature text,
         tag_count int,
-        PRIMARY KEY (signature, id)
+        tx_uuid timeuuid,
+        PRIMARY KEY (id, tx_uuid)
       )
-      WITH CLUSTERING ORDER BY (id DESC)`,
+      WITH CLUSTERING ORDER BY (tx_uuid DESC)`,
+      `CREATE TABLE IF NOT EXISTS tx_offset (
+         tx_id text,
+         size bigint,
+         offset bigint,
+         PRIMARY KEY(tx_id)
+       )`,
       `CREATE TABLE IF NOT EXISTS manifest (
          manifest_url text,
          manifest_id text,

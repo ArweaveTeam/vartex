@@ -12,7 +12,7 @@
     "importHelpers": true,
     "downlevelIteration": true,
     "isolatedModules": true,
-    "strict": true,
+    "strictNullChecks": false,
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
     "preserveSymlinks": true,

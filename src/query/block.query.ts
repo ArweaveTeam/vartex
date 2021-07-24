@@ -1,9 +1,6 @@
 import { get } from 'superagent';
 import { grabNode, warmNode, coolNode } from './node.query';
-
-const HTTP_TIMEOUT_SECONDS = process.env['HTTP_TIMEOUT_SECONDS']
-  ? parseInt(process.env['HTTP_TIMEOUT_SECONDS'])
-  : 15;
+import { HTTP_TIMEOUT_SECONDS } from '../constants';
 
 export interface BlockType {
   nonce: string;
@@ -43,7 +40,7 @@ export function getBlock({
   height: number;
   gauge?: any;
   completed?: string;
-}): Promise<BlockType | void> {
+}): Promise<BlockType | undefined> {
   const tryNode = grabNode();
   const url = hash
     ? `${tryNode}/block/hash/${hash}`
@@ -55,14 +52,6 @@ export function getBlock({
       const body = JSON.parse(payload.text);
       if (hash && height !== body.height) {
         // REVIEW: does assuming re-forking condition work better than fatal error?
-        console.error(
-          "FATAL, hash height from hash_list doesn't match up:",
-          height,
-          '!=',
-          body.height,
-          'from',
-          `${tryNode}/block/hash/${hash}`
-        );
         process.exit(1);
       }
       warmNode(tryNode);

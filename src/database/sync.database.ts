@@ -7,8 +7,8 @@ import GaugeThemes from 'gauge/themes';
 import { config } from 'dotenv';
 import { types as CassandraTypes } from 'cassandra-driver';
 import {
-  serializeBlock,
-  serializeTransaction,
+  // serializeBlock,
+  // serializeTransaction,
   serializeAnsTransaction,
   serializeTags,
 } from '../utility/serialize.utility';
@@ -18,16 +18,21 @@ import { mkdir } from '../utility/file.utility';
 import { sleep } from '../utility/sleep.utility';
 import { getHashList, getNodeInfo } from '../query/node.query';
 import { getBlock as queryGetBlock } from '../query/block.query';
-import { transaction, tagValue, Tag } from '../query/transaction.query';
+import { getTransaction, tagValue, Tag } from '../query/transaction.query';
 import { getDataFromChunks } from '../query/node.query';
+import { ImportQueue, QueueState } from '../types/cassandra.types';
 import {
   cassandraClient,
   getMaxHeightBlock,
   getPlaceholderCount,
   makeBlockImportQuery,
+  makeBlockPlaceholder,
+  makeTxImportQuery,
+  newPollStatus,
   newSession,
   toLong,
 } from './cassandra.database';
+import { pollStatusMapper } from './mapper.database';
 import { DatabaseTag } from './transaction.database';
 import { cacheANSEntries } from '../caching/ans.entry.caching';
 
@@ -43,36 +48,29 @@ const trackerTheme = GaugeThemes.newTheme(
 
 export let SIGINT: boolean = false;
 export let SIGKILL: boolean = false;
-export let topHeight = 0;
-export let currentHash: string = '';
-export let currentHeight = 0;
-export let unsyncedBlocks = [];
+export let topHash: string = '';
+export let topHeight: CassandraTypes.Long = toLong(0);
+export let syncHash: string = '';
+export let syncHeight: CassandraTypes.Long = toLong(0);
+export let unsyncedBlocks: string[] = [];
 export let timer = setTimeout(() => {}, 0);
 
-interface QueueState {
-  isProcessing: boolean;
-  isStarted: boolean;
-}
-
-const developmentSyncStart: number | undefined = R.isEmpty(
-  process.env['DEVELOPMENT_SYNC_START']
+const developmentSyncLength: number | undefined = R.isEmpty(
+  process.env['DEVELOPMENT_SYNC_LENGTH']
 )
   ? undefined
-  : parseInt(process.env['DEVELOPMENT_SYNC_START'] as string);
-const developmentSyncEnd: number | undefined = R.isEmpty(
-  process.env['DEVELOPMENT_SYNC_END']
-)
-  ? undefined
-  : parseInt(process.env['DEVELOPMENT_SYNC_END'] as string);
+  : parseInt(process.env['DEVELOPMENT_SYNC_LENGTH'] as string);
 
-if (developmentSyncStart == NaN || developmentSyncEnd === NaN) {
-  console.error('Development sync range variables produced, illegal value NaN');
+if (developmentSyncLength === NaN) {
+  console.error('Development sync range variable produced, illegal value NaN');
+  process.exit(1);
 }
 
 let isQueueProcessorStarted = false;
-const blockQueue: { [v: number]: any } = {};
-const txQueue: { [v: number]: any } = {};
-const tagsQueue: { [v: number]: any } = {};
+let isPollingStarted = false;
+const blockQueue: ImportQueue = {};
+const txQueue: ImportQueue = {};
+const tagsQueue: ImportQueue = {};
 const blockQueueState: QueueState = { isProcessing: false, isStarted: false };
 const txQueueState: QueueState = { isProcessing: false, isStarted: false };
 const tagsQueueState: QueueState = { isProcessing: false, isStarted: false };
@@ -88,10 +86,10 @@ const createQueue = (
     // name could be misleading as this can be a batch of db-batches
     const batchPrio: number = items.sort()[0];
     queueState.isProcessing = true;
-    const batch = blockQueue[batchPrio]();
+    const batch = queueSource[batchPrio]();
     (Array.isArray(batch) ? Promise.all(batch) : batch)
       .then(function (ret: any) {
-        delete (blockQueue as any)[batchPrio];
+        delete (queueSource as any)[batchPrio];
         queueState.isProcessing = false;
       })
       .catch(function (err: any) {
@@ -121,9 +119,20 @@ function startQueueProcessors() {
 }
 
 async function startPolling(): Promise<void> {
-  const nodeInfo = await getNodeInfo({ fullySynced: true });
-  if (!nodeInfo || nodeInfo.current === currentHash) {
+  if (!isPollingStarted) {
+    isPollingStarted = true;
+  }
+  // const lastPollStatus = R.head(await pollStatusMapper.findAll());
+  const nodeInfo = await getNodeInfo({});
+  [topHash, topHeight] = await getMaxHeightBlock();
+  if (!nodeInfo || nodeInfo.current === topHash) {
     // wait 5 seconds before polling again
+    log.info(
+      '[poll] fully aligned at block ' +
+        topHash +
+        ' height ' +
+        topHeight.toString()
+    );
     await new Promise((res) => setTimeout(res, 5 * 1000));
     return startPolling();
   } else if (nodeInfo) {
@@ -132,13 +141,16 @@ async function startPolling(): Promise<void> {
       height: nodeInfo.height,
       hash: nodeInfo.current,
     });
-    if (newBlock) {
-      currentHeight = Math.max(currentHeight, newBlock.height);
+    if (newBlock !== undefined) {
+      const blockQueryCallback = makeBlockImportQuery(newBlock);
+
       (blockQueue as any)[
         typeof newBlock.height === 'string'
           ? parseInt(newBlock.height)
           : newBlock.height || 0
-      ] = makeBlockImportQuery(newBlock);
+      ] = blockQueryCallback;
+    } else {
+      console.error('FATAL Querying for new block failed');
     }
     await new Promise((res) => setTimeout(res, 5 * 1000));
     return startPolling();
@@ -146,7 +158,7 @@ async function startPolling(): Promise<void> {
 }
 
 async function prepareBlockStatuses(
-  unsyncedBlocks: number[],
+  unsyncedBlockHeights: number[],
   hashList: string[]
 ) {
   log.info(
@@ -163,12 +175,17 @@ async function prepareBlockStatuses(
   });
   gauge.setTheme(trackerTheme);
   gauge.enable();
-  for (const blockHeight of unsyncedBlocks) {
-    gauge.show(`${blockHeight}/${topHeight}`);
-
-    await cassandraClient.execute(
-      `INSERT INTO gateway.block_status (block_height, block_hash, synced) VALUES (?, ?, ?) IF NOT EXISTS`,
-      [toLong(blockHeight), hashList[blockHeight], false]
+  const linearHashList = R.reverse(hashList);
+  for (const blockHeights of R.splitEvery(5, unsyncedBlockHeights)) {
+    gauge.show(
+      `${topHeight.sub(
+        Math.max.apply(undefined, blockHeights)
+      )}/${topHeight.toString()}`
+    );
+    await Promise.all(
+      blockHeights.map((blockHeight) =>
+        makeBlockPlaceholder(blockHeight, linearHashList[blockHeight])
+      )
     );
   }
   gauge.disable();
@@ -176,12 +193,20 @@ async function prepareBlockStatuses(
 }
 
 export function startSync() {
+  signalHook();
   startQueueProcessors();
   newSession().then(
     ([lastSessionHash, lastSessionHeight]: [string, number]) => {
-      const startHeight = lastSessionHeight || 0;
-      log.info(`[database] starting sync at block: ${startHeight}`);
-      signalHook();
+      if (lastSessionHeight === 0) {
+        log.info(`[sync] fully synced db`);
+        startPolling();
+        return;
+      } else {
+        log.info(
+          `[sync] missing ${lastSessionHeight} blocks, starting sync...`
+        );
+      }
+
       const gauge = new Gauge(process.stderr, {
         template: [
           { type: 'progressbar', length: 0 },
@@ -192,62 +217,51 @@ export function startSync() {
       });
       gauge.setTheme(trackerTheme);
       gauge.enable();
-      getHashList({}).then((hashList) => {
+      getHashList({}).then((hashList: string[] | undefined) => {
         if (hashList) {
-          topHeight = hashList.length;
-          if (startHeight < hashList.length) {
-            const unsyncedBlocks: number[] = R.range(
-              developmentSyncStart ? developmentSyncStart : startHeight,
-              developmentSyncEnd ? developmentSyncEnd : topHeight
-            );
-            currentHeight = R.isEmpty(unsyncedBlocks)
-              ? topHeight
-              : R.last(unsyncedBlocks);
-            getPlaceholderCount().then((currentCount) => {
-              prepareBlockStatuses(
-                R.range(
-                  developmentSyncStart
-                    ? developmentSyncStart
-                    : currentCount.toInt(),
-                  developmentSyncEnd ? developmentSyncEnd : topHeight
-                ),
-                hashList
-              ).then(() => {
-                F.fork((reason: string | void) => {
-                  console.error('Fatal', reason || '');
-                  process.exit(1);
-                })(() => {
-                  gauge.disable();
-                  log.info(
-                    `Database fully in sync with block_list height ${
-                      developmentSyncEnd ? developmentSyncEnd : topHeight
-                    }`
-                  );
-                  // startPolling();
-                })(
-                  F.parallel(
-                    (isNaN as any)(process.env['PARALLEL'])
-                      ? 36
-                      : parseInt(process.env['PARALLEL'] || '36')
-                  )(
-                    R.slice(
-                      0,
-                      // topHeight - 50
-                      100
-                    )(unsyncedBlocks).map((height) => {
-                      // WIP: we store the last 50 in mute-able tables
-                      return storeBlock(height, hashList, gauge);
-                    })
-                  )
-                );
-              });
+          // topHeight = hashList.length;
+          const hashListLength = hashList.length;
+          unsyncedBlocks =
+            typeof developmentSyncLength === 'number'
+              ? R.slice(
+                  hashListLength - developmentSyncLength,
+                  hashListLength
+                )(hashList)
+              : typeof lastSessionHash === 'number'
+              ? (R.splitWhen(R.equals(lastSessionHash))(
+                  hashList
+                )[1] as string[])
+              : (hashList as string[]);
+
+          // unsyncedBlocks =
+          // currentHeight = R.head(unsyncedBlocks as string[]);
+          const unsyncedBlockHeights = R.range(
+            developmentSyncLength ? hashListLength - developmentSyncLength : 0,
+            hashListLength
+          );
+          getPlaceholderCount().then((currentCount) => {
+            prepareBlockStatuses(unsyncedBlockHeights, hashList).then(() => {
+              F.fork((reason: string | void) => {
+                console.error('Fatal', reason || '');
+                process.exit(1);
+              })(() => {
+                gauge.disable();
+                log.info(`Database fully in sync with block_list`);
+                unsyncedBlocks = [];
+                !isPollingStarted && startPolling();
+              })(
+                F.parallel(
+                  (isNaN as any)(process.env['PARALLEL'])
+                    ? 36
+                    : parseInt(process.env['PARALLEL'] || '36')
+                )(
+                  unsyncedBlockHeights.map((height) => {
+                    return storeBlock(height, hashList, gauge);
+                  })
+                )
+              );
             });
-          } else {
-            console.log(
-              'database was found to be in sync, starting to poll for new blocks...'
-            );
-            startPolling();
-          }
+          });
         } else {
           console.error(
             'Failed to establish any connection to Nodes after 100 retries'
@@ -263,7 +277,7 @@ export function storeBlock(
   height: number,
   hashList: string[],
   gauge: any
-): Promise<void> {
+): Promise<unknown> {
   const syncDatabaseJobTracker = `${height}/${hashList.length}`;
   return Fluture(
     (reject: (reason: string | void) => void, resolve: () => void) => {
@@ -276,16 +290,19 @@ export function storeBlock(
             gauge,
             completed: syncDatabaseJobTracker,
           })
-            .then((currentBlock) => {
-              if (currentBlock) {
-                currentHeight = Math.max(currentHeight, currentBlock.height);
-                const thisBlockHeight =
-                  typeof currentBlock.height === 'string'
-                    ? parseInt(currentBlock.height)
-                    : currentBlock.height || 0;
-                (blockQueue as any)[thisBlockHeight] = makeBlockImportQuery(
-                  currentBlock
-                );
+            .then((newSyncBlock) => {
+              if (newSyncBlock) {
+                // const thisBlockHeight =
+                //   typeof newSyncBlock.height === 'string'
+                //     ? parseInt(newSyncBlock.height)
+                //     : newSyncBlock.height || 0;
+                syncHeight = toLong(newSyncBlock.height);
+                (blockQueue as any)[
+                  newSyncBlock.height.toString()
+                ] = makeBlockImportQuery(newSyncBlock);
+                (newSyncBlock.txs || []).forEach((txId: string) => {
+                  storeTransaction(txId, newSyncBlock);
+                });
                 resolve();
               } else {
                 new Promise((res) => setTimeout(res, 100)).then(() => {
@@ -319,23 +336,22 @@ export function storeBlock(
   );
 }
 
-export async function storeTransaction(tx: string, height: number) {
-  const currentTransaction = await transaction(tx);
+export async function storeTransaction(
+  txId: string,
+  blockData: { [k: string]: any }
+) {
+  const currentTransaction = await getTransaction({ txId });
   if (currentTransaction) {
-    const { formattedTransaction, preservedTags, input } = serializeTransaction(
-      currentTransaction,
-      height
-    );
-
     // streams.transaction.cache.write(input);
 
-    storeTags(formattedTransaction.id, preservedTags);
+    // storeTags(formattedTransaction.id, preservedTags);
 
-    const ans102 = tagValue(preservedTags, 'Bundle-Type') === 'ANS-102';
+    // const ans102 = tagValue(preservedTags, 'Bundle-Type') === 'ANS-102';
 
-    if (ans102) {
-      await processAns(formattedTransaction.id, height);
-    }
+    // if (ans102) {
+    //   await processAns(formattedTransaction.id, height);
+    // }
+    txQueue[txId] = makeTxImportQuery(currentTransaction, blockData);
   } else {
     console.error('Fatal network error');
     process.exit(1);

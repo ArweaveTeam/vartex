@@ -26,11 +26,13 @@ npm run start
 yarn start
 ```
 
-While developing you can specify a linear range of blocks you wish to sync by specifying
+While developing you can specify a range of blocks you wish to sync,
+the range starts from the most recent known block from the cached hash_list
+down X amount of blocks specified with DEVELOPMENT_SYNC_LENGTH.
 
 ```bash
-DEVELOPMENT_SYNC_START={{start point from 0 to lastBlock - 1}}
-DEVELOPMENT_SYNC_END={{start point from 1 to lastBlock}}
+# for cached block height 1,000,000 would only sync down to 999,900
+DEVELOPMENT_SYNC_LENGTH=100
 ```
 
 ## Endpoints

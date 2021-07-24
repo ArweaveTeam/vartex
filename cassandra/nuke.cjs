@@ -22,9 +22,12 @@ client
       'USE gateway',
       `DROP TABLE IF EXISTS poa`,
       `DROP TABLE IF EXISTS sync_status`,
+      `DROP TABLE IF EXISTS poll_status`,
+      `DROP TABLE IF EXISTS block_by_tx_id`,
       `DROP TABLE IF EXISTS block_status`,
-      `DROP TABLE IF EXISTS block_hash`,
+      `DROP TABLE IF EXISTS block_height_by_block_hash`,
       `DROP TABLE IF EXISTS block`,
+      `DROP TABLE IF EXISTS tx_offset`,
       `DROP TABLE IF EXISTS tx_tag`,
       `DROP TABLE IF EXISTS transaction`,
     ];

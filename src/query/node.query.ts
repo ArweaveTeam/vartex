@@ -6,6 +6,7 @@ import { get } from 'superagent';
 import rwc from 'random-weighted-choice';
 import { log } from '../utility/log.utility';
 import { getTransactionOffset, getChunk } from './chunk.query';
+import { HTTP_TIMEOUT_SECONDS } from '../constants';
 
 config();
 
@@ -17,7 +18,7 @@ export const NODES = process.env.ARWEAVE_NODES
 
 type WeightedNode = { id: string; weight: number };
 
-const nodeTemperatures: WeightedNode[] = NODES.map((url: string) => ({
+let nodeTemperatures: WeightedNode[] = NODES.map((url: string) => ({
   id: url,
   weight: 1,
 }));
@@ -29,6 +30,7 @@ export function grabNode() {
       const rootPeers = JSON.parse(payload.text);
       rootPeers.forEach(
         (peer: string) =>
+          !peer.startsWith('127.0') &&
           !NODES.includes(peer) &&
           NODES.push(peer) &&
           nodeTemperatures.push({ id: peer, weight: 1 })
@@ -45,9 +47,15 @@ export function warmNode(url: string) {
   }
 }
 
-export function coolNode(url: string) {
+export function coolNode(url: string, kickIfLow: boolean = false) {
   const item = nodeTemperatures.find((i: WeightedNode) => i.id === url);
   if (item) {
+    if (kickIfLow && item['weight'] < 2) {
+      log.info(`[network] peer ${url} kicked out because of unresponsiveness`);
+      nodeTemperatures = R.reject((temp: WeightedNode) =>
+        R.equals(R.prop('id', temp), url)
+      )(nodeTemperatures) as WeightedNode[];
+    }
     item['weight'] = Math.min(item['weight'] - 1, 1);
   }
 }
@@ -66,11 +74,20 @@ export interface InfoType {
 
 export function getNodeInfo({
   retry = 0,
-  fullySynced = false,
-}): Promise<InfoType | void> {
-  const tryNode = grabNode();
+  maxRetry = 100,
+  keepAlive = false,
+}): Promise<InfoType | undefined> {
+  let tryNode = '';
+  let nodeFindAttempt = 0;
+  while (R.isEmpty(tryNode) && nodeFindAttempt < 100) {
+    const maybeNode = grabNode();
+    if (maybeNode) {
+      tryNode = maybeNode;
+    }
+  }
 
   return get(`${tryNode}/info`)
+    .timeout((HTTP_TIMEOUT_SECONDS || 5) * 1000)
     .then((payload) => {
       const body = JSON.parse(payload.text);
       warmNode(tryNode);
@@ -87,31 +104,32 @@ export function getNodeInfo({
         node_state_latency: body.node_state_latency,
       };
     })
-    .catch(() => {
-      coolNode(tryNode);
+    .catch((error) => {
+      coolNode(tryNode, true);
       return new Promise((res) => setTimeout(res, 10 + 2 * retry)).then(() => {
-        if (retry < 100) {
-          return getNodeInfo({ retry: retry + 1, fullySynced });
+        if (retry < maxRetry) {
+          return getNodeInfo({ retry: retry + 1, maxRetry });
         } else {
           console.error(
             'Failed to establish connection to any specified node after 100 retries'
           );
-          if (fullySynced) {
+
+          if (keepAlive) {
             console.error(
               'Check the network status, trying again in a minute...'
             );
             return new Promise((res) => setTimeout(res, 60 * 1000)).then(() => {
-              return getNodeInfo({ retry: 0, fullySynced });
+              return getNodeInfo({ retry: 0, maxRetry });
             });
           } else {
-            process.exit(1);
+            return undefined;
           }
         }
       });
     });
 }
 
-export function getHashList({ retry = 0 }): Promise<string[] | void> {
+export function getHashList({ retry = 0 }): Promise<string[] | undefined> {
   const hashListCachePath = 'cache/hash_list.json';
   const cacheExists = existsSync(hashListCachePath);
 
@@ -127,7 +145,7 @@ export function getHashList({ retry = 0 }): Promise<string[] | void> {
       .then((payload) => {
         // TODO: when it hits 100mb+ look into streaming solutions
         // https://github.com/uhop/stream-json
-        const body = R.reverse(JSON.parse(payload.text));
+        const body = JSON.parse(payload.text);
         warmNode(tryNode);
         return fs
           .writeFile('cache/hash_list.json', JSON.stringify(body, undefined, 2))

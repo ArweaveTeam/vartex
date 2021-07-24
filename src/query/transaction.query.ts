@@ -6,6 +6,7 @@ import {
   fromB64Url,
 } from '../utility/encoding.utility';
 import { grabNode, coolNode, warmNode } from './node.query';
+import { HTTP_TIMEOUT_SECONDS } from '../constants';
 
 export interface Tag {
   name: Base64UrlEncodedString;
@@ -29,36 +30,29 @@ export interface TransactionType {
   signature: string;
 }
 
-export function transaction(
-  id: string,
-  retry = 0
-): Promise<TransactionType | void> {
+export function getTransaction({
+  txId,
+  retry = 0,
+}: {
+  txId: string;
+  retry?: number;
+}): Promise<TransactionType | undefined> {
   const tryNode = grabNode();
 
-  return get(`${tryNode}/tx/${id}`)
-    .then((payload) => {
+  return Promise.all([
+    get(`${tryNode}/tx/${txId}`).timeout(HTTP_TIMEOUT_SECONDS * 1000),
+    get(`${tryNode}/tx/${txId}/offset`).timeout(HTTP_TIMEOUT_SECONDS * 1000),
+  ])
+    .then(([payload, offsetPayload]) => {
       const body = JSON.parse(payload.text);
       warmNode(tryNode);
-      return {
-        format: body.format,
-        id: body.id,
-        last_tx: body.last_tx,
-        owner: body.owner,
-        tags: body.tags,
-        target: body.target,
-        quantity: body.quantity,
-        data: body.data,
-        data_size: body.data_size,
-        data_tree: body.data_tree,
-        data_root: body.data_root,
-        reward: body.reward,
-        signature: body.signature,
-      };
+      return body;
     })
     .catch(() => {
+      coolNode(tryNode);
       return new Promise((res) => setTimeout(res, 10 + 2 * retry)).then(() => {
         if (retry < 100) {
-          return transaction(id, retry + 1);
+          return getTransaction({ txId, retry: retry + 1 });
         } else {
           console.error(
             'Failed to establish connection to any specified node after 100 retries'

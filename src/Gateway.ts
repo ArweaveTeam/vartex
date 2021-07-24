@@ -15,7 +15,6 @@ import { graphServer } from './graphql/server.graphql';
 import { blockByHeightRoute } from './route/block.route';
 import { statusRoute } from './route/status.route';
 import { transactionRoute } from './route/transaction.route';
-import { syncRoute } from './route/sync.route';
 import { proxyRoute } from './route/proxy.route';
 import { dataRouteRegex, dataRoute } from './route/data.route';
 import { peerRoute } from './route/peer.route';
@@ -38,7 +37,7 @@ export function start(): void {
   app.use(manifestMiddleware);
 
   app.get('/', statusRoute);
-  app.get('/status', syncRoute);
+  app.get('/status', statusRoute);
 
   app.get(dataRouteRegex, dataRoute);
 

@@ -15,9 +15,9 @@ const withDefault = ({ name, fallback }: { name: string; fallback: any }) => ({
 
 const mapper = new Mapper(cassandraClient, {
   models: {
-    BlockHash: {
+    BlockHeightByBlockHash: {
       keyspace: 'gateway',
-      tables: ['block_hash'],
+      tables: ['block_height_by_hash'],
     },
     Block: {
       keyspace: 'gateway',
@@ -32,15 +32,35 @@ const mapper = new Mapper(cassandraClient, {
         withDefault({ name: 'txs', fallback: [] }),
       ]),
     },
+    BlockByTxId: {
+      keyspace: 'gateway',
+      tables: ['block_by_tx_id'],
+    },
     Poa: {
       keyspace: 'gateway',
       tables: ['poa'],
     },
+    PollStatus: {
+      keyspace: 'gateway',
+      tables: ['poll_status'],
+    },
+    Transaction: {
+      keyspace: 'gateway',
+      tables: ['transaction'],
+    },
   },
 });
 
-export const blockHeightToHashMapper = mapper.forModel('BlockHash');
+export const blockHeightToHashMapper = mapper.forModel(
+  'BlockHeightByBlockHash'
+);
 
 export const blockMapper = mapper.forModel('Block');
 
 export const poaMapper = mapper.forModel('Poa');
+
+export const pollStatusMapper = mapper.forModel('PollStatus');
+
+export const transactionMapper = mapper.forModel('Transaction');
+
+export const txIdToBlockMapper = mapper.forModel('BlockByTxId');

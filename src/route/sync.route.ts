@@ -5,7 +5,7 @@ import { getNodeInfo } from '../query/node.query';
 export const start = Number(new Date());
 
 export async function syncRoute(req: Request, res: Response) {
-  const info = await getNodeInfo({ fullySynced: true });
+  const info = await getNodeInfo({ maxRetry: 1, keepAlive: true });
 
   if (info) {
     const delta = info.height - currentHeight;

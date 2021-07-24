@@ -4,10 +4,7 @@ import { Request, Response } from 'express';
 // import { connection } from '../database/connection.database';
 import { ManifestV1 } from '../types/manifest.types';
 import { log } from '../utility/log.utility';
-import {
-  transaction as getTransaction,
-  tagValue,
-} from '../query/transaction.query';
+import { getTransaction, tagValue } from '../query/transaction.query';
 import { cacheFolder, cacheFile, cacheAnsFile } from '../caching/file.caching';
 
 config();

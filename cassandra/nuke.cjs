@@ -23,6 +23,7 @@ client
       `DROP TABLE IF EXISTS poa`,
       `DROP TABLE IF EXISTS sync_status`,
       `DROP TABLE IF EXISTS block_status`,
+      `DROP TABLE IF EXISTS block_hash`,
       `DROP TABLE IF EXISTS block`,
       `DROP TABLE IF EXISTS tx_tag`,
       `DROP TABLE IF EXISTS transaction`,

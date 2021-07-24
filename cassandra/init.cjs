@@ -46,6 +46,12 @@ client
          PRIMARY KEY (block_hash, block_height)
        )
        WITH CLUSTERING ORDER BY (block_height DESC)`,
+      // map block_height->block_hash
+      `CREATE TABLE IF NOT EXISTS block_hash (
+         block_height bigint,
+         block_hash text,
+         PRIMARY KEY (block_height)
+       )`,
       `CREATE TABLE IF NOT EXISTS block (
          block_size bigint,
          cumulative_diff text,
@@ -66,7 +72,7 @@ client
          txs frozen<list<text>>,
          wallet_list text,
          weave_size bigint,
-         PRIMARY KEY (hash, height)
+         PRIMARY KEY (indep_hash, height)
        )
        WITH CLUSTERING ORDER BY (height DESC)`,
       // optimize for search

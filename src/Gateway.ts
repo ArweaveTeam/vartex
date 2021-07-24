@@ -12,6 +12,7 @@ import {
   sessionPinningMiddleware,
 } from './utility/session.utility';
 import { graphServer } from './graphql/server.graphql';
+import { blockByHeightRoute } from './route/block.route';
 import { statusRoute } from './route/status.route';
 import { transactionRoute } from './route/transaction.route';
 import { syncRoute } from './route/sync.route';
@@ -45,6 +46,9 @@ export function start(): void {
   app.get('/peers', peerRoute);
   app.get('/logs', koiLogsRoute);
   app.get('/logs/raw', koiLogsRawRoute);
+
+  // db endpoints
+  app.get(`/block/height/:height`, blockByHeightRoute);
 
   // app.all('*', proxyRoute);
 

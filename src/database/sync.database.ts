@@ -200,6 +200,9 @@ export function startSync() {
               developmentSyncStart ? developmentSyncStart : startHeight,
               developmentSyncEnd ? developmentSyncEnd : topHeight
             );
+            currentHeight = R.isEmpty(unsyncedBlocks)
+              ? topHeight
+              : R.last(unsyncedBlocks);
             getPlaceholderCount().then((currentCount) => {
               prepareBlockStatuses(
                 R.range(

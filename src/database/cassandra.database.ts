@@ -141,7 +141,7 @@ const transformPoaKeys = (obj: any): Poa => {
   poaObj['tx_path'] = poa['tx_path'] || '';
   poaObj['data_path'] = poa['data_path'] || '';
   poaObj['chunk'] = poa['chunk'] || '';
-  poaObj['block_hash'] = obj['hash'] || '';
+  poaObj['block_hash'] = obj['indep_hash'] || '';
   poaObj['block_height'] = toLong(obj['height']);
   return poaObj;
 };
@@ -219,6 +219,8 @@ const blockStatusUpdateQuery = `
   SET synced = true
   WHERE block_height = ? and block_hash = ?`;
 
+const blockHashInsertQuery = `INSERT INTO gateway.block_hash (block_height, block_hash) VALUES (?, ?) IF NOT EXISTS`;
+
 // Note the last synced block isn't
 // nececcarily the latest one, than
 // always needs verification on init
@@ -248,6 +250,11 @@ export const makeBlockImportQuery = (input: any) => () => {
     }),
     cassandraClient.execute(
       blockStatusUpdateQuery,
+      [input.height, input.indep_hash],
+      { prepare: true }
+    ),
+    cassandraClient.execute(
+      blockHashInsertQuery,
       [input.height, input.indep_hash],
       { prepare: true }
     ),

@@ -22,11 +22,11 @@ export async function blockByHeightRoute(
         block_height: height,
       });
       const poa = await poaMapper.get({ block_hash, block_height: height });
-      // console.error(poa, { block_hash, block_height: height });
       R.pipe(
-        R.assoc('poa', poa),
-        R.dissoc('poa.block_hash'),
-        R.dissoc('poa.block_height'),
+        R.assoc(
+          'poa',
+          R.pipe(R.dissoc('block_hash'), R.dissoc('block_height'))(poa)
+        ),
         (ret) => res.json(ret)
       )(await blockMapper.get({ height, indep_hash: block_hash }));
     } catch (error) {

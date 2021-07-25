@@ -18,7 +18,7 @@ export async function streamAndCacheTx(
 
     let byte = 0;
 
-    while (startOffset + byte < endOffset) {
+    while (startOffset.add(byte).lt(endOffset)) {
       const chunk = await getChunk({
         offset: startOffset.add(byte).toString(),
       });

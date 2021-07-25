@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
-import { currentHeight } from '../database/sync.database';
+import { syncHeight, topHeight } from '../database/sync.database';
+import { toLong } from '../database/cassandra.database';
 import { getNodeInfo } from '../query/node.query';
 
 export const start = Number(new Date());
@@ -8,14 +9,14 @@ export async function syncRoute(req: Request, res: Response) {
   const info = await getNodeInfo({ maxRetry: 1, keepAlive: true });
 
   if (info) {
-    const delta = info.height - currentHeight;
-    const status = delta < 3 ? 200 : 400;
+    const delta = toLong(info.height).sub(syncHeight);
+    const status = delta.lt(3) ? 200 : 400;
 
     return res.status(status).send({
       status: 'OK',
-      gatewayHeight: currentHeight,
+      gatewayHeight: topHeight.sub(syncHeight).toString(),
       arweaveHeight: info.height,
-      delta,
+      delta: delta.toString(),
     });
   } else {
     return res.status(404).send();

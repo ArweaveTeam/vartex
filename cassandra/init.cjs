@@ -27,17 +27,18 @@ client
          block_height bigint,
          PRIMARY KEY (block_hash, block_height)
       )
-      WITH CLUSTERING ORDER BY (block_height DESC)`,
+      WITH CLUSTERING ORDER BY (block_height ASC)`,
       // because iterating all the rows is expensive
       // last_block = tuple :: hash | height
       `CREATE TABLE IF NOT EXISTS sync_status (
+         last_hash_list_length bigint,
          last_block_height bigint,
          last_block_hash text,
          random_uuid uuid,
          session_uuid timeuuid,
          PRIMARY KEY (random_uuid,session_uuid)
        )
-       WITH CLUSTERING ORDER BY (session_uuid DESC)`,
+       WITH CLUSTERING ORDER BY (session_uuid ASC)`,
       `CREATE TABLE IF NOT EXISTS poll_status (
          current_block_height bigint,
          current_block_hash text,
@@ -45,7 +46,7 @@ client
          time_uuid timeuuid,
          PRIMARY KEY (random_uuid,time_uuid)
        )
-       WITH CLUSTERING ORDER BY (time_uuid DESC)`,
+       WITH CLUSTERING ORDER BY (time_uuid ASC)`,
       `CREATE TABLE IF NOT EXISTS block_status (
          block_height bigint,
          block_hash text,
@@ -53,7 +54,7 @@ client
          txs_synced boolean,
          PRIMARY KEY (block_hash, block_height)
        )
-       WITH CLUSTERING ORDER BY (block_height DESC)`,
+       WITH CLUSTERING ORDER BY (block_height ASC)`,
       `CREATE TABLE IF NOT EXISTS block_height_by_block_hash (
          block_height bigint,
          block_hash text,
@@ -81,7 +82,7 @@ client
          weave_size bigint,
          PRIMARY KEY (indep_hash, height)
        )
-       WITH CLUSTERING ORDER BY (height DESC)`,
+       WITH CLUSTERING ORDER BY (height ASC)`,
       // optimize for search
       // tag id is tx_id + tag_index
       `CREATE TABLE IF NOT EXISTS tx_tag (
@@ -91,10 +92,9 @@ client
          value text,
          PRIMARY KEY (tag_index, tx_id)
       )
-      WITH CLUSTERING ORDER BY (tx_id DESC)`,
+      WITH CLUSTERING ORDER BY (tx_id ASC)`,
       `CREATE TABLE IF NOT EXISTS block_by_tx_id (
          tx_id text,
-         tx_uuid timeuuid,
          block_height bigint,
          block_hash text,
          PRIMARY KEY (tx_id)
@@ -115,9 +115,8 @@ client
         signature text,
         tag_count int,
         tx_uuid timeuuid,
-        PRIMARY KEY (id, tx_uuid)
-      )
-      WITH CLUSTERING ORDER BY (tx_uuid DESC)`,
+        PRIMARY KEY (id)
+      )`,
       `CREATE TABLE IF NOT EXISTS tx_offset (
          tx_id text,
          size bigint,
@@ -131,7 +130,7 @@ client
          path text,
          PRIMARY KEY(manifest_id, tx_id)
        )
-       WITH CLUSTERING ORDER BY (tx_id DESC)`,
+       WITH CLUSTERING ORDER BY (tx_id ASC)`,
     ];
     let p = Promise.resolve();
     // Create the schema executing the queries serially

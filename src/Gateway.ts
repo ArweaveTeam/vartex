@@ -14,7 +14,7 @@ import {
 import { graphServer } from './graphql/server.graphql';
 import { blockByHeightRoute } from './route/block.route';
 import { statusRoute } from './route/status.route';
-import { transactionRoute } from './route/transaction.route';
+import { txUploadRoute, txGetByIdRoute } from './route/transaction.route';
 import { proxyRoute } from './route/proxy.route';
 import { dataRouteRegex, dataRoute } from './route/data.route';
 import { peerRoute } from './route/peer.route';
@@ -42,7 +42,9 @@ export function start(): void {
 
   app.get(dataRouteRegex, dataRoute);
 
-  app.post('/tx', transactionRoute);
+  app.post('/tx', txUploadRoute);
+  app.get('/tx/:id', txGetByIdRoute);
+
   app.get('/peers', peerRoute);
   app.get('/logs', koiLogsRoute);
   app.get('/logs/raw', koiLogsRawRoute);

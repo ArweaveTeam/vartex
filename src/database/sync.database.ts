@@ -29,11 +29,11 @@ import { ImportQueue, QueueState } from '../types/cassandra.types';
 import {
   cassandraClient,
   getMaxHeightBlock,
-  getPlaceholderCount,
   makeBlockImportQuery,
   makeBlockPlaceholder,
   makeTxImportQuery,
-  newPollStatus,
+  newSyncStatus,
+  newLastSessionHashSyncStatus,
   newSession,
   toLong,
 } from './cassandra.database';
@@ -60,11 +60,11 @@ export let syncHeight: CassandraTypes.Long = toLong(0);
 export let unsyncedBlocks: string[] = [];
 export let timer = setTimeout(() => {}, 0);
 
-const developmentSyncLength: number | undefined = R.isEmpty(
-  process.env['DEVELOPMENT_SYNC_LENGTH']
-)
-  ? undefined
-  : parseInt(process.env['DEVELOPMENT_SYNC_LENGTH'] as string);
+const developmentSyncLength: number | undefined =
+  !process.env['DEVELOPMENT_SYNC_LENGTH'] ||
+  R.isEmpty(process.env['DEVELOPMENT_SYNC_LENGTH'])
+    ? undefined
+    : parseInt(process.env['DEVELOPMENT_SYNC_LENGTH'] as string);
 
 if (developmentSyncLength === NaN) {
   console.error('Development sync range variable produced, illegal value NaN');
@@ -164,7 +164,8 @@ async function startPolling(): Promise<void> {
 
 async function prepareBlockStatuses(
   unsyncedBlockHeights: number[],
-  hashList: string[]
+  hashList: string[],
+  lastSessionHashListLength: CassandraTypes.Long
 ) {
   log.info(
     `[database] intitializing placeholder fields for blocks in cassandra...`
@@ -178,14 +179,43 @@ async function prepareBlockStatuses(
       { type: 'subsection', kerning: 1, default: '' },
     ],
   });
+
+  // const linearHashList = R.reverse(hashList);
+
+  if (
+    !lastSessionHashListLength.lt(0) &&
+    !lastSessionHashListLength.equals(hashList.length) &&
+    lastSessionHashListLength.lt(hashList.length)
+  ) {
+    // edge case: don't finish syncing the hash-list but it changed
+    await Promise.all(
+      R.range(
+        lastSessionHashListLength.toInt(),
+        hashList.length
+      ).map((blockHeight) =>
+        makeBlockPlaceholder(blockHeight, hashList[blockHeight])
+      )
+    );
+  }
+
+  await newLastSessionHashSyncStatus({
+    lastSessionHashLength: toLong(hashList.length),
+  });
+
   gauge.setTheme(trackerTheme);
   gauge.enable();
-  const linearHashList = R.reverse(hashList);
+
   for (const blockHeights of R.splitEvery(5, unsyncedBlockHeights)) {
     gauge.show(`${Math.max.apply(undefined, blockHeights)}/${hashList.length}`);
     await Promise.all(
       blockHeights.map((blockHeight) =>
-        makeBlockPlaceholder(blockHeight, linearHashList[blockHeight])
+        Promise.all([
+          newSyncStatus({
+            blockHeight: toLong(blockHeight),
+            blockHash: hashList[blockHeight],
+          }),
+          makeBlockPlaceholder(blockHeight, hashList[blockHeight]),
+        ])
       )
     );
   }
@@ -193,87 +223,102 @@ async function prepareBlockStatuses(
   log.info(`[database] done intitializing`);
 }
 
-export function startSync() {
+export async function startSync() {
   signalHook();
   startQueueProcessors();
-  newSession().then(
-    ([lastSessionHash, lastSessionHeight]: [string, number]) => {
-      if (lastSessionHeight === 0) {
-        log.info(`[sync] fully synced db`);
-        startPolling();
-        return;
-      } else {
-        log.info(
-          `[sync] missing ${lastSessionHeight} blocks, starting sync...`
-        );
-      }
+  const hashList: string[] = await getHashList({});
+  let firstRun = false;
 
-      const gauge = new Gauge(process.stderr, {
-        template: [
-          { type: 'progressbar', length: 0 },
-          { type: 'activityIndicator', kerning: 1, length: 2 },
-          { type: 'section', kerning: 1, default: '' },
-          { type: 'subsection', kerning: 1, default: '' },
-        ],
-      });
-      gauge.setTheme(trackerTheme);
-      gauge.enable();
-      getHashList({}).then((hashList: string[] | undefined) => {
-        if (hashList) {
-          topHeight = topHeight.gt(0) ? topHeight : toLong(hashList.length);
-          const hashListLength = hashList.length;
-          unsyncedBlocks =
-            typeof developmentSyncLength === 'number'
-              ? R.slice(
-                  hashListLength - developmentSyncLength,
-                  hashListLength
-                )(hashList)
-              : typeof lastSessionHash === 'number'
-              ? (R.splitWhen(R.equals(lastSessionHash))(
-                  hashList
-                )[1] as string[])
-              : (hashList as string[]);
-
-          // unsyncedBlocks =
-          // currentHeight = R.head(unsyncedBlocks as string[]);
-          const unsyncedBlockHeights = R.range(
-            developmentSyncLength
-              ? hashListLength - developmentSyncLength
-              : hashListLength - lastSessionHeight,
-            hashListLength
-          );
-          getPlaceholderCount().then((currentCount) => {
-            prepareBlockStatuses(unsyncedBlockHeights, hashList).then(() => {
-              F.fork((reason: string | void) => {
-                console.error('Fatal', reason || '');
-                process.exit(1);
-              })(() => {
-                gauge.disable();
-                log.info(`Database fully in sync with block_list`);
-                unsyncedBlocks = [];
-                !isPollingStarted && startPolling();
-              })(
-                F.parallel(
-                  (isNaN as any)(process.env['PARALLEL'])
-                    ? 36
-                    : parseInt(process.env['PARALLEL'] || '36')
-                )(
-                  unsyncedBlockHeights.map((height) => {
-                    return storeBlock(height, hashList, gauge);
-                  })
-                )
-              );
-            });
-          });
-        } else {
-          console.error(
-            'Failed to establish any connection to Nodes after 100 retries'
-          );
-          process.exit(1);
-        }
-      });
-    }
+  const { rows: lastPollHeightData } = await cassandraClient.execute(
+    `SELECT * FROM gateway.poll_status limit 1`
   );
+
+  const [lastSessionHash, lastSessionHeight, lastSessionHashListLength]: [
+    string,
+    CassandraTypes.Long,
+    CassandraTypes.Long
+  ] = await newSession({ currentHashList: hashList });
+
+  if (R.isEmpty(lastPollHeightData) && lastSessionHeight.lt(0)) {
+    firstRun = true;
+    log.info(
+      `[sync] database seems to be empty, starting preperations for import...`
+    );
+  } else if (lastSessionHeight.gt(hashList.length)) {
+    log.info(`[sync] fully synced db`);
+    startPolling();
+    return;
+  } else {
+    log.info(
+      `[sync] missing ${toLong(hashList.length)
+        .sub(lastSessionHeight)
+        .toString()} blocks, starting sync...`
+    );
+  }
+
+  const gauge = new Gauge(process.stderr, {
+    template: [
+      { type: 'progressbar', length: 0 },
+      { type: 'activityIndicator', kerning: 1, length: 2 },
+      { type: 'section', kerning: 1, default: '' },
+      { type: 'subsection', kerning: 1, default: '' },
+    ],
+  });
+  gauge.setTheme(trackerTheme);
+  gauge.enable();
+
+  const hashListLength = hashList.length;
+
+  unsyncedBlocks = firstRun
+    ? hashList
+    : developmentSyncLength && typeof developmentSyncLength === 'number'
+    ? R.slice(hashListLength - developmentSyncLength, hashListLength)(hashList)
+    : lastSessionHash && typeof lastSessionHash === 'string'
+    ? (R.splitWhen(R.equals(lastSessionHash))(hashList)[1] as string[])
+    : (hashList as string[]);
+
+  const unsyncedBlockHeights = firstRun
+    ? R.range(0, hashListLength)
+    : R.range(
+        Math.max(
+          0,
+          developmentSyncLength
+            ? hashListLength - developmentSyncLength
+            : R.findIndex(R.equals(lastSessionHash), hashList)
+        ),
+        hashListLength
+      );
+
+  prepareBlockStatuses(
+    unsyncedBlockHeights,
+    hashList,
+    lastSessionHashListLength
+  ).then(() => {
+    F.fork((reason: string | void) => {
+      console.error('Fatal', reason || '');
+      process.exit(1);
+    })(() => {
+      gauge.disable();
+      log.info(`Database fully in sync with block_list`);
+      unsyncedBlocks = [];
+      !isPollingStarted && startPolling();
+    })(
+      F.parallel(
+        (isNaN as any)(process.env['PARALLEL'])
+          ? 36
+          : parseInt(process.env['PARALLEL'] || '36')
+      )(
+        R.range(
+          R.isEmpty(lastPollHeightData)
+            ? 0
+            : lastPollHeightData[0].current_block_height.toInt(),
+          hashListLength
+        ).map((height) => {
+          return storeBlock(height, hashList, gauge);
+        })
+      )
+    );
+  });
 }
 
 export function storeBlock(

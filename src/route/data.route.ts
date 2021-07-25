@@ -5,7 +5,7 @@ import { Request, Response } from 'express';
 import { ManifestV1 } from '../types/manifest.types';
 import { log } from '../utility/log.utility';
 import { getTransaction, tagValue } from '../query/transaction.query';
-import { cacheFolder, cacheFile, cacheAnsFile } from '../caching/file.caching';
+// import { cacheFolder, cacheFile, cacheAnsFile } from '../caching/file.caching';
 
 config();
 

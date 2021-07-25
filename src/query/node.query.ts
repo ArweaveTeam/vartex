@@ -1,11 +1,12 @@
 import { existsSync } from 'fs';
 import fs from 'fs/promises';
+import { types as CassandraTypes } from 'cassandra-driver';
 import * as R from 'rambda';
 import { config } from 'dotenv';
 import { get } from 'superagent';
 import rwc from 'random-weighted-choice';
 import { log } from '../utility/log.utility';
-import { getTransactionOffset, getChunk } from './chunk.query';
+import { getChunk } from './chunk.query';
 import { HTTP_TIMEOUT_SECONDS } from '../constants';
 
 config();
@@ -185,18 +186,25 @@ export function getDataAsStream(id: string) {
   return get(`${grabNode()}/${id}`);
 }
 
-export async function getDataFromChunks(
-  id: string,
-  retry: boolean = true
-): Promise<Buffer> {
+export async function getDataFromChunks({
+  id,
+  startOffset,
+  endOffset,
+  retry,
+}: {
+  id: string;
+  retry?: boolean;
+  startOffset: CassandraTypes.Long;
+  endOffset: CassandraTypes.Long;
+}): Promise<Buffer> {
   try {
-    const { startOffset, endOffset } = await getTransactionOffset(id);
-
     let byte = 0;
     let chunks = Buffer.from('');
 
-    while (startOffset + byte < endOffset) {
-      const chunk = await getChunk(startOffset + byte);
+    while (startOffset.add(byte).lt(endOffset)) {
+      const chunk = await getChunk({
+        offset: startOffset.add(byte).toString(),
+      });
       byte += chunk.parsed_chunk.length;
       chunks = Buffer.concat([chunks, chunk.response_chunk]);
     }
@@ -208,7 +216,12 @@ export async function getDataFromChunks(
         `error retrieving data from ${id}, please note that this may be a cancelled transaction`
           .red.bold
       );
-      return await getDataFromChunks(id, false);
+      return await getDataFromChunks({
+        id,
+        retry: false,
+        startOffset,
+        endOffset,
+      });
     } else {
       throw error;
     }

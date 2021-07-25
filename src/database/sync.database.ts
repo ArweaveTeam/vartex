@@ -18,7 +18,12 @@ import { mkdir } from '../utility/file.utility';
 import { sleep } from '../utility/sleep.utility';
 import { getHashList, getNodeInfo } from '../query/node.query';
 import { getBlock as queryGetBlock } from '../query/block.query';
-import { getTransaction, tagValue, Tag } from '../query/transaction.query';
+import {
+  getTransaction,
+  getTxOffset,
+  tagValue,
+  Tag,
+} from '../query/transaction.query';
 import { getDataFromChunks } from '../query/node.query';
 import { ImportQueue, QueueState } from '../types/cassandra.types';
 import {
@@ -340,6 +345,11 @@ export async function storeTransaction(
 ) {
   const currentTransaction = await getTransaction({ txId });
   if (currentTransaction) {
+    let maybeTxOffset = {};
+    const dataSize = toLong(currentTransaction.data_size);
+    if (dataSize && dataSize.gt(0)) {
+      maybeTxOffset = await getTxOffset({ txId });
+    }
     // streams.transaction.cache.write(input);
 
     // storeTags(formattedTransaction.id, preservedTags);
@@ -349,7 +359,10 @@ export async function storeTransaction(
     // if (ans102) {
     //   await processAns(formattedTransaction.id, height);
     // }
-    txQueue[txId] = makeTxImportQuery(currentTransaction, blockData);
+    txQueue[txId] = makeTxImportQuery(
+      R.mergeAll([currentTransaction, maybeTxOffset]),
+      blockData
+    );
   } else {
     console.error('Fatal network error');
     process.exit(1);
@@ -362,7 +375,11 @@ export async function processAns(
   retry: boolean = true
 ) {
   try {
-    const ansPayload = await getDataFromChunks(id);
+    const ansPayload = await getDataFromChunks({
+      id,
+      startOffset: CassandraTypes.Long.fromNumber(0), // FIXEME
+      endOffset: CassandraTypes.Long.fromNumber(0), // FIXME
+    });
     const ansTxs = await ansBundles.unbundleData(ansPayload.toString('utf-8'));
 
     await cacheANSEntries(ansTxs);

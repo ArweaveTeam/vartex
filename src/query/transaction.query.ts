@@ -39,14 +39,41 @@ export function getTransaction({
 }): Promise<TransactionType | undefined> {
   const tryNode = grabNode();
 
-  return Promise.all([
-    get(`${tryNode}/tx/${txId}`).timeout(HTTP_TIMEOUT_SECONDS * 4 * 1000),
-    get(`${tryNode}/tx/${txId}/offset`).timeout(
-      HTTP_TIMEOUT_SECONDS * 4 * 1000
-    ),
-  ])
-    .then(([payload, offsetPayload]) => {
+  return get(`${tryNode}/tx/${txId}`)
+    .timeout(HTTP_TIMEOUT_SECONDS * 4 * 1000)
+    .then((payload) => {
       const body = JSON.parse(payload.text);
+      warmNode(tryNode);
+      return body;
+    })
+    .catch((error) => {
+      coolNode(tryNode);
+      return new Promise((res) => setTimeout(res, 10 + 2 * retry)).then(() => {
+        if (retry < 100) {
+          return getTransaction({ txId, retry: retry + 1 });
+        } else {
+          console.error(
+            'Failed to establish connection to any specified node after 100 retries'
+          );
+          process.exit(1);
+        }
+      });
+    });
+}
+
+export function getTxOffset({
+  txId,
+  retry = 0,
+}: {
+  txId: string;
+  retry?: number;
+}): Promise<TransactionType | undefined> {
+  const tryNode = grabNode();
+
+  return get(`${tryNode}/tx/${txId}/offset`)
+    .timeout(HTTP_TIMEOUT_SECONDS * 4 * 1000)
+    .then((offsetPayload) => {
+      const body = JSON.parse(offsetPayload.text);
       warmNode(tryNode);
       return body;
     })

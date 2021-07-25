@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import * as cassandra from 'cassandra-driver';
 import * as R from 'rambda';
 import { types as CassandraTypes } from 'cassandra-driver';
-import { ImportQueue } from '../types/cassandra.types';
+import { ImportQueue, Poa, TxOffset } from '../types/cassandra.types';
 import { config } from 'dotenv';
 
 config();
@@ -131,15 +131,6 @@ const blockKeys = [
   'wallet_list',
   'weave_size',
 ];
-
-interface Poa {
-  option: string;
-  tx_path: string;
-  data_path: string;
-  chunk: string;
-  block_hash: string;
-  block_height: CassandraTypes.Long;
-}
 
 const transformPoaKeys = (obj: any): Poa => {
   const poa = obj['poa'] ? obj['poa'] : {};
@@ -280,12 +271,6 @@ const transformTxKey = (key: string, txData: any, blockData: any) => {
   }
 };
 
-interface TxOffset {
-  tx_id: string;
-  size: CassandraTypes.Long;
-  offset: CassandraTypes.Long;
-}
-
 const transformTxOffsetKeys = (txObj: any): TxOffset => {
   const txOffset = txObj['tx_offset'] ? txObj['tx_offset'] : {};
   const txOffsetObj = {} as TxOffset;
@@ -357,12 +342,16 @@ export const makeTxImportQuery = (
   blockData: { [k: string]: any }
 ) => () => {
   let txUuid: any;
+  let dataSize: CassandraTypes.Long | undefined;
   const nonNilTxKeys: string[] = [];
   const txInsertParams: { [k: string]: any } = transactionKeys.reduce(
     (paramz: Array<any>, key: string) => {
       const nextVal = transformTxKey(key, tx, blockData);
       if (key === 'tx_uuid') {
         txUuid = nextVal;
+      }
+      if (key === 'data_dize') {
+        dataSize = nextVal;
       }
       if (nextVal && !R.isEmpty(nextVal)) {
         paramz.push(nextVal);
@@ -375,9 +364,6 @@ export const makeTxImportQuery = (
   );
 
   return [
-    cassandraClient.execute(txOffsetInsertQuery, transformTxOffsetKeys(tx), {
-      prepare: true,
-    }),
     cassandraClient.execute(
       blockByTxIdInsertQuery,
       [tx.id, txUuid, blockData.height, blockData.indep_hash],
@@ -390,13 +376,31 @@ export const makeTxImportQuery = (
       txInsertParams,
       { prepare: true }
     ),
-  ].concat(
-    (tx.tags || []).map((tag: UpstreamTag, index: number) =>
-      cassandraClient.execute(txTagsInsertQuery, transformTag(tag, tx, index), {
-        prepare: true,
-      })
+  ]
+    .concat(
+      (tx.tags || []).map((tag: UpstreamTag, index: number) =>
+        cassandraClient.execute(
+          txTagsInsertQuery,
+          transformTag(tag, tx, index),
+          {
+            prepare: true,
+          }
+        )
+      )
     )
-  );
+    .concat(
+      dataSize && dataSize.gt(0)
+        ? [
+            cassandraClient.execute(
+              txOffsetInsertQuery,
+              transformTxOffsetKeys(tx),
+              {
+                prepare: true,
+              }
+            ),
+          ]
+        : []
+    );
 };
 
 export const makeBlockImportQuery = (input: any) => () => {

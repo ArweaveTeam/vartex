@@ -123,7 +123,7 @@ async function startPolling(): Promise<void> {
     isPollingStarted = true;
   }
   // const lastPollStatus = R.head(await pollStatusMapper.findAll());
-  const nodeInfo = await getNodeInfo({});
+  const nodeInfo = await getNodeInfo({ keepAlive: true });
   [topHash, topHeight] = await getMaxHeightBlock();
   if (!nodeInfo || nodeInfo.current === topHash) {
     // wait 5 seconds before polling again
@@ -177,11 +177,7 @@ async function prepareBlockStatuses(
   gauge.enable();
   const linearHashList = R.reverse(hashList);
   for (const blockHeights of R.splitEvery(5, unsyncedBlockHeights)) {
-    gauge.show(
-      `${topHeight.sub(
-        Math.max.apply(undefined, blockHeights)
-      )}/${topHeight.toString()}`
-    );
+    gauge.show(`${Math.max.apply(undefined, blockHeights)}/${hashList.length}`);
     await Promise.all(
       blockHeights.map((blockHeight) =>
         makeBlockPlaceholder(blockHeight, linearHashList[blockHeight])
@@ -219,7 +215,7 @@ export function startSync() {
       gauge.enable();
       getHashList({}).then((hashList: string[] | undefined) => {
         if (hashList) {
-          // topHeight = hashList.length;
+          topHeight = topHeight.gt(0) ? topHeight : toLong(hashList.length);
           const hashListLength = hashList.length;
           unsyncedBlocks =
             typeof developmentSyncLength === 'number'
@@ -236,7 +232,9 @@ export function startSync() {
           // unsyncedBlocks =
           // currentHeight = R.head(unsyncedBlocks as string[]);
           const unsyncedBlockHeights = R.range(
-            developmentSyncLength ? hashListLength - developmentSyncLength : 0,
+            developmentSyncLength
+              ? hashListLength - developmentSyncLength
+              : hashListLength - lastSessionHeight,
             hashListLength
           );
           getPlaceholderCount().then((currentCount) => {

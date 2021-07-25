@@ -10,34 +10,44 @@ import { HTTP_TIMEOUT_SECONDS } from '../constants';
 
 config();
 
-let hasRootPeers = false;
-
 export const NODES = process.env.ARWEAVE_NODES
   ? JSON.parse(process.env.ARWEAVE_NODES)
   : ['http://lon-1.eu-west-1.arweave.net:1984'];
 
 type WeightedNode = { id: string; weight: number };
 
-let nodeTemperatures: WeightedNode[] = NODES.map((url: string) => ({
-  id: url,
-  weight: 1,
-}));
+let nodeTemperatures: WeightedNode[] = [];
+
+const syncNodeTemperatures = () => {
+  nodeTemperatures = NODES.map((url: string) => {
+    const previousWeight = nodeTemperatures.find(
+      (i: WeightedNode) => i.id === url
+    );
+    return {
+      id: url,
+      weight: previousWeight ? previousWeight.weight : 1,
+    };
+  });
+};
+
+export const findPeers = async () => {
+  await get('https://www.arweave.net/peers').then((payload) => {
+    const rootPeers = JSON.parse(payload.text);
+    rootPeers.forEach(
+      (peer: string) =>
+        peer &&
+        !peer.startsWith('127.0') &&
+        !NODES.includes(peer) &&
+        NODES.push(peer)
+    );
+
+    syncNodeTemperatures();
+  });
+};
 
 export function grabNode() {
-  if (!hasRootPeers) {
-    hasRootPeers = true;
-    get('https://www.arweave.net/peers').then((payload) => {
-      const rootPeers = JSON.parse(payload.text);
-      rootPeers.forEach(
-        (peer: string) =>
-          !peer.startsWith('127.0') &&
-          !NODES.includes(peer) &&
-          NODES.push(peer) &&
-          nodeTemperatures.push({ id: peer, weight: 1 })
-      );
-    });
-  }
-  return rwc(nodeTemperatures);
+  const randomWeightedNode = rwc(nodeTemperatures);
+  return randomWeightedNode;
 }
 
 export function warmNode(url: string) {
@@ -77,17 +87,10 @@ export function getNodeInfo({
   maxRetry = 100,
   keepAlive = false,
 }): Promise<InfoType | undefined> {
-  let tryNode = '';
-  let nodeFindAttempt = 0;
-  while (R.isEmpty(tryNode) && nodeFindAttempt < 100) {
-    const maybeNode = grabNode();
-    if (maybeNode) {
-      tryNode = maybeNode;
-    }
-  }
+  const tryNode = grabNode();
 
   return get(`${tryNode}/info`)
-    .timeout((HTTP_TIMEOUT_SECONDS || 5) * 1000)
+    .timeout((HTTP_TIMEOUT_SECONDS || 15) * 4 * 1000)
     .then((payload) => {
       const body = JSON.parse(payload.text);
       warmNode(tryNode);
@@ -110,17 +113,21 @@ export function getNodeInfo({
         if (retry < maxRetry) {
           return getNodeInfo({ retry: retry + 1, maxRetry });
         } else {
-          console.error(
-            'Failed to establish connection to any specified node after 100 retries'
+          console.trace(
+            '\n' +
+              'Failed to establish connection to any specified node after 100 retries with these nodes: ' +
+              nodeTemperatures.map(R.prop('id')).join(', ') +
+              '\n'
           );
 
           if (keepAlive) {
             console.error(
-              'Check the network status, trying again in a minute...'
+              '\n' +
+                'Check the network status, trying again to reach some of these nodes, but it is unlikely to make a differnece:' +
+                nodeTemperatures.map(R.prop('id')).join(', ') +
+                '\n'
             );
-            return new Promise((res) => setTimeout(res, 60 * 1000)).then(() => {
-              return getNodeInfo({ retry: 0, maxRetry });
-            });
+            return getNodeInfo({ retry: 0, maxRetry });
           } else {
             return undefined;
           }
@@ -158,7 +165,7 @@ export function getHashList({ retry = 0 }): Promise<string[] | undefined> {
             if (retry < 100) {
               return getHashList({ retry: retry + 1 });
             } else {
-              console.error(
+              console.trace(
                 'Failed to establish connection to any specified node after 100 retries'
               );
               process.exit(1);

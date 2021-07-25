@@ -40,15 +40,17 @@ export function getTransaction({
   const tryNode = grabNode();
 
   return Promise.all([
-    get(`${tryNode}/tx/${txId}`).timeout(HTTP_TIMEOUT_SECONDS * 1000),
-    get(`${tryNode}/tx/${txId}/offset`).timeout(HTTP_TIMEOUT_SECONDS * 1000),
+    get(`${tryNode}/tx/${txId}`).timeout(HTTP_TIMEOUT_SECONDS * 4 * 1000),
+    get(`${tryNode}/tx/${txId}/offset`).timeout(
+      HTTP_TIMEOUT_SECONDS * 4 * 1000
+    ),
   ])
     .then(([payload, offsetPayload]) => {
       const body = JSON.parse(payload.text);
       warmNode(tryNode);
       return body;
     })
-    .catch(() => {
+    .catch((error) => {
       coolNode(tryNode);
       return new Promise((res) => setTimeout(res, 10 + 2 * retry)).then(() => {
         if (retry < 100) {

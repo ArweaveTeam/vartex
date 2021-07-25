@@ -19,6 +19,7 @@ import { proxyRoute } from './route/proxy.route';
 import { dataRouteRegex, dataRoute } from './route/data.route';
 import { peerRoute } from './route/peer.route';
 import { koiLogger, koiLogsRoute, koiLogsRawRoute } from './route/koi.route';
+import { findPeers } from './query/node.query';
 import { startSync } from './database/sync.database';
 
 config();
@@ -54,7 +55,7 @@ export function start(): void {
   app.listen(process.env.PORT || 3000, () => {
     log.info(`[app] started on http://localhost:${process.env.PORT || 3000}`);
     const graphqlServer = graphServer({ introspection: true });
-    graphqlServer.start().then(() => {
+    Promise.all([findPeers(), graphqlServer.start()]).then(() => {
       graphqlServer.applyMiddleware({
         app,
         path: '/graphql',

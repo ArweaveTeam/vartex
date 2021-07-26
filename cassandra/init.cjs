@@ -87,6 +87,7 @@ client
       // tag id is tx_id + tag_index
       `CREATE TABLE IF NOT EXISTS tx_tag (
          tag_index int,
+         next_tag_index int,
          tx_id text,
          name text,
          value text,

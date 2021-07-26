@@ -47,6 +47,13 @@ const mapper = new Mapper(cassandraClient, {
     Transaction: {
       keyspace: 'gateway',
       tables: ['transaction'],
+      columns: R.mergeAll([
+        withDefault({ name: 'target', fallback: '' }),
+        withDefault({ name: 'data', fallback: '' }),
+        withDefault({ name: 'data_tree', fallback: '' }),
+        withDefault({ name: 'format', fallback: 0 }),
+        withDefault({ name: 'tx_uuid', fallback: '' }),
+      ]),
     },
     TxTag: {
       keyspace: 'gateway',
@@ -70,3 +77,22 @@ export const transactionMapper = mapper.forModel('Transaction');
 export const txIdToBlockMapper = mapper.forModel('BlockByTxId');
 
 export const txTagMapper = mapper.forModel('TxTag');
+
+export const tagsByTxId = async (txId: string) => {
+  let lastRes = await txTagMapper.get({ tx_id: txId, tag_index: 0 });
+  const tags = [];
+
+  if (!lastRes) {
+    return tags;
+  } else {
+    tags.push({ name: lastRes.name, value: lastRes.value });
+    while (lastRes.next_tag_index) {
+      lastRes = await txTagMapper.get({
+        tx_id: txId,
+        tag_index: lastRes.next_tag_index,
+      });
+      tags.push({ name: lastRes.name, value: lastRes.value });
+    }
+  }
+  return tags;
+};

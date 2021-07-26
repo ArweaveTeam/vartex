@@ -104,7 +104,7 @@ const syncStatusKeys = ['last_block', 'session_uuid'];
 
 // const blockStatusKeys = ['block_height', 'synced'];
 
-const txTagKeys = ['tx_id', 'tag_index', 'name', 'value'];
+const txTagKeys = ['tx_id', 'tag_index', 'next_tag_index', 'name', 'value'];
 
 const txOffsetKeys = ['tx_id', 'size', 'offset'];
 
@@ -302,9 +302,15 @@ interface Tag {
 
 type UpstreamTag = { name: string; value: string };
 
-const transformTag = (tag: UpstreamTag, txObj: any, index: number): Tag => {
+const transformTag = (
+  tag: UpstreamTag,
+  txObj: any,
+  index: number,
+  nextIndex?: number
+): Tag => {
   const tagObj = {} as Tag;
   tagObj['tag_index'] = index;
+  tagObj['next_tag_index'] = nextIndex || undefined;
   tagObj['tx_id'] = txObj['id'];
   tagObj['name'] = tag.name || '';
   tagObj['value'] = tag.value || '';
@@ -402,7 +408,12 @@ export const makeTxImportQuery = (
       (tx.tags || []).map((tag: UpstreamTag, index: number) =>
         cassandraClient.execute(
           txTagsInsertQuery,
-          transformTag(tag, tx, index),
+          transformTag(
+            tag,
+            tx,
+            index,
+            index + 1 < tx.tags.length ? index + 1 : undefined
+          ),
           {
             prepare: true,
           }

@@ -6,12 +6,6 @@ import Gauge from 'gauge';
 import GaugeThemes from 'gauge/themes';
 import { config } from 'dotenv';
 import { types as CassandraTypes } from 'cassandra-driver';
-import {
-  // serializeBlock,
-  // serializeTransaction,
-  serializeAnsTransaction,
-  serializeTags,
-} from '../utility/serialize.utility';
 import { log } from '../utility/log.utility';
 import { ansBundles } from '../utility/ans.utility';
 import { mkdir } from '../utility/file.utility';
@@ -38,7 +32,6 @@ import {
   toLong,
 } from './cassandra.database';
 import { pollStatusMapper } from './mapper.database';
-import { DatabaseTag } from './transaction.database';
 import { cacheANSEntries } from '../caching/ans.entry.caching';
 
 config();
@@ -394,6 +387,7 @@ export async function storeTransaction(
     if (dataSize && dataSize.gt(0)) {
       maybeTxOffset = await getTxOffset({ txId });
     }
+
     // streams.transaction.cache.write(input);
 
     // storeTags(formattedTransaction.id, preservedTags);
@@ -445,34 +439,21 @@ export async function processANSTransaction(
   height: number
 ) {
   for (let i = 0; i < ansTxs.length; i++) {
-    const ansTx = ansTxs[i];
-    const { ansTags, input } = serializeAnsTransaction(ansTx, height);
-
+    // const ansTx = ansTxs[i];
+    // const { ansTags, input } = serializeAnsTransaction(ansTx, height);
     // streams.transaction.cache.write(input);
-
-    for (let ii = 0; ii < ansTags.length; ii++) {
-      const ansTag = ansTags[ii];
-      const { name, value } = ansTag;
-
-      const tag: DatabaseTag = {
-        tx_id: ansTx.id,
-        index: ii,
-        name: name || '',
-        value: value || '',
-      };
-
-      const input = `"${tag.tx_id}"|"${tag.index}"|"${tag.name}"|"${tag.value}"\n`;
-
-      // streams.tags.cache.write(input);
-    }
-  }
-}
-
-export function storeTags(tx_id: string, tags: Array<Tag>) {
-  for (let i = 0; i < tags.length; i++) {
-    const tag = tags[i];
-    const { input } = serializeTags(tx_id, i, tag);
+    // for (let ii = 0; ii < ansTags.length; ii++) {
+    //   const ansTag = ansTags[ii];
+    //   const { name, value } = ansTag;
+    // const tag: DatabaseTag = {
+    //   tx_id: ansTx.id,
+    //   index: ii,
+    //   name: name || '',
+    //   value: value || '',
+    // };
+    // const input = `"${tag.tx_id}"|"${tag.index}"|"${tag.name}"|"${tag.value}"\n`;
     // streams.tags.cache.write(input);
+    // }
   }
 }
 

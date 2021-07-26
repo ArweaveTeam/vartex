@@ -1,8 +1,10 @@
+import * as R from 'rambda';
 import { Request, Response, NextFunction } from 'express';
 import { post } from 'superagent';
 import {
   transactionMapper,
   txIdToBlockMapper,
+  tagsByTxId,
 } from '../database/mapper.database';
 
 export async function txUploadRoute(
@@ -28,10 +30,14 @@ export async function txGetByIdRoute(
     const txId = req.params.id;
     // const txBlockMeta = await txIdToBlockMapper.get({ tx_id: txId });
 
-    const transaction = await transactionMapper.get({
+    const rawTx = await transactionMapper.get({
       id: txId,
     });
 
+    const transaction = R.pipe(
+      R.assoc('tags', await tagsByTxId(txId)),
+      R.dissoc('tag_count')
+    )(rawTx);
     res.json(transaction);
   } catch (error) {
     // Passes errors into the error handler

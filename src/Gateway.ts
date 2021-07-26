@@ -1,6 +1,7 @@
 import 'colors';
 import express, { Express, Request, Response } from 'express';
 import { renderPlaygroundPage } from 'graphql-playground-html';
+import expressPlayground from 'graphql-playground-middleware-express';
 import { config } from 'dotenv';
 import cors from 'cors';
 import { jsonMiddleware } from './middleware/json.middleware';
@@ -61,15 +62,16 @@ export function start(): void {
       graphqlServer.applyMiddleware({
         app,
         path: '/graphql',
+        disableHealthCheck: true,
       });
       startSync();
     });
-    app.get('/graphql', (req: Request, res: Response) => {
-      res.setHeader('Content-Type', 'text/html');
-      const playground = renderPlaygroundPage({});
-      res.write(playground);
-      res.end();
-    });
+    app.get(
+      '/graphql',
+      expressPlayground({
+        endpoint: '/graphql',
+      })
+    );
   });
 }
 

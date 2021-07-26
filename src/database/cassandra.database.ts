@@ -121,6 +121,7 @@ const transactionKeys = [
   'quantity',
   'reward',
   'signature',
+  'target',
   'tag_count',
 ];
 
@@ -256,7 +257,8 @@ const transformTxKey = (key: string, txData: any, blockData: any) => {
     case 'id':
     case 'last_tx':
     case 'owner':
-    case 'signature': {
+    case 'signature':
+    case 'target': {
       if (txData[key]) {
         return typeof txData[key] === 'string'
           ? txData[key]
@@ -369,7 +371,7 @@ export const makeTxImportQuery = (
     (paramz: Array<any>, key: string) => {
       const nextVal = transformTxKey(key, tx, blockData);
 
-      if (key === 'data_dize') {
+      if (key === 'data_size') {
         dataSize = nextVal;
       }
       if (nextVal && !R.isEmpty(nextVal)) {

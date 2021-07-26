@@ -48,6 +48,10 @@ const mapper = new Mapper(cassandraClient, {
       keyspace: 'gateway',
       tables: ['transaction'],
     },
+    TxTag: {
+      keyspace: 'gateway',
+      tables: ['tx_tag'],
+    },
   },
 });
 
@@ -64,3 +68,5 @@ export const pollStatusMapper = mapper.forModel('PollStatus');
 export const transactionMapper = mapper.forModel('Transaction');
 
 export const txIdToBlockMapper = mapper.forModel('BlockByTxId');
+
+export const txTagMapper = mapper.forModel('TxTag');

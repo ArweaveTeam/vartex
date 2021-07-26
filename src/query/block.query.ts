@@ -51,6 +51,11 @@ export function getBlock({
     .then((payload) => {
       const body = JSON.parse(payload.text);
       if (hash && height !== body.height) {
+        console.error(
+          'fatal inconsistency: hash and height dont match for hash:',
+          hash,
+          height !== body.height
+        );
         // REVIEW: does assuming re-forking condition work better than fatal error?
         process.exit(1);
       }

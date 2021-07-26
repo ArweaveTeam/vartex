@@ -1,0 +1,9 @@
+schemaPath: schema.graphql
+extensions:
+  endpoints:
+    default:
+      url: 'https://www.${env:HOST}'
+      subscription: 'wss://www.${env:HOST}'
+    local:
+      url: 'http://localhost:${env:PORT}/graphql'
+      subscription: 'ws://localhost:${env:PORT}'

@@ -226,7 +226,7 @@ async function prepareBlockStatuses(
 export async function startSync() {
   signalHook();
   startQueueProcessors();
-  const hashList: string[] = await getHashList({});
+  const hashList: string[] = R.reverse(await getHashList({}));
   let firstRun = false;
 
   const { rows: lastPollHeightData } = await cassandraClient.execute(
@@ -268,6 +268,7 @@ export async function startSync() {
   gauge.enable();
 
   const hashListLength = hashList.length;
+  const linearHashList = R.reverse(hashList);
 
   unsyncedBlocks = firstRun
     ? hashList
@@ -277,17 +278,17 @@ export async function startSync() {
     ? (R.splitWhen(R.equals(lastSessionHash))(hashList)[1] as string[])
     : (hashList as string[]);
 
-  const unsyncedBlockHeights = firstRun
-    ? R.range(0, hashListLength)
-    : R.range(
-        Math.max(
+  const unsyncedBlockHeights = R.range(
+    firstRun && !developmentSyncLength
+      ? 0
+      : Math.max(
           0,
           developmentSyncLength
             ? hashListLength - developmentSyncLength
             : R.findIndex(R.equals(lastSessionHash), hashList)
         ),
-        hashListLength
-      );
+    hashListLength
+  );
 
   prepareBlockStatuses(
     unsyncedBlockHeights,
@@ -309,12 +310,14 @@ export async function startSync() {
           : parseInt(process.env['PARALLEL'] || '36')
       )(
         R.range(
-          R.isEmpty(lastPollHeightData)
+          developmentSyncLength
+            ? hashListLength - developmentSyncLength
+            : R.isEmpty(lastPollHeightData)
             ? 0
             : lastPollHeightData[0].current_block_height.toInt(),
           hashListLength
         ).map((height) => {
-          return storeBlock(height, hashList, gauge);
+          return storeBlock(height, linearHashList, gauge);
         })
       )
     );
@@ -340,10 +343,6 @@ export function storeBlock(
           })
             .then((newSyncBlock) => {
               if (newSyncBlock) {
-                // const thisBlockHeight =
-                //   typeof newSyncBlock.height === 'string'
-                //     ? parseInt(newSyncBlock.height)
-                //     : newSyncBlock.height || 0;
                 syncHeight = toLong(newSyncBlock.height);
                 (blockQueue as any)[
                   newSyncBlock.height.toString()
@@ -375,7 +374,7 @@ export function storeBlock(
               }
             });
       }
-      // console.log('fetching', height, hashList.slice(0, 10));
+
       getBlock();
       return () => {
         isCancelled = true;

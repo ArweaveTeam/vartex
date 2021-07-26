@@ -1,3 +1,4 @@
+import * as R from 'rambda';
 import moment from 'moment';
 import { config } from 'dotenv';
 import {
@@ -16,6 +17,7 @@ import {
   generateQuery,
   generateBlockQuery,
 } from './query.graphql';
+import * as DbMapper from '../database/mapper.database';
 
 config();
 
@@ -76,17 +78,25 @@ export const resolvers = {
       queryParams: { id: string },
       { req, connection }: any
     ) => {
-      req.log.info('[graphql/v2] transaction/request', queryParams);
-
-      const params: QueryParams = {
-        id: queryParams.id,
-        blocks: true,
-        select: fieldMap,
-      };
-
-      const result = (await generateQuery(params)).first();
-
-      return (await result) as TransactionHeader;
+      const tx = await DbMapper.transactionMapper.get({ id: queryParams.id });
+      // map tx to fieldMap
+      if (!tx) {
+        throw new Error(`id: "${queryParams.id}" does not exist!`);
+      } else {
+        const block = await DbMapper.txIdToBlockMapper.get({
+          tx_id: queryParams.id,
+        });
+        return R.reduce((acc: FieldMap, key: string) => {
+          const txKeyKey = fieldMap[key].split('.');
+          const txScope = txKeyKey[0];
+          const txKey = txKeyKey[1];
+          const val =
+            txScope === 'blocks'
+              ? (block[txKey] || '').toString()
+              : (tx[txKey] || '').toString();
+          return R.assoc(key, val, acc);
+        }, {} as FieldMap)(R.keys(fieldMap));
+      }
     },
     transactions: async (
       parent: string,

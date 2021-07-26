@@ -3,6 +3,7 @@ import { indices } from '../utility/order.utility';
 import { ISO8601DateTimeString } from '../utility/encoding.utility';
 import { TagFilter } from './types';
 import { tagToB64, toB64url } from '../query/transaction.query';
+import * as DbMapper from '../database/mapper.database';
 
 config();
 
@@ -36,7 +37,12 @@ export interface QueryParams {
   maxHeight?: number;
 }
 
-export async function generateQuery(params: QueryParams): Promise<any> {}
+export async function generateQuery(params: QueryParams): Promise<any> {
+  console.log('PARAMS', params);
+
+  // const txs = DbMapper.Transaction();
+  return {};
+}
 
 // export async function generateQuery(
 //   params: QueryParams

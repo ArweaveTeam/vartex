@@ -105,6 +105,7 @@ client
       `CREATE TABLE IF NOT EXISTS transaction (
         block_height bigint,
         block_hash text,
+        block_timestamp bigint,
         data text,
         data_root text,
         data_size bigint,

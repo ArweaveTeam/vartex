@@ -111,6 +111,7 @@ const txOffsetKeys = ['tx_id', 'size', 'offset'];
 const transactionKeys = [
   'block_height',
   'block_hash',
+  'block_timestamp',
   'data_root',
   'data_size',
   'data_tree',
@@ -220,6 +221,9 @@ const transformBlockKey = (key: string, obj: any) => {
 
 const transformTxKey = (key: string, txData: any, blockData: any) => {
   switch (key) {
+    case 'block_timestamp': {
+      return toLong(blockData['timestamp']);
+    }
     case 'block_height': {
       return toLong(blockData['height']);
     }

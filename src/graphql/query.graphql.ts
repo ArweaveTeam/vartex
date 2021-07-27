@@ -1,9 +1,14 @@
+import * as R from 'rambda';
+import { types as CassandraTypes } from 'cassandra-driver';
 import { config } from 'dotenv';
-import { indices } from '../utility/order.utility';
-import { ISO8601DateTimeString } from '../utility/encoding.utility';
-import { TagFilter } from './types';
-import { tagToB64, toB64url } from '../query/transaction.query';
-import * as DbMapper from '../database/mapper.database';
+import { indices } from '../utility/order.utility.js';
+import { ISO8601DateTimeString } from '../utility/encoding.utility.js';
+import { TagFilter } from './types.js';
+import { tagToB64, toB64url } from '../query/transaction.query.js';
+import * as DbMapper from '../database/mapper.database.js';
+import { default as cqlBuilder } from '@ridi/cql-builder';
+
+const { Insert, Select, Update, Delete, CqlBuilderError } = cqlBuilder;
 
 config();
 
@@ -37,11 +42,64 @@ export interface QueryParams {
   maxHeight?: number;
 }
 
-export async function generateQuery(params: QueryParams): Promise<any> {
+export function generateTransactionQuery(params: QueryParams): any {
+  // const { to, from, tags, id, ids, status = 'confirmed', select } = params;
+
   console.log('PARAMS', params);
 
+  const cql = Select()
+    .table('transaction', 'gateway')
+    .field(params.select)
+    .filtering();
+
+  if (params.id) {
+    cql.where('id = ?', params.id);
+  } else if (params.ids && Array.isArray(params.ids)) {
+    cql.where.apply(
+      cql,
+      R.concat(
+        [
+          `id IN ( ${R.range(0, params.ids.length)
+            .map(() => '?')
+            .join(', ')} )`,
+        ],
+        params.ids
+      )
+    );
+  }
+
+  if (params.since) {
+    cql.where(
+      'block_timestamp < ?',
+      CassandraTypes.Long.fromNumber(
+        Math.floor(
+          CassandraTypes.TimeUuid.fromString(params.since).getDate().valueOf() /
+            1000
+        )
+      )
+    );
+  }
+
+  if (params.status === 'confirmed') {
+    cql.where('block_height >= ?', CassandraTypes.Long.fromNumber(0));
+  }
+
+  // console.log('CQL', );
+
+  // .table('test_table', 'test_keyspace')
+  // .field(['column1', 'column2'])
+  // .field('column3')
+  // .where('key1 = ?', 1000)
+  // .where('key2 > ?', 2000)
+  // .limit(5000)
+  // .order('key1 DESC')
+  // .where('key3 IN (?, ?)', 3000, 4000)
+  // .option('TTL', 86400)
+  // .filtering()
+  // .build();
+
   // const txs = DbMapper.Transaction();
-  return {};
+  return cql.build();
 }
 
 // export async function generateQuery(
@@ -158,9 +216,7 @@ export interface BlockQueryParams {
   maxHeight?: number;
 }
 
-export async function generateBlockQuery(
-  params: BlockQueryParams
-): Promise<any> {
+export function generateBlockQuery(params: BlockQueryParams): any {
   // const {
   //   id,
   //   ids,

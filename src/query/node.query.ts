@@ -47,7 +47,7 @@ export const findPeers = async () => {
 };
 
 export function grabNode() {
-  const randomWeightedNode = rwc(nodeTemperatures);
+  const randomWeightedNode = rwc(nodeTemperatures) || 'https://www.arweave.net';
   return randomWeightedNode.startsWith('http')
     ? randomWeightedNode
     : `http://${randomWeightedNode}`;

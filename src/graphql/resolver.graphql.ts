@@ -1,5 +1,8 @@
 import * as R from 'rambda';
 import moment from 'moment';
+import { types as CassandraTypes } from 'cassandra-driver';
+import { cassandraClient } from '../database/cassandra.database.js';
+import graphqlFields from 'graphql-fields';
 import { config } from 'dotenv';
 import {
   QueryTransactionsArgs,
@@ -14,7 +17,7 @@ import {
 import { TransactionHeader } from '../types/arweave.types.js';
 import {
   QueryParams,
-  generateQuery,
+  generateTransactionQuery,
   generateBlockQuery,
 } from './query.graphql.js';
 import * as DbMapper from '../database/mapper.database.js';
@@ -63,6 +66,28 @@ const fieldMap = {
   block_previous: 'blocks.previous_block',
 };
 
+const edgeFieldMapTx = {
+  'edges.node.id': 'id',
+  'edges.node.last_tx': 'anchor',
+  'edges.node.target': 'recipient',
+  'edges.node.tags': 'tags',
+  'edges.node.reward': 'fee',
+  'edges.node.quantity': 'quantity',
+  'edges.node.data_size': 'data_size',
+  'edges.node.content_type': 'data_type',
+  'edges.node.parent': 'parent',
+  'edges.node.owner': 'owner',
+  'edges.node.owner_address': 'owner_address',
+  'edges.node.signature': 'signature',
+};
+
+const edgeFieldMapBlock = {
+  'edges.node.id': 'indep_hash',
+  'edges.node.timestamp': 'timestamp',
+  'edges.node.height': 'height',
+  'edges.node.previous': 'previous_block',
+};
+
 const blockFieldMap = {
   id: 'blocks.id',
   timestamp: 'blocks.mined_at',
@@ -89,6 +114,16 @@ const hydrateGqlTx = async (tx) => {
   return R.assoc('tags', tags, hydrated);
 };
 
+const resolveGqlTxSelect = (userFields: any): string[] => {
+  const select = [];
+  R.keys(edgeFieldMapTx).forEach((keyPath) => {
+    if (R.hasPath(keyPath, userFields)) {
+      select.push(edgeFieldMapTx[keyPath]);
+    }
+  });
+  return select;
+};
+
 export const resolvers = {
   Query: {
     transaction: async (
@@ -110,54 +145,103 @@ export const resolvers = {
       { req, connection }: any,
       info: any
     ) => {
-      // const { timestamp, offset } = parseCursor(
-      //   queryParams.after || newCursor()
-      // );
-      // const pageSize = Math.min(
-      //   queryParams.first || DEFAULT_PAGE_SIZE,
-      //   MAX_PAGE_SIZE
-      // );
+      const { timestamp, offset } = parseCursor(
+        queryParams.after || newCursor()
+      );
+      const fieldsWithSubFields = graphqlFields(info);
+      // console.log({ parent, queryParams, info });
+      // console.log(fieldsWithSubFieldsArgs);
+      const pageSize = Math.min(
+        queryParams.first || DEFAULT_PAGE_SIZE,
+        MAX_PAGE_SIZE
+      );
 
-      // const params: QueryParams = {
-      //   limit: pageSize + 1,
-      //   offset: offset,
-      //   ids: queryParams.ids || undefined,
-      //   to: queryParams.recipients || undefined,
-      //   from: queryParams.owners || undefined,
-      //   tags: queryParams.tags || undefined,
-      //   blocks: true,
-      //   since: timestamp,
-      //   select: fieldMap,
-      //   minHeight: queryParams.block?.min || undefined,
-      //   maxHeight: queryParams.block?.max || undefined,
-      //   sortOrder: queryParams.sort || undefined,
-      // };
+      const params: Partial<Omit<QueryParams, 'after'> & { before: string }> = {
+        limit: pageSize + 1,
+        offset: offset,
+        ids: queryParams.ids || undefined,
+        to: queryParams.recipients || undefined,
+        from: queryParams.owners || undefined,
+        tags: queryParams.tags || undefined,
+        blocks: true,
+        before: timestamp,
+        select: resolveGqlTxSelect(fieldsWithSubFields),
+        minHeight: queryParams.block?.min || undefined,
+        maxHeight: queryParams.block?.max || undefined,
+        sortOrder: queryParams.sort || undefined,
+      };
 
-      // const results = (await generateQuery(params)) as TransactionHeader[];
+      const txQuery = generateTransactionQuery(params);
+      // console.log(txQuery);
       // const hasNextPage = results.length > pageSize;
-      const hasNextPage = false; // results.length > pageSize;
+      let hasNextPage = false; // results.length > pageSize;
+      const fetchSize = Math.min(queryParams.first || DEFAULT_PAGE_SIZE, 100);
       const txs = [];
-      if (queryParams.ids) {
-        for (const txId of queryParams.ids) {
-          txs.push({
-            node: await DbMapper.transactionMapper.get({ id: txId }),
-          });
-        }
-      }
 
+      await new Promise(
+        (resolve: (val?: any) => void, reject: (err: string) => void) => {
+          let page = pageSize;
+          cassandraClient.eachRow(
+            txQuery.query,
+            txQuery.params,
+            {
+              autoPage: false,
+              fetchSize,
+            },
+            function (n, row) {
+              console.log('N', n);
+              console.log('ROW', row);
+              if (n + 1 > offset) {
+                txs.push(row);
+              }
+              if (n + 1 >= fetchSize + offset) {
+                resolve();
+              }
+            },
+            function (err, res) {
+              console.log('RES', res, 'ERR', err);
+              if (err) {
+                reject((err || '').toString());
+              } else {
+                resolve();
+              }
+              // console.log(res);
+            }
+          );
+        }
+      );
+
+      // if (queryParams.ids) {
+      //   for (const txId of queryParams.ids) {
+      //     txs.push({
+      //       node: await DbMapper.transactionMapper.get({ id: txId }),
+      //     });
+      //   }
+      // }
+
+      console.log({
+        pageInfo: {
+          hasNextPage,
+        },
+        edges: txs.map((tx, index) => ({
+          cursor: encodeCursor({ timestamp, offset: offset + index + 1 }),
+          node: Object.assign({}, tx),
+        })),
+      });
       return {
         pageInfo: {
           hasNextPage,
         },
-        edges: async () => {
-          return txs;
-          // return results.slice(0, pageSize).map((result: any, index) => {
-          //   return {
-          //     cursor: encodeCursor({ timestamp, offset: offset + index + 1 }),
-          //     node: result,
-          //   };
-          // });
-        },
+        edges: txs.map((tx, index) => ({
+          cursor: encodeCursor({ timestamp, offset: offset + index + 1 }),
+          node: Object.assign({}, tx),
+        })),
+        // return results.slice(0, pageSize).map((result: any, index) => {
+        //   return {
+        //     cursor: encodeCursor({ timestamp, offset: offset + index + 1 }),
+        //     node: result,
+        //   };
+        // });
       };
     },
     block: async (
@@ -304,12 +388,15 @@ export const resolvers = {
 };
 
 export interface Cursor {
-  timestamp: ISO8601DateTimeString;
+  timestamp: string;
   offset: number;
 }
 
 export function newCursor(): string {
-  return encodeCursor({ timestamp: moment().toISOString(), offset: 0 });
+  return encodeCursor({
+    timestamp: CassandraTypes.TimeUuid.now().toString(),
+    offset: 0,
+  });
 }
 
 export function encodeCursor({ timestamp, offset }: Cursor): string {
@@ -321,7 +408,7 @@ export function parseCursor(cursor: string): Cursor {
   try {
     const [timestamp, offset] = JSON.parse(
       Buffer.from(cursor, 'base64').toString()
-    ) as [ISO8601DateTimeString, number];
+    ) as [string, number];
     return { timestamp, offset };
   } catch (error) {
     throw new Error('invalid cursor');

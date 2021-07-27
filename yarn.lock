@@ -1039,6 +1039,11 @@
   resolved "https://registry.yarnpkg.com/@protobufjs/utf8/-/utf8-1.1.0.tgz#a777360b5b39a1a2e5106f8e858f2fd2d060c570"
   integrity sha1-p3c2C1s5oaLlEG+OhY8v0tBgxXA=
 
+"@ridi/cql-builder@^1.0.4":
+  version "1.0.4"
+  resolved "https://registry.yarnpkg.com/@ridi/cql-builder/-/cql-builder-1.0.4.tgz#4eaf5245aee4d30a5be6063b45aec286f9b5906f"
+  integrity sha512-WxRKq/cG8YZ6xw2ZvSJIoXySO2lsfCa0jOwMRT5us9tQkoLhhAdY98cUY6xdF3V+d7V0JWULC6rfmGRMugqlsQ==
+
 "@rollup/plugin-json@^4.1.0":
   version "4.1.0"
   resolved "https://registry.yarnpkg.com/@rollup/plugin-json/-/plugin-json-4.1.0.tgz#54e09867ae6963c593844d8bd7a9c718294496f3"

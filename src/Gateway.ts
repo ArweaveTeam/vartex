@@ -60,10 +60,12 @@ export function start(): void {
     log.info(`[app] started on http://localhost:${process.env.PORT || 3000}`);
     const graphqlServer = graphServer({ introspection: true });
     Promise.all([findPeers(), graphqlServer.start()]).then(() => {
-      graphqlServer.applyMiddleware({
+      (graphqlServer as any).applyMiddleware({
         app,
         path: '/graphql',
+        subscriptionEndpoint: '/graphql',
         disableHealthCheck: true,
+        schemaPolling: false,
       });
       startSync();
     });

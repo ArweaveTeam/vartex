@@ -13,13 +13,19 @@ const typeDefs = gql(readFileSync(`${process.cwd()}/types.graphql`, 'utf8'));
 export function graphServer(
   opts: ApolloServerExpressConfig = {}
 ): ApolloServer<ExpressContext> {
-  const graphServer = new ApolloServer({
+  const graphServer = new (ApolloServer as any)({
     typeDefs,
     resolvers,
     debug: false,
-    context: ({ req }) => {
+    playground: {
+      settings: {
+        'schema.polling.enable': false,
+        'request.credentials': 'include',
+      },
+    },
+    context: (ctx) => {
       return {
-        req,
+        req: ctx.req,
         conection: {},
         // connection,
       };

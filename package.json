@@ -26,6 +26,7 @@
     "migrate:nuke-all": "node cassandra/nuke.cjs"
   },
   "dependencies": {
+    "@ridi/cql-builder": "^1.0.4",
     "apollo-server-express": "^3.1.0-alpha.1",
     "arweave": "^1.10.16",
     "arweave-bundles": "^1.0.3",

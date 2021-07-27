@@ -2,9 +2,9 @@ import { Request, Response, NextFunction } from 'express';
 import { config } from 'dotenv';
 import { lookup } from 'mime-types';
 // import {connection} from '../database/connection.database';
-import { log } from '../utility/log.utility';
-import { cacheFolder } from '../caching/file.caching';
-import { pathRegex } from '../route/data.route';
+import { log } from '../utility/log.utility.js';
+import { cacheFolder } from '../caching/file.caching.js';
+import { pathRegex } from '../route/data.route.js';
 
 config();
 

@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
-import { topHeight, syncHeight } from '../database/sync.database';
-import { getNodeInfo } from '../query/node.query';
+import { topHeight, syncHeight } from '../database/sync.database.js';
+import { getNodeInfo } from '../query/node.query.js';
 
 export const start = Number(new Date());
 

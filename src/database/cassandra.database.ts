@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import * as cassandra from 'cassandra-driver';
 import * as R from 'rambda';
 import { types as CassandraTypes } from 'cassandra-driver';
-import { ImportQueue, Poa, TxOffset } from '../types/cassandra.types';
+import { ImportQueue, Poa, TxOffset } from '../types/cassandra.types.js';
 import { config } from 'dotenv';
 
 config();

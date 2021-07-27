@@ -1,7 +1,7 @@
 import { config } from 'dotenv';
-import { exists } from 'fs-jetpack';
-import { streamAndCacheTx } from './stream.caching';
-import { streamAndCacheAns } from './ans.caching';
+import fs from 'fs-jetpack';
+import { streamAndCacheTx } from './stream.caching.js';
+import { streamAndCacheAns } from './ans.caching.js';
 
 config();
 
@@ -14,7 +14,7 @@ export const cacheFolder = process.env.CACHE_FOLDER;
 // }
 
 export async function cacheAnsFile(id: string) {
-  if (exists(`${cacheFolder}/${id}`) === false) {
+  if (fs.exists(`${cacheFolder}/${id}`) === false) {
     await streamAndCacheAns(id);
   }
 }

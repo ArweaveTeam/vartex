@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import expressSession from 'express-session';
-import { grabNode } from '../query/node.query';
+import { grabNode } from '../query/node.query.js';
 
 export const sessionMiddleware = expressSession({
   secret: process.env.SESSION_SECRET || 'gateway123',

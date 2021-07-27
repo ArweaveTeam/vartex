@@ -1,11 +1,11 @@
 import * as R from 'rambda';
 import { Request, Response, NextFunction } from 'express';
-import { post } from 'superagent';
+import superagent from 'superagent';
 import {
   transactionMapper,
   txIdToBlockMapper,
   tagsByTxId,
-} from '../database/mapper.database';
+} from '../database/mapper.database.js';
 
 export async function txUploadRoute(
   req: Request,
@@ -13,7 +13,9 @@ export async function txUploadRoute(
   next: NextFunction
 ) {
   try {
-    const payload = await post(`${req.session.node}/tx`).send(req.body);
+    const payload = await superagent
+      .post(`${req.session.node}/tx`)
+      .send(req.body);
     return res.status(200).send(payload.body);
   } catch (error) {
     console.log(error);

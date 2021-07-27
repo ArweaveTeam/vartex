@@ -3,23 +3,23 @@ import Fluture from 'fluture';
 import * as F from 'fluture';
 import { DataItemJson } from 'arweave-bundles';
 import Gauge from 'gauge';
-import GaugeThemes from 'gauge/themes';
+import GaugeThemes from 'gauge/themes.js';
 import { config } from 'dotenv';
 import { types as CassandraTypes } from 'cassandra-driver';
-import { log } from '../utility/log.utility';
-import { ansBundles } from '../utility/ans.utility';
-import { mkdir } from '../utility/file.utility';
-import { sleep } from '../utility/sleep.utility';
-import { getHashList, getNodeInfo } from '../query/node.query';
-import { getBlock as queryGetBlock } from '../query/block.query';
+import { log } from '../utility/log.utility.js';
+import { ansBundles } from '../utility/ans.utility.js';
+import { mkdir } from '../utility/file.utility.js';
+import { sleep } from '../utility/sleep.utility.js';
+import { getHashList, getNodeInfo } from '../query/node.query.js';
+import { getBlock as queryGetBlock } from '../query/block.query.js';
 import {
   getTransaction,
   getTxOffset,
   tagValue,
   Tag,
-} from '../query/transaction.query';
-import { getDataFromChunks } from '../query/node.query';
-import { ImportQueue, QueueState } from '../types/cassandra.types';
+} from '../query/transaction.query.js';
+import { getDataFromChunks } from '../query/node.query.js';
+import { ImportQueue, QueueState } from '../types/cassandra.types.js';
 import {
   cassandraClient,
   getMaxHeightBlock,
@@ -30,9 +30,9 @@ import {
   newLastSessionHashSyncStatus,
   newSession,
   toLong,
-} from './cassandra.database';
-import { pollStatusMapper } from './mapper.database';
-import { cacheANSEntries } from '../caching/ans.entry.caching';
+} from './cassandra.database.js';
+import { pollStatusMapper } from './mapper.database.js';
+import { cacheANSEntries } from '../caching/ans.entry.caching.js';
 
 config();
 mkdir('cache');

@@ -1,6 +1,7 @@
-import { get } from 'superagent';
-import { grabNode, warmNode, coolNode } from './node.query';
-import { HTTP_TIMEOUT_SECONDS } from '../constants';
+import superagent from 'superagent';
+import got from 'got';
+import { grabNode, warmNode, coolNode } from './node.query.js';
+import { HTTP_TIMEOUT_SECONDS } from '../constants.js';
 
 export interface BlockType {
   nonce: string;
@@ -30,7 +31,7 @@ export interface BlockType {
 }
 
 // get block by hash is optional (needs proper decoupling)
-export function getBlock({
+export async function getBlock({
   hash,
   height,
   gauge,
@@ -43,38 +44,40 @@ export function getBlock({
 }): Promise<BlockType | undefined> {
   const tryNode = grabNode();
   const url = hash
-    ? `${tryNode}/block/hash/${hash}`
-    : `${tryNode}/block/height/${height}`;
+    ? `http://${tryNode}/block/hash/${hash}`
+    : `http://${tryNode}/block/height/${height}`;
   gauge && gauge.show(`${completed || ''} ${url}`);
-  return get(url)
-    .timeout(HTTP_TIMEOUT_SECONDS * 1000)
-    .then((payload) => {
-      const body = JSON.parse(payload.text);
-      if (hash && height !== body.height) {
-        console.error(
-          'fatal inconsistency: hash and height dont match for hash:',
-          hash,
-          height !== body.height
-        );
-        // REVIEW: does assuming re-forking condition work better than fatal error?
-        process.exit(1);
-      }
-      warmNode(tryNode);
-      return body;
-    })
-    .catch(() => {
-      coolNode(tryNode);
-    });
+  let body;
+
+  try {
+    body = await got.get(url).json();
+  } catch (error) {
+    coolNode(tryNode);
+    console.error(error);
+    return undefined;
+  }
+
+  if (hash && height !== body.height) {
+    console.error(
+      'fatal inconsistency: hash and height dont match for hash:',
+      hash,
+      height !== body.height
+    );
+    // REVIEW: does assuming re-forking condition work better than fatal error?
+    process.exit(1);
+  }
+  warmNode(tryNode);
+  return body;
 }
 
 export async function currentBlock(): Promise<BlockType | void> {
   const tryNode = grabNode();
-  return get(`${tryNode}/block/current`)
-    .then((payload) => {
+  return superagent.get(`${tryNode}/block/current`).end((err, payload) => {
+    if (err) {
+      coolNode(tryNode);
+    } else {
       const body = JSON.parse(payload.text);
       return body;
-    })
-    .catch(() => {
-      coolNode(tryNode);
-    });
+    }
+  });
 }

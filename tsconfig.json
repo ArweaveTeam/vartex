@@ -1,9 +1,9 @@
 {
   "compilerOptions": {
-    "target": "es2015",
-    "lib": ["es2015", "dom"],
+    "target": "ESNext",
+    "lib": ["es2020"],
     "baseUrl": ".",
-    "module": "CommonJS",
+    "module": "ESNext",
     "moduleResolution": "node",
     "sourceMap": true,
     "inlineSources": true,

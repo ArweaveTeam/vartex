@@ -1,6 +1,6 @@
 import * as R from 'rambda';
 import { mapping } from 'cassandra-driver';
-import { cassandraClient } from './cassandra.database';
+import { cassandraClient } from './cassandra.database.js';
 
 const { Mapper } = mapping;
 
@@ -50,6 +50,7 @@ const mapper = new Mapper(cassandraClient, {
       columns: R.mergeAll([
         withDefault({ name: 'target', fallback: '' }),
         withDefault({ name: 'data', fallback: '' }),
+        withDefault({ name: 'data_root', fallback: '' }),
         withDefault({ name: 'data_tree', fallback: '' }),
         withDefault({ name: 'format', fallback: 0 }),
         withDefault({ name: 'tx_uuid', fallback: '' }),

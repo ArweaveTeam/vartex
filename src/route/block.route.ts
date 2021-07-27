@@ -4,7 +4,7 @@ import {
   blockMapper,
   blockHeightToHashMapper,
   poaMapper,
-} from '../database/mapper.database';
+} from '../database/mapper.database.js';
 
 export async function blockByHeightRoute(
   req: Request,

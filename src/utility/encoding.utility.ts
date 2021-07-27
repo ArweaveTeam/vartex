@@ -1,11 +1,11 @@
-import Ar from 'arweave/node/ar';
+import Ar from 'arweave/node/ar.js';
 import * as B64js from 'base64-js';
 import { base32 } from 'rfc4648';
 import { createHash } from 'crypto';
 import { Readable, PassThrough, Transform } from 'stream';
-import { Tag } from '../types/arweave.types';
+import { Tag } from '../types/arweave.types.js';
 
-const ar = new Ar();
+const ar = new ((Ar as any).default as typeof Ar)();
 
 export type Base64EncodedString = string;
 export type Base64UrlEncodedString = string;

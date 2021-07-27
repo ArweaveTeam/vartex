@@ -5,19 +5,19 @@ import {
   QueryTransactionsArgs,
   QueryBlockArgs,
   QueryBlocksArgs,
-} from './types';
+} from './types.js';
 import {
   ISO8601DateTimeString,
   winstonToAr,
   utf8DecodeTag,
-} from '../utility/encoding.utility';
-import { TransactionHeader } from '../types/arweave.types';
+} from '../utility/encoding.utility.js';
+import { TransactionHeader } from '../types/arweave.types.js';
 import {
   QueryParams,
   generateQuery,
   generateBlockQuery,
-} from './query.graphql';
-import * as DbMapper from '../database/mapper.database';
+} from './query.graphql.js';
+import * as DbMapper from '../database/mapper.database.js';
 
 config();
 
@@ -71,6 +71,24 @@ const blockFieldMap = {
   extended: 'blocks.extended',
 };
 
+const hydrateGqlTx = async (tx) => {
+  const block = await DbMapper.txIdToBlockMapper.get({
+    tx_id: tx.id,
+  });
+  const tags = await DbMapper.tagsByTxId(tx.id);
+  const hydrated = R.reduce((acc: FieldMap, key: string) => {
+    const txKeyKey = fieldMap[key].split('.');
+    const txScope = txKeyKey[0];
+    const txKey = txKeyKey[1];
+    const val =
+      txScope === 'blocks'
+        ? (block[txKey] || '').toString()
+        : (tx[txKey] || '').toString();
+    return R.assoc(key, val, acc);
+  }, {} as FieldMap)(R.keys(fieldMap));
+  return R.assoc('tags', tags, hydrated);
+};
+
 export const resolvers = {
   Query: {
     transaction: async (
@@ -83,19 +101,7 @@ export const resolvers = {
       if (!tx) {
         throw new Error(`id: "${queryParams.id}" does not exist!`);
       } else {
-        const block = await DbMapper.txIdToBlockMapper.get({
-          tx_id: queryParams.id,
-        });
-        return R.reduce((acc: FieldMap, key: string) => {
-          const txKeyKey = fieldMap[key].split('.');
-          const txScope = txKeyKey[0];
-          const txKey = txKeyKey[1];
-          const val =
-            txScope === 'blocks'
-              ? (block[txKey] || '').toString()
-              : (tx[txKey] || '').toString();
-          return R.assoc(key, val, acc);
-        }, {} as FieldMap)(R.keys(fieldMap));
+        return await hydrateGqlTx(tx);
       }
     },
     transactions: async (
@@ -104,43 +110,53 @@ export const resolvers = {
       { req, connection }: any,
       info: any
     ) => {
-      const { timestamp, offset } = parseCursor(
-        queryParams.after || newCursor()
-      );
-      const pageSize = Math.min(
-        queryParams.first || DEFAULT_PAGE_SIZE,
-        MAX_PAGE_SIZE
-      );
+      // const { timestamp, offset } = parseCursor(
+      //   queryParams.after || newCursor()
+      // );
+      // const pageSize = Math.min(
+      //   queryParams.first || DEFAULT_PAGE_SIZE,
+      //   MAX_PAGE_SIZE
+      // );
 
-      const params: QueryParams = {
-        limit: pageSize + 1,
-        offset: offset,
-        ids: queryParams.ids || undefined,
-        to: queryParams.recipients || undefined,
-        from: queryParams.owners || undefined,
-        tags: queryParams.tags || undefined,
-        blocks: true,
-        since: timestamp,
-        select: fieldMap,
-        minHeight: queryParams.block?.min || undefined,
-        maxHeight: queryParams.block?.max || undefined,
-        sortOrder: queryParams.sort || undefined,
-      };
+      // const params: QueryParams = {
+      //   limit: pageSize + 1,
+      //   offset: offset,
+      //   ids: queryParams.ids || undefined,
+      //   to: queryParams.recipients || undefined,
+      //   from: queryParams.owners || undefined,
+      //   tags: queryParams.tags || undefined,
+      //   blocks: true,
+      //   since: timestamp,
+      //   select: fieldMap,
+      //   minHeight: queryParams.block?.min || undefined,
+      //   maxHeight: queryParams.block?.max || undefined,
+      //   sortOrder: queryParams.sort || undefined,
+      // };
 
-      const results = (await generateQuery(params)) as TransactionHeader[];
-      const hasNextPage = results.length > pageSize;
+      // const results = (await generateQuery(params)) as TransactionHeader[];
+      // const hasNextPage = results.length > pageSize;
+      const hasNextPage = false; // results.length > pageSize;
+      const txs = [];
+      if (queryParams.ids) {
+        for (const txId of queryParams.ids) {
+          txs.push({
+            node: await DbMapper.transactionMapper.get({ id: txId }),
+          });
+        }
+      }
 
       return {
         pageInfo: {
           hasNextPage,
         },
         edges: async () => {
-          return results.slice(0, pageSize).map((result: any, index) => {
-            return {
-              cursor: encodeCursor({ timestamp, offset: offset + index + 1 }),
-              node: result,
-            };
-          });
+          return txs;
+          // return results.slice(0, pageSize).map((result: any, index) => {
+          //   return {
+          //     cursor: encodeCursor({ timestamp, offset: offset + index + 1 }),
+          //     node: result,
+          //   };
+          // });
         },
       };
     },

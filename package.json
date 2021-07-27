@@ -1,12 +1,19 @@
 {
   "name": "@arweave/gateway",
   "version": "1.0.0",
-  "main": "dist/src/Gateway.js",
+  "main": "dist/zbsrc/Gateway.js",
   "repository": "git@github.com:ArweaveTeam/gateway.git",
   "author": "Arweave <hello@arweave.org>",
+  "type": "module",
   "license": "MIT",
   "prettier": {
     "singleQuote": true
+  },
+  "execMap": {
+    "ts": "node --loader ts-node/esm"
+  },
+  "exports": {
+    ".": "./src"
   },
   "scripts": {
     "test": "echo TODO",
@@ -14,7 +21,7 @@
     "gql": "npx graphql-codegen --config codegen.yml",
     "build": "npm run gql && tsc",
     "start": "node dist/src/Gateway.js",
-    "start:dev": "TS_NODE_FILES=true ts-node --project ./tsconfig.json src/Gateway.ts",
+    "start:dev": "TS_NODE_FILES=true node --loader ts-node/esm.mjs src/Gateway.ts",
     "migrate:init": "node cassandra/init.cjs",
     "migrate:nuke-all": "node cassandra/nuke.cjs"
   },
@@ -37,6 +44,7 @@
     "fluture": "^14.0.0",
     "fs-jetpack": "^4.1.0",
     "gauge": "^3.0.0",
+    "got": "^11.8.2",
     "graphql": "15.x",
     "graphql-fields": "^2.0.3",
     "graphql-playground-middleware-express": "^1.7.22",
@@ -52,6 +60,7 @@
     "rfc4648": "^1.5.0",
     "shortid": "^2.2.16",
     "superagent": "^6.1.0",
+    "ts-node": "^10.1.0",
     "winston": "^3.3.3"
   },
   "devDependencies": {
@@ -73,7 +82,6 @@
     "@typescript-eslint/parser": "^4.28.5-alpha.0",
     "eslint": "^7.31.0",
     "eslint-config-google": "^0.14.0",
-    "ts-node": "^10.1.0",
     "typescript": "^4.4.0-dev.20210724"
   }
 }

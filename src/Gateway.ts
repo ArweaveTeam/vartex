@@ -1,27 +1,28 @@
 import 'colors';
 import express, { Express, Request, Response } from 'express';
-import { renderPlaygroundPage } from 'graphql-playground-html';
-import expressPlayground from 'graphql-playground-middleware-express';
+import gpmeImport from 'graphql-playground-middleware-express';
 import { config } from 'dotenv';
 import cors from 'cors';
-import { jsonMiddleware } from './middleware/json.middleware';
-import { logMiddleware } from './middleware/log.middleware';
-import { manifestMiddleware } from './middleware/manifest.middleware';
-import { log } from './utility/log.utility';
+import { jsonMiddleware } from './middleware/json.middleware.js';
+import { logMiddleware } from './middleware/log.middleware.js';
+import { manifestMiddleware } from './middleware/manifest.middleware.js';
+import { log } from './utility/log.utility.js';
 import {
   sessionMiddleware,
   sessionPinningMiddleware,
-} from './utility/session.utility';
-import { graphServer } from './graphql/server.graphql';
-import { blockByHeightRoute } from './route/block.route';
-import { statusRoute } from './route/status.route';
-import { txUploadRoute, txGetByIdRoute } from './route/transaction.route';
-import { proxyRoute } from './route/proxy.route';
-import { dataRouteRegex, dataRoute } from './route/data.route';
-import { peerRoute } from './route/peer.route';
-import { koiLogger, koiLogsRoute, koiLogsRawRoute } from './route/koi.route';
-import { findPeers } from './query/node.query';
-import { startSync } from './database/sync.database';
+} from './utility/session.utility.js';
+import { graphServer } from './graphql/server.graphql.js';
+import { blockByHeightRoute } from './route/block.route.js';
+import { statusRoute } from './route/status.route.js';
+import { txUploadRoute, txGetByIdRoute } from './route/transaction.route.js';
+import { proxyRoute } from './route/proxy.route.js';
+import { dataRouteRegex, dataRoute } from './route/data.route.js';
+import { peerRoute } from './route/peer.route.js';
+import { koiLogger, koiLogsRoute, koiLogsRawRoute } from './route/koi.route.js';
+import { findPeers } from './query/node.query.js';
+import { startSync } from './database/sync.database.js';
+
+const { default: expressPlayground } = gpmeImport as any;
 
 config();
 

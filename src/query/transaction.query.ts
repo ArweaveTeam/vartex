@@ -1,12 +1,12 @@
-import { get } from 'superagent';
-import { TagFilter } from '../graphql/types';
+import superagent from 'superagent';
+import { TagFilter } from '../graphql/types.js';
 import {
   Base64UrlEncodedString,
   WinstonString,
   fromB64Url,
-} from '../utility/encoding.utility';
-import { grabNode, coolNode, warmNode } from './node.query';
-import { HTTP_TIMEOUT_SECONDS } from '../constants';
+} from '../utility/encoding.utility.js';
+import { grabNode, coolNode, warmNode } from './node.query.js';
+import { HTTP_TIMEOUT_SECONDS } from '../constants.js';
 
 export interface Tag {
   name: Base64UrlEncodedString;
@@ -39,7 +39,8 @@ export function getTransaction({
 }): Promise<TransactionType | undefined> {
   const tryNode = grabNode();
 
-  return get(`${tryNode}/tx/${txId}`)
+  return superagent
+    .get(`${tryNode}/tx/${txId}`)
     .timeout(HTTP_TIMEOUT_SECONDS * 4 * 1000)
     .then((payload) => {
       const body = JSON.parse(payload.text);
@@ -70,7 +71,8 @@ export function getTxOffset({
 }): Promise<TransactionType | undefined> {
   const tryNode = grabNode();
 
-  return get(`${tryNode}/tx/${txId}/offset`)
+  return superagent
+    .get(`${tryNode}/tx/${txId}/offset`)
     .timeout(HTTP_TIMEOUT_SECONDS * 4 * 1000)
     .then((offsetPayload) => {
       const body = JSON.parse(offsetPayload.text);

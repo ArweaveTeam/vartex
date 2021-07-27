@@ -3,11 +3,11 @@ import fs from 'fs/promises';
 import { types as CassandraTypes } from 'cassandra-driver';
 import * as R from 'rambda';
 import { config } from 'dotenv';
-import { get } from 'superagent';
+import superagent from 'superagent';
 import rwc from 'random-weighted-choice';
-import { log } from '../utility/log.utility';
-import { getChunk } from './chunk.query';
-import { HTTP_TIMEOUT_SECONDS } from '../constants';
+import { log } from '../utility/log.utility.js';
+import { getChunk } from './chunk.query.js';
+import { HTTP_TIMEOUT_SECONDS } from '../constants.js';
 
 config();
 
@@ -32,7 +32,7 @@ const syncNodeTemperatures = () => {
 };
 
 export const findPeers = async () => {
-  await get('https://www.arweave.net/peers').then((payload) => {
+  await superagent.get('https://www.arweave.net/peers').then((payload) => {
     const rootPeers = JSON.parse(payload.text);
     rootPeers.forEach(
       (peer: string) =>
@@ -90,7 +90,8 @@ export function getNodeInfo({
 }): Promise<InfoType | undefined> {
   const tryNode = grabNode();
 
-  return get(`${tryNode}/info`)
+  return superagent
+    .get(`${tryNode}/info`)
     .timeout((HTTP_TIMEOUT_SECONDS || 15) * 4 * 1000)
     .then((payload) => {
       const body = JSON.parse(payload.text);
@@ -149,7 +150,8 @@ export function getHashList({ retry = 0 }): Promise<string[] | undefined> {
   } else {
     const tryNode = grabNode();
     log.info(`[database] fetching the hash_list, this may take a while...`);
-    return get(`${tryNode}/hash_list`)
+    return superagent
+      .get(`${tryNode}/hash_list`)
       .then((payload) => {
         // TODO: when it hits 100mb+ look into streaming solutions
         // https://github.com/uhop/stream-json
@@ -178,12 +180,12 @@ export function getHashList({ retry = 0 }): Promise<string[] | undefined> {
 }
 
 export async function getData(id: string): Promise<any> {
-  const payload = await get(`${grabNode()}/${id}`);
+  const payload = await superagent.get(`${grabNode()}/${id}`);
   return payload.body;
 }
 
 export function getDataAsStream(id: string) {
-  return get(`${grabNode()}/${id}`);
+  return superagent.get(`${grabNode()}/${id}`);
 }
 
 export async function getDataFromChunks({

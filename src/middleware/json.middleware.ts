@@ -1,6 +1,6 @@
-import {json} from 'body-parser';
+import bodyParser from 'body-parser';
 
-export const jsonMiddleware = json({
+export const jsonMiddleware = bodyParser.json({
   limit: '15mb',
   type: () => true,
 });

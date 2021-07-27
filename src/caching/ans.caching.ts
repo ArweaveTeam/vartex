@@ -1,15 +1,15 @@
 import { types as CassandraTypes } from 'cassandra-driver';
-import { dir, write, remove } from 'fs-jetpack';
+import fs from 'fs-jetpack';
 import { DataItemJson } from 'arweave-bundles';
-import { cacheFolder } from './file.caching';
-import { ansBundles } from '../utility/ans.utility';
-import { getDataFromChunks } from '../query/node.query';
-import { tagToUTF8 } from '../query/transaction.query';
-import { cacheANSEntries } from './ans.entry.caching';
+import { cacheFolder } from './file.caching.js';
+import { ansBundles } from '../utility/ans.utility.js';
+import { getDataFromChunks } from '../query/node.query.js';
+import { tagToUTF8 } from '../query/transaction.query.js';
+import { cacheANSEntries } from './ans.entry.caching.js';
 
 export async function streamAndCacheAns(id: string): Promise<boolean> {
   try {
-    dir(`${cacheFolder}`);
+    fs.dir(`${cacheFolder}`);
 
     const rawData = await getDataFromChunks({
       id,
@@ -35,13 +35,13 @@ export async function streamAndCacheAns(id: string): Promise<boolean> {
       ansTxsConverted.push(newAnsTx);
     }
 
-    write(`${cacheFolder}/${id}`, JSON.stringify(ansTxsConverted, null, 2));
+    fs.write(`${cacheFolder}/${id}`, JSON.stringify(ansTxsConverted, null, 2));
 
     await cacheANSEntries(ansTxs);
 
     return true;
   } catch (error) {
-    remove(`${cacheFolder}/${id}`);
+    fs.remove(`${cacheFolder}/${id}`);
     console.error(
       `error caching data from ${id}, please note that this may be a cancelled transaction`
         .red.bold

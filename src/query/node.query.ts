@@ -48,7 +48,9 @@ export const findPeers = async () => {
 
 export function grabNode() {
   const randomWeightedNode = rwc(nodeTemperatures);
-  return randomWeightedNode;
+  return randomWeightedNode.startsWith('http')
+    ? randomWeightedNode
+    : `http://${randomWeightedNode}`;
 }
 
 export function warmNode(url: string) {

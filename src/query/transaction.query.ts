@@ -1,4 +1,4 @@
-import superagent from 'superagent';
+import got from 'got';
 import { TagFilter } from '../graphql/types.js';
 import {
   Base64UrlEncodedString,
@@ -30,7 +30,7 @@ export interface TransactionType {
   signature: string;
 }
 
-export function getTransaction({
+export async function getTransaction({
   txId,
   retry = 0,
 }: {
@@ -38,31 +38,30 @@ export function getTransaction({
   retry?: number;
 }): Promise<TransactionType | undefined> {
   const tryNode = grabNode();
-
-  return superagent
-    .get(`${tryNode}/tx/${txId}`)
-    .timeout(HTTP_TIMEOUT_SECONDS * 4 * 1000)
-    .then((payload) => {
-      const body = JSON.parse(payload.text);
-      warmNode(tryNode);
-      return body;
-    })
-    .catch((error) => {
-      coolNode(tryNode);
-      return new Promise((res) => setTimeout(res, 10 + 2 * retry)).then(() => {
-        if (retry < 100) {
-          return getTransaction({ txId, retry: retry + 1 });
-        } else {
-          console.error(
-            'Failed to establish connection to any specified node after 100 retries'
-          );
-          process.exit(1);
-        }
-      });
+  let jsonPayload;
+  try {
+    jsonPayload = await got.get(`${tryNode}/tx/${txId}`, {
+      responseType: 'json',
+      resolveBodyOnly: true,
     });
+  } catch (error) {
+    coolNode(tryNode);
+    return new Promise((res) => setTimeout(res, 10 + 2 * retry)).then(() => {
+      if (retry < 100) {
+        return getTransaction({ txId, retry: retry + 1 });
+      } else {
+        console.error(
+          'Failed to establish connection to any specified node after 100 retries'
+        );
+        process.exit(1);
+      }
+    });
+  }
+  warmNode(tryNode);
+  return jsonPayload;
 }
 
-export function getTxOffset({
+export async function getTxOffset({
   txId,
   retry = 0,
 }: {
@@ -70,28 +69,27 @@ export function getTxOffset({
   retry?: number;
 }): Promise<TransactionType | undefined> {
   const tryNode = grabNode();
-
-  return superagent
-    .get(`${tryNode}/tx/${txId}/offset`)
-    .timeout(HTTP_TIMEOUT_SECONDS * 4 * 1000)
-    .then((offsetPayload) => {
-      const body = JSON.parse(offsetPayload.text);
-      warmNode(tryNode);
-      return body;
-    })
-    .catch((error) => {
-      coolNode(tryNode);
-      return new Promise((res) => setTimeout(res, 10 + 2 * retry)).then(() => {
-        if (retry < 100) {
-          return getTransaction({ txId, retry: retry + 1 });
-        } else {
-          console.error(
-            'Failed to establish connection to any specified node after 100 retries'
-          );
-          process.exit(1);
-        }
-      });
+  let jsonPayload;
+  try {
+    jsonPayload = await got.get(`${tryNode}/tx/${txId}/offset`, {
+      responseType: 'json',
+      resolveBodyOnly: true,
     });
+  } catch (error) {
+    coolNode(tryNode);
+    return new Promise((res) => setTimeout(res, 10 + 2 * retry)).then(() => {
+      if (retry < 100) {
+        return getTransaction({ txId, retry: retry + 1 });
+      } else {
+        console.error(
+          'Failed to establish connection to any specified node after 100 retries'
+        );
+        process.exit(1);
+      }
+    });
+    warmNode(tryNode);
+    return jsonPayload;
+  }
 }
 
 export function toB64url(input: string): Base64UrlEncodedString {

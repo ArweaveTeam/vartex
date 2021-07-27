@@ -1,4 +1,3 @@
-import superagent from 'superagent';
 import got from 'got';
 import { grabNode, warmNode, coolNode } from './node.query.js';
 import { HTTP_TIMEOUT_SECONDS } from '../constants.js';
@@ -44,13 +43,16 @@ export async function getBlock({
 }): Promise<BlockType | undefined> {
   const tryNode = grabNode();
   const url = hash
-    ? `http://${tryNode}/block/hash/${hash}`
-    : `http://${tryNode}/block/height/${height}`;
+    ? `${tryNode}/block/hash/${hash}`
+    : `${tryNode}/block/height/${height}`;
   gauge && gauge.show(`${completed || ''} ${url}`);
   let body;
 
   try {
-    body = await got.get(url).json();
+    body = await got.get(url, {
+      responseType: 'json',
+      resolveBodyOnly: true,
+    });
   } catch (error) {
     coolNode(tryNode);
     console.error(error);
@@ -70,14 +72,20 @@ export async function getBlock({
   return body;
 }
 
-export async function currentBlock(): Promise<BlockType | void> {
+export async function currentBlock(): Promise<BlockType | undefined> {
   const tryNode = grabNode();
-  return superagent.get(`${tryNode}/block/current`).end((err, payload) => {
-    if (err) {
-      coolNode(tryNode);
-    } else {
-      const body = JSON.parse(payload.text);
-      return body;
-    }
-  });
+  let jsonPayload;
+  try {
+    jsonPayload = await got.get(`${tryNode}/block/current`, {
+      responseType: 'json',
+      resolveBodyOnly: true,
+    });
+  } catch (error) {
+    coolNode(tryNode);
+    return undefined;
+  }
+
+  warmNode(tryNode);
+
+  return jsonPayload;
 }

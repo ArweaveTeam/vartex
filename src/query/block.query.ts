@@ -55,7 +55,7 @@ export async function getBlock({
     });
   } catch (error) {
     coolNode(tryNode);
-    console.error(error);
+    // console.error(error);
     return undefined;
   }
 

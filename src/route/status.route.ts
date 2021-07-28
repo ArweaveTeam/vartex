@@ -1,32 +1,22 @@
 import { Request, Response } from 'express';
 import { topHeight, syncHeight } from '../database/sync.database.js';
+import { toLong } from '../database/cassandra.database.js';
 import { getNodeInfo } from '../query/node.query.js';
 
 export const start = Number(new Date());
 
 export async function statusRoute(req: Request, res: Response) {
-  const info = await getNodeInfo({ maxRetry: 1 });
+  try {
+    const info = await getNodeInfo({ maxRetry: 1 });
+    const delta = toLong(info.height).sub(topHeight).toString();
 
-  if (info) {
-    if (!syncHeight.equals(0)) {
-      const delta = syncHeight.sub(info.height).toString();
-      return res.status(200).send({
-        status: 'SYNCING',
-        gatewayHeight: topHeight.toString(),
-        arweaveHeight: info.height,
-        delta,
-      });
-    } else {
-      const delta = topHeight.sub(info.height).toString();
-
-      return res.status(200).send({
-        status: 'OK',
-        gatewayHeight: topHeight.toString(),
-        arweaveHeight: info.height,
-        delta,
-      });
-    }
-  } else {
-    return res.status(404).send();
+    return res.status(200).send({
+      status: !syncHeight.equals(0) ? 'SYNCING' : 'OK',
+      gatewayHeight: topHeight.toString(),
+      arweaveHeight: info.height,
+      delta,
+    });
+  } catch (error) {
+    return res.status(503).send(error);
   }
 }

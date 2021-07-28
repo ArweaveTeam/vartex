@@ -19,6 +19,7 @@ import {
   QueryParams,
   generateTransactionQuery,
   generateBlockQuery,
+  generateTagQuery,
 } from './query.graphql.js';
 import * as DbMapper from '../database/mapper.database.js';
 
@@ -70,7 +71,7 @@ const edgeFieldMapTx = {
   'edges.node.id': 'id',
   'edges.node.last_tx': 'anchor',
   'edges.node.target': 'recipient',
-  'edges.node.tags': 'tags',
+  'edges.node.tags': 'id', // note, tags are stored elsewhere, but for getting those we need the txid
   'edges.node.reward': 'fee',
   'edges.node.quantity': 'quantity',
   'edges.node.data_size': 'data_size',
@@ -124,6 +125,55 @@ const resolveGqlTxSelect = (userFields: any): string[] => {
   return select;
 };
 
+const resolveGqlBlockSelect = (userFields: any): string[] => {
+  const select = [];
+  R.keys(edgeFieldMapBlock).forEach((keyPath) => {
+    if (R.hasPath(keyPath, userFields)) {
+      select.push(edgeFieldMapBlock[keyPath]);
+    }
+  });
+  return select;
+};
+
+const runPaginatedSearch = ({
+  fetchSize,
+  query,
+  offset,
+}: {
+  fetchSize: number;
+  query: { query: string; params: any[] };
+  offset: number;
+}): Promise<{ result: any; hasNextPage: boolean }> => {
+  const result = [];
+
+  return new Promise(
+    (resolve: (val?: any) => void, reject: (err: string) => void) => {
+      cassandraClient.eachRow(
+        query.query,
+        query.params,
+        {
+          autoPage: false,
+          fetchSize: fetchSize + 1,
+          prepare: true,
+        },
+        function (n, row) {
+          if (n + 1 > offset) {
+            result.push(row);
+          }
+        },
+        function (err, res) {
+          if (err) {
+            reject((err || '').toString());
+          } else {
+            const hasNextPage = res.nextPage !== undefined;
+            resolve({ hasNextPage, result });
+          }
+        }
+      );
+    }
+  );
+};
+
 export const resolvers = {
   Query: {
     transaction: async (
@@ -149,17 +199,34 @@ export const resolvers = {
         queryParams.after || newCursor()
       );
       const fieldsWithSubFields = graphqlFields(info);
-      // console.log({ parent, queryParams, info });
-      // console.log(fieldsWithSubFieldsArgs);
-      const pageSize = Math.min(
+
+      const fetchSize = Math.min(
         queryParams.first || DEFAULT_PAGE_SIZE,
         MAX_PAGE_SIZE
       );
 
+      let maybeResolvedTags;
+
+      if (queryParams.tags !== undefined) {
+        const searchTagsQuery = generateTagQuery(queryParams.tags);
+        const tagsResult = await cassandraClient.execute(
+          searchTagsQuery.query,
+          searchTagsQuery.params,
+          { prepare: true }
+        );
+        if (!R.isEmpty(tagsResult.rows)) {
+          maybeResolvedTags = tagsResult.rows.map((t) => t.tx_id);
+        }
+      }
+
+      const ids = maybeResolvedTags
+        ? queryParams.ids || undefined
+        : R.concat(queryParams.ids || [], maybeResolvedTags);
+
       const params: Partial<Omit<QueryParams, 'after'> & { before: string }> = {
-        limit: pageSize + 1,
+        limit: fetchSize + 1,
         offset: offset,
-        ids: queryParams.ids || undefined,
+        ids,
         to: queryParams.recipients || undefined,
         from: queryParams.owners || undefined,
         tags: queryParams.tags || undefined,
@@ -168,80 +235,45 @@ export const resolvers = {
         select: resolveGqlTxSelect(fieldsWithSubFields),
         minHeight: queryParams.block?.min || undefined,
         maxHeight: queryParams.block?.max || undefined,
-        sortOrder: queryParams.sort || undefined,
       };
 
+      // No selection = no search
+      if (R.isEmpty(params.select)) {
+        return {
+          pageInfo: {
+            hasNextPage: false,
+          },
+          edges: {},
+        };
+      }
       const txQuery = generateTransactionQuery(params);
-      // console.log(txQuery);
-      // const hasNextPage = results.length > pageSize;
-      let hasNextPage = false; // results.length > pageSize;
-      const fetchSize = Math.min(queryParams.first || DEFAULT_PAGE_SIZE, 100);
-      const txs = [];
 
-      await new Promise(
-        (resolve: (val?: any) => void, reject: (err: string) => void) => {
-          let page = pageSize;
-          cassandraClient.eachRow(
-            txQuery.query,
-            txQuery.params,
-            {
-              autoPage: false,
-              fetchSize,
-            },
-            function (n, row) {
-              console.log('N', n);
-              console.log('ROW', row);
-              if (n + 1 > offset) {
-                txs.push(row);
-              }
-              if (n + 1 >= fetchSize + offset) {
-                resolve();
-              }
-            },
-            function (err, res) {
-              console.log('RES', res, 'ERR', err);
-              if (err) {
-                reject((err || '').toString());
-              } else {
-                resolve();
-              }
-              // console.log(res);
-            }
-          );
-        }
+      const { result, hasNextPage = false } = await runPaginatedSearch({
+        query: R.dissoc('tags', txQuery),
+        fetchSize,
+        offset,
+      });
+
+      const resultWithTags = await Promise.all(
+        result.map(async (tx) =>
+          R.assoc(
+            'tags',
+            txQuery.tags !== undefined
+              ? await DbMapper.tagsByTxId(result.id)
+              : [],
+            tx
+          )
+        )
       );
 
-      // if (queryParams.ids) {
-      //   for (const txId of queryParams.ids) {
-      //     txs.push({
-      //       node: await DbMapper.transactionMapper.get({ id: txId }),
-      //     });
-      //   }
-      // }
-
-      console.log({
-        pageInfo: {
-          hasNextPage,
-        },
-        edges: txs.map((tx, index) => ({
-          cursor: encodeCursor({ timestamp, offset: offset + index + 1 }),
-          node: Object.assign({}, tx),
-        })),
-      });
       return {
         pageInfo: {
           hasNextPage,
         },
-        edges: txs.map((tx, index) => ({
+        edges: resultWithTags.map((tx, index) => ({
           cursor: encodeCursor({ timestamp, offset: offset + index + 1 }),
-          node: Object.assign({}, tx),
+          node: tx,
         })),
-        // return results.slice(0, pageSize).map((result: any, index) => {
-        //   return {
-        //     cursor: encodeCursor({ timestamp, offset: offset + index + 1 }),
-        //     node: result,
-        //   };
-        // });
       };
     },
     block: async (
@@ -263,12 +295,15 @@ export const resolvers = {
     blocks: async (
       parent: FieldMap,
       queryParams: QueryBlocksArgs,
-      { req, connection }: any
+      { req, connection }: any,
+      info: any
     ) => {
+      const fieldsWithSubFields = graphqlFields(info);
+
       const { timestamp, offset } = parseCursor(
         queryParams.after || newCursor()
       );
-      const pageSize = Math.min(
+      const fetchSize = Math.min(
         queryParams.first || DEFAULT_PAGE_SIZE,
         MAX_PAGE_SIZE
       );
@@ -288,35 +323,40 @@ export const resolvers = {
       if (queryParams.height && queryParams.height.max) {
         maxHeight = queryParams.height.max;
       }
+      const select = resolveGqlBlockSelect(fieldsWithSubFields);
 
-      const query = generateBlockQuery({
+      // No selection = no search
+      if (R.isEmpty(select)) {
+        return {
+          pageInfo: {
+            hasNextPage: false,
+          },
+          edges: [],
+        };
+      }
+
+      const blockQuery = generateBlockQuery({
         ids,
-        select: blockFieldMap,
+        select,
         minHeight,
         maxHeight,
-        sortOrder: queryParams.sort || 'HEIGHT_ASC',
-        limit: pageSize + 1,
-        offset: offset,
         before: timestamp,
       });
 
-      const results = await query;
-      const hasNextPage = results.length > pageSize;
+      const { result, hasNextPage = false } = await runPaginatedSearch({
+        query: blockQuery,
+        fetchSize,
+        offset,
+      });
 
       return {
         pageInfo: {
           hasNextPage,
         },
-        edges: async () => {
-          return results
-            .slice(0, pageSize)
-            .map((result: any, index: number) => {
-              return {
-                cursor: encodeCursor({ timestamp, offset: offset + index + 1 }),
-                node: result,
-              };
-            });
-        },
+        edges: result.map((block, index) => ({
+          cursor: encodeCursor({ timestamp, offset: offset + index + 1 }),
+          node: block,
+        })),
       };
     },
   },
@@ -382,7 +422,7 @@ export const resolvers = {
     },
     */
     timestamp: (parent: FieldMap) => {
-      return moment(parent?.timestamp).unix();
+      return parent?.timestamp.toString();
     },
   },
 };

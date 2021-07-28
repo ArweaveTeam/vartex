@@ -24,11 +24,7 @@ import {
   cassandraClient,
   getMaxHeightBlock,
   makeBlockImportQuery,
-  makeBlockPlaceholder,
   makeTxImportQuery,
-  newSyncStatus,
-  newLastSessionHashSyncStatus,
-  newSession,
   toLong,
 } from './cassandra.database.js';
 import { pollStatusMapper } from './mapper.database.js';
@@ -50,7 +46,7 @@ export let topHash: string = '';
 export let topHeight: CassandraTypes.Long = toLong(0);
 export let syncHash: string = '';
 export let syncHeight: CassandraTypes.Long = toLong(0);
-export let unsyncedBlocks: string[] = [];
+// export let unsyncedBlocks: string[] = [];
 export let timer = setTimeout(() => {}, 0);
 
 const developmentSyncLength: number | undefined =
@@ -66,6 +62,7 @@ if (developmentSyncLength === NaN) {
 
 let isQueueProcessorStarted = false;
 let isPollingStarted = false;
+let isSyncing: boolean = true;
 const blockQueue: ImportQueue = {};
 const txQueue: ImportQueue = {};
 const tagsQueue: ImportQueue = {};
@@ -155,14 +152,114 @@ async function startPolling(): Promise<void> {
   }
 }
 
-async function prepareBlockStatuses(
-  unsyncedBlockHeights: number[],
-  hashList: string[],
-  lastSessionHashListLength: CassandraTypes.Long
-) {
-  log.info(
-    `[database] intitializing placeholder fields for blocks in cassandra...`
+const detectFirstRun = async (): Promise<boolean> => {
+  const queryResponse = await cassandraClient.execute(
+    `SELECT * FROM gateway.block LIMIT 1`
   );
+  if (!queryResponse.rows || R.isEmpty(queryResponse.rows)) {
+    return true;
+  } else {
+    return false;
+  }
+};
+
+interface UnsyncedBlock {
+  height: number;
+  hash: string;
+}
+
+interface DeleteRowData extends UnsyncedBlock {
+  timestamp: CassandraTypes.Long;
+}
+
+const findMissingBlocks = (
+  hashList: string[],
+  gauge: any
+): Promise<UnsyncedBlock[]> => {
+  const hashListObj = hashList.reduce((acc, hash, height) => {
+    acc[height] = { height, hash };
+    return acc;
+  }, {});
+  const scheduledForDelete: DeleteRowData[] = [];
+
+  gauge.enable();
+  log.info(`[database] Looking for missing blocks...`);
+  return new Promise(
+    (resolve: (val?: any) => void, reject: (err: string) => void) => {
+      cassandraClient.eachRow(
+        `SELECT height,indep_hash,timestamp FROM gateway.block`,
+        [],
+        {
+          autoPage: true,
+          prepare: false,
+          executionProfile: 'fast',
+        },
+        async function (n, row) {
+          gauge.show(`Looking for missing blocks: ${n}/${hashList.length}`);
+          if (SIGINT || SIGKILL) {
+            process.exit(1);
+          }
+          const matchingRow = hashListObj[row.height];
+
+          // mismatch situation, remove both of them from the db
+          if (
+            !matchingRow ||
+            !R.equals(matchingRow, { hash: row.indep_hash, height: row.height })
+          ) {
+            scheduledForDelete.push({
+              hash: row.hash,
+              height: row.height,
+              timestamp: row.timestamp,
+            });
+          } else {
+            delete hashListObj[row.height];
+          }
+        },
+        async function (err, res) {
+          gauge.disable();
+          if (err) {
+            reject((err || '').toString());
+          } else {
+            if (!R.isEmpty(scheduledForDelete)) {
+              const uniqueDeletes = R.uniq(scheduledForDelete);
+              log.info(
+                `[sync] ${uniqueDeletes.length} inconsistent rows scheduled for deletion...`
+              );
+              for (const { hash, height, timestamp } of uniqueDeletes) {
+                try {
+                  await cassandraClient.execute(
+                    `DELETE FROM gateway.block WHERE indep_hash='${hash}' IF EXISTS`
+                  );
+                  await cassandraClient.execute(
+                    `DELETE FROM gateway.block_gql_asc WHERE indep_hash='${hash}' AND height=${height} AND timestamp=${timestamp} IF EXISTS`
+                  );
+                  await cassandraClient.execute(
+                    `DELETE FROM gateway.block_gql_desc WHERE indep_hash='${hash}' AND height=${height} AND timestamp=${timestamp} IF EXISTS`
+                  );
+                } catch (error) {
+                  console.error(
+                    'FATAL error while deleting block with hash:',
+                    hash
+                  );
+                  console.error(error);
+                  process.exit(1);
+                }
+              }
+            }
+
+            resolve(R.pipe(R.values, R.sortBy(R.prop('height')))(hashListObj));
+          }
+        }
+      );
+    }
+  );
+};
+
+export async function startSync() {
+  signalHook();
+  startQueueProcessors();
+  const hashList: string[] = await getHashList({});
+  const firstRun = await detectFirstRun();
 
   const gauge = new Gauge(process.stderr, {
     template: [
@@ -172,167 +269,87 @@ async function prepareBlockStatuses(
       { type: 'subsection', kerning: 1, default: '' },
     ],
   });
-
-  // const linearHashList = R.reverse(hashList);
-
-  if (
-    !lastSessionHashListLength.lt(0) &&
-    !lastSessionHashListLength.equals(hashList.length) &&
-    lastSessionHashListLength.lt(hashList.length)
-  ) {
-    // edge case: don't finish syncing the hash-list but it changed
-    await Promise.all(
-      R.range(
-        lastSessionHashListLength.toInt(),
-        hashList.length
-      ).map((blockHeight) =>
-        makeBlockPlaceholder(blockHeight, hashList[blockHeight])
-      )
-    );
-  }
-
-  await newLastSessionHashSyncStatus({
-    lastSessionHashLength: toLong(hashList.length),
-  });
-
   gauge.setTheme(trackerTheme);
-  gauge.enable();
 
-  for (const blockHeights of R.splitEvery(5, unsyncedBlockHeights)) {
-    gauge.show(`${Math.max.apply(undefined, blockHeights)}/${hashList.length}`);
-    await Promise.all(
-      blockHeights.map((blockHeight) =>
-        Promise.all([
-          newSyncStatus({
-            blockHeight: toLong(blockHeight),
-            blockHash: hashList[blockHeight],
-          }),
-          makeBlockPlaceholder(blockHeight, hashList[blockHeight]),
-        ])
-      )
-    );
-  }
-  gauge.disable();
-  log.info(`[database] done intitializing`);
-}
+  const unsyncedBlocks: UnsyncedBlock[] = firstRun
+    ? hashList.map((hash, height) => ({ hash, height }))
+    : await findMissingBlocks(hashList, gauge);
 
-export async function startSync() {
-  signalHook();
-  startQueueProcessors();
-  const hashList: string[] = R.reverse(await getHashList({}));
-  let firstRun = false;
-
-  const { rows: lastPollHeightData } = await cassandraClient.execute(
-    `SELECT * FROM gateway.poll_status limit 1`
-  );
-
-  const [lastSessionHash, lastSessionHeight, lastSessionHashListLength]: [
-    string,
-    CassandraTypes.Long,
-    CassandraTypes.Long
-  ] = await newSession({ currentHashList: hashList });
-
-  if (R.isEmpty(lastPollHeightData) && lastSessionHeight.lt(0)) {
-    firstRun = true;
+  if (firstRun) {
     log.info(
       `[sync] database seems to be empty, starting preperations for import...`
     );
-  } else if (lastSessionHeight.gt(hashList.length)) {
+  } else if (R.isEmpty(unsyncedBlocks)) {
     log.info(`[sync] fully synced db`);
     startPolling();
     return;
   } else {
     log.info(
-      `[sync] missing ${toLong(hashList.length)
-        .sub(lastSessionHeight)
-        .toString()} blocks, starting sync...`
+      `[sync] missing ${unsyncedBlocks.length} blocks, starting sync...`
     );
   }
 
-  const gauge = new Gauge(process.stderr, {
-    template: [
-      { type: 'progressbar', length: 0 },
-      { type: 'activityIndicator', kerning: 1, length: 2 },
-      { type: 'section', kerning: 1, default: '' },
-      { type: 'subsection', kerning: 1, default: '' },
-    ],
-  });
-  gauge.setTheme(trackerTheme);
   gauge.enable();
 
   const hashListLength = hashList.length;
-  const linearHashList = R.reverse(hashList);
 
-  unsyncedBlocks = firstRun
-    ? hashList
-    : developmentSyncLength && typeof developmentSyncLength === 'number'
-    ? R.slice(hashListLength - developmentSyncLength, hashListLength)(hashList)
-    : lastSessionHash && typeof lastSessionHash === 'string'
-    ? (R.splitWhen(R.equals(lastSessionHash))(hashList)[1] as string[])
-    : (hashList as string[]);
+  // unsyncedBlocks = firstRun
+  //   ? hashList
+  //   : developmentSyncLength && typeof developmentSyncLength === 'number'
+  //   ? R.slice(hashListLength - developmentSyncLength, hashListLength)(hashList)
+  //   : lastSessionHash && typeof lastSessionHash === 'string'
+  //   ? (R.splitWhen(R.equals(lastSessionHash))(hashList)[1] as string[])
+  //   : (hashList as string[]);
 
-  const unsyncedBlockHeights = R.range(
-    firstRun && !developmentSyncLength
-      ? 0
-      : Math.max(
-          0,
-          developmentSyncLength
-            ? hashListLength - developmentSyncLength
-            : R.findIndex(R.equals(lastSessionHash), hashList)
-        ),
-    hashListLength
+  // const unsyncedBlockHeights = R.range(
+  //   firstRun && !developmentSyncLength
+  //     ? 0
+  //     : Math.max(
+  //         0,
+  //         developmentSyncLength
+  //           ? hashListLength - developmentSyncLength
+  //           : R.findIndex(R.equals(lastSessionHash), hashList)
+  //       ),
+  //   hashListLength
+  // );
+
+  F.fork((reason: string | void) => {
+    console.error('Fatal', reason || '');
+    process.exit(1);
+  })(() => {
+    gauge.disable();
+    log.info(`Database fully in sync with block_list`);
+    !isPollingStarted && startPolling();
+  })(
+    F.parallel(
+      (isNaN as any)(process.env['PARALLEL'])
+        ? 36
+        : parseInt(process.env['PARALLEL'] || '36')
+    )(
+      unsyncedBlocks.map(({ height, hash }) => {
+        const progress = `${height}/${hashList.length}`;
+        return storeBlock(height, hash, progress, gauge);
+      })
+    )
   );
-
-  prepareBlockStatuses(
-    unsyncedBlockHeights,
-    hashList,
-    lastSessionHashListLength
-  ).then(() => {
-    F.fork((reason: string | void) => {
-      console.error('Fatal', reason || '');
-      process.exit(1);
-    })(() => {
-      gauge.disable();
-      log.info(`Database fully in sync with block_list`);
-      unsyncedBlocks = [];
-      !isPollingStarted && startPolling();
-    })(
-      F.parallel(
-        (isNaN as any)(process.env['PARALLEL'])
-          ? 36
-          : parseInt(process.env['PARALLEL'] || '36')
-      )(
-        R.range(
-          developmentSyncLength
-            ? hashListLength - developmentSyncLength
-            : R.isEmpty(lastPollHeightData)
-            ? 0
-            : lastPollHeightData[0].current_block_height.toInt(),
-          hashListLength
-        ).map((height) => {
-          return storeBlock(height, linearHashList, gauge);
-        })
-      )
-    );
-  });
 }
 
 export function storeBlock(
   height: number,
-  hashList: string[],
+  hash: string,
+  progress: string,
   gauge: any
 ): Promise<unknown> {
-  const syncDatabaseJobTracker = `${height}/${hashList.length}`;
   return Fluture(
     (reject: (reason: string | void) => void, resolve: () => void) => {
       let isCancelled = false;
       function getBlock(retry = 0) {
         !isCancelled &&
           queryGetBlock({
-            hash: hashList[height],
+            hash,
             height,
             gauge,
-            completed: syncDatabaseJobTracker,
+            completed: progress,
           })
             .then((newSyncBlock) => {
               if (newSyncBlock) {

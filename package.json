@@ -19,11 +19,9 @@
     "test": "echo TODO",
     "lint": "eslint \"test/*.ts\" \"test/**/*.ts\" \"src/*.ts\" \"src/**/*.ts\" \"migrations/*.ts\" \"knexfile.ts\"",
     "gql": "npx graphql-codegen --config codegen.yml",
-    "build": "npm run gql && tsc",
-    "start": "node dist/src/Gateway.js",
-    "start:dev": "TS_NODE_FILES=true node --loader ts-node/esm.mjs src/Gateway.ts",
+    "start": "npm run gql && TS_NODE_FILES=true node --max-old-space-size=4096 --loader ts-node/esm.mjs src/Gateway.ts",
     "migrate:init": "node cassandra/init.cjs",
-    "migrate:nuke-all": "node cassandra/nuke.cjs"
+    "migrate:nuke": "node cassandra/nuke.cjs"
   },
   "dependencies": {
     "@ridi/cql-builder": "^1.0.4",

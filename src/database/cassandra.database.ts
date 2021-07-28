@@ -27,47 +27,6 @@ const contactPoints = process.env.CASSANDRA_CONTACT_POINTS
   ? JSON.parse(process.env.CASSANDRA_CONTACT_POINTS)
   : ['localhost:9042'];
 
-export const newSession = async ({
-  currentHashList,
-}): Promise<[string, CassandraTypes.Long, CassandraTypes.Long]> => {
-  let lastSessionHashListLength = CassandraTypes.Long.fromNumber(-1);
-  let lastSessionHeight = CassandraTypes.Long.fromNumber(-1);
-  let lastSessionHash = '';
-
-  try {
-    const maybeLastSession = await cassandraClient.execute(
-      `SELECT * FROM gateway.sync_status limit 1`
-    );
-    const tuple = maybeLastSession.rows[0];
-    if (tuple) {
-      lastSessionHash = tuple.last_block_hash || lastSessionHash;
-      lastSessionHeight = tuple.last_block_height || lastSessionHeight;
-      lastSessionHashListLength =
-        tuple.last_hash_list_length || lastSessionHashListLength;
-    }
-  } catch (error) {
-    if (!error.toString().includes('Undefined column name height')) {
-      process.exit(1);
-    }
-  }
-
-  if (lastSessionHeight.gt(0)) {
-    await cassandraClient.execute(
-      'INSERT INTO gateway.sync_status (last_hash_list_length,last_block_height,last_block_hash,session_uuid,random_uuid)' +
-        'VALUES (?, ?, ?, ?, ?) IF NOT EXISTS',
-      [
-        CassandraTypes.Long.fromNumber(currentHashList.length),
-        lastSessionHeight,
-        lastSessionHash,
-        currentSessionId,
-        currentSessionRandomId,
-      ],
-      { prepare: true }
-    );
-  }
-  return [lastSessionHash, lastSessionHeight, lastSessionHashListLength];
-};
-
 export const cassandraClient = new cassandra.Client({
   contactPoints,
   localDataCenter: 'datacenter1',
@@ -89,6 +48,18 @@ export const cassandraClient = new cassandra.Client({
       ? parseInt(process.env['DB_TIMEOUT'])
       : 30,
   },
+  profiles: [
+    new cassandra.ExecutionProfile('fast', {
+      readTimeout: 5000,
+      consistency: cassandra.types.consistencies.any,
+      serialConsistency: cassandra.types.consistencies.any,
+    }),
+    new cassandra.ExecutionProfile('gql', {
+      readTimeout: 5000,
+      consistency: cassandra.types.consistencies.all,
+      serialConsistency: cassandra.types.consistencies.serial,
+    }),
+  ],
 });
 
 const poaKeys = [
@@ -100,9 +71,7 @@ const poaKeys = [
   'block_height',
 ];
 
-const syncStatusKeys = ['last_block', 'session_uuid'];
-
-// const blockStatusKeys = ['block_height', 'synced'];
+const blockGqlKeys = ['height', 'indep_hash'];
 
 const txTagKeys = ['tx_id', 'tag_index', 'next_tag_index', 'name', 'value'];
 
@@ -343,33 +312,37 @@ const txTagsInsertQuery = `INSERT INTO gateway.tx_tag (${txTagKeys.join(
   ', '
 )}) VALUES (${txTagKeys.map(() => '?').join(', ')})`;
 
-const blockStatusUpdateQuery = `
-  UPDATE gateway.block_status
-  SET synced = true
-  WHERE block_height = ? and block_hash = ?`;
+// const blockStatusUpdateQuery = `
+//   UPDATE gateway.block_status
+//   SET synced = true
+//   WHERE block_height = ? and block_hash = ?`;
 
 const blockHeightByHashInsertQuery = `INSERT INTO gateway.block_height_by_block_hash (block_height, block_hash) VALUES (?, ?) IF NOT EXISTS`;
 
 const blockByTxIdInsertQuery = `INSERT INTO gateway.block_by_tx_id (tx_id, block_height, block_hash) VALUES (?, ?, ?) IF NOT EXISTS`;
 
+const blockGqlAscInsertQuery = `INSERT INTO gateway.block_gql_asc (height, indep_hash, timestamp) VALUES (?, ?, ?)`;
+
+const blockGqlDescInsertQuery = `INSERT INTO gateway.block_gql_desc (height, indep_hash, timestamp) VALUES (?, ?, ?)`;
+
 // Note the last synced block isn't
 // nececcarily the latest one, than
 // always needs verification on init
-const syncStatusUpdateQuery = `
-  UPDATE gateway.sync_status
-  SET last_block_height = ?, last_block_hash = ?
-  WHERE session_uuid = ? and random_uuid = ?`;
+// const syncStatusUpdateQuery = `
+//   UPDATE gateway.sync_status
+//   SET last_block_height = ?, last_block_hash = ?
+//   WHERE session_uuid = ? and random_uuid = ?`;
 
-const syncStatusLastBlocklistHeightUpdateQuery = `
-  UPDATE gateway.sync_status
-  SET last_hash_list_length = ?
-  WHERE session_uuid = ? and random_uuid = ?`;
+// const syncStatusLastBlocklistHeightUpdateQuery = `
+//   UPDATE gateway.sync_status
+//   SET last_hash_list_length = ?
+//   WHERE session_uuid = ? and random_uuid = ?`;
 
-const pollStatusInsertQuery = `
-  INSERT INTO gateway.poll_status
-  (current_block_hash,current_block_height,random_uuid,time_uuid)
-  VALUES (?, ?, ?, ?)
-`;
+// const pollStatusInsertQuery = `
+//   INSERT INTO gateway.poll_status
+//   (current_block_hash,current_block_height,random_uuid,time_uuid)
+//   VALUES (?, ?, ?, ?)
+// `;
 
 export const makeTxImportQuery = (
   tx: { [k: string]: any },
@@ -439,32 +412,32 @@ export const makeTxImportQuery = (
     );
 };
 
-export const newSyncStatus = ({
-  blockHeight,
-  blockHash,
-}: {
-  blockHeight: CassandraTypes.Long;
-  blockHash: string;
-}): Promise<unknown> => {
-  return cassandraClient.execute(syncStatusUpdateQuery, [
-    blockHeight,
-    blockHash,
-    currentSessionId,
-    currentSessionRandomId,
-  ]);
-};
+// export const newSyncStatus = ({
+//   blockHeight,
+//   blockHash,
+// }: {
+//   blockHeight: CassandraTypes.Long;
+//   blockHash: string;
+// }): Promise<unknown> => {
+//   return cassandraClient.execute(syncStatusUpdateQuery, [
+//     blockHeight,
+//     blockHash,
+//     currentSessionId,
+//     currentSessionRandomId,
+//   ]);
+// };
 
-export const newLastSessionHashSyncStatus = ({
-  lastSessionHashLength,
-}: {
-  lastSessionHashLength: CassandraTypes.Long;
-}): Promise<unknown> => {
-  return cassandraClient.execute(syncStatusLastBlocklistHeightUpdateQuery, [
-    lastSessionHashLength,
-    currentSessionId,
-    currentSessionRandomId,
-  ]);
-};
+// export const newLastSessionHashSyncStatus = ({
+//   lastSessionHashLength,
+// }: {
+//   lastSessionHashLength: CassandraTypes.Long;
+// }): Promise<unknown> => {
+//   return cassandraClient.execute(syncStatusLastBlocklistHeightUpdateQuery, [
+//     lastSessionHashLength,
+//     currentSessionId,
+//     currentSessionRandomId,
+//   ]);
+// };
 
 export const makeBlockImportQuery = (input: any) => () => {
   const nonNilBlockKeys: string[] = [];
@@ -486,28 +459,18 @@ export const makeBlockImportQuery = (input: any) => () => {
       prepare: true,
     }),
     cassandraClient.execute(
-      blockStatusUpdateQuery,
-      [input.height, input.indep_hash],
+      blockGqlAscInsertQuery,
+      [input.height, input.indep_hash, input.timestamp],
       { prepare: true }
     ),
     cassandraClient.execute(
-      blockHeightByHashInsertQuery,
-      [input.height, input.indep_hash],
+      blockGqlDescInsertQuery,
+      [input.height, input.indep_hash, input.timestamp],
       { prepare: true }
     ),
     cassandraClient.execute(
       blockInsertQuery(nonNilBlockKeys),
       blockInsertParams,
-      { prepare: true }
-    ),
-    cassandraClient.execute(
-      pollStatusInsertQuery,
-      [
-        input.indep_hash,
-        input.height,
-        crypto.randomBytes(16),
-        CassandraTypes.TimeUuid.now(),
-      ],
       { prepare: true }
     ),
   ];
@@ -518,31 +481,31 @@ export const getMaxHeightBlock = async (): Promise<
 > => {
   // note that the block_hash table is sorted descendingly by block height
   const response = await cassandraClient.execute(
-    'SELECT current_block_height,current_block_hash FROM gateway.poll_status limit 1;'
+    'SELECT height,indep_hash FROM gateway.block_gql_desc limit 1;'
   );
 
   const row = response.rows[0];
-  return [row['current_block_hash'], row['current_block_height']];
+  return [row['indep_hash'], row['height']];
 };
 
-export const makeBlockPlaceholder = (
-  blockHeight: CassandraTypes.Long | number,
-  blockHash: string
-): Promise<unknown> =>
-  cassandraClient.execute(
-    `INSERT INTO gateway.block_status (block_height, block_hash, synced, txs_synced)` +
-      ` VALUES (?, ?, ?, ?) IF NOT EXISTS`,
-    [toLong(blockHeight), blockHash, false, false]
-  );
+// export const makeBlockPlaceholder = (
+//   blockHeight: CassandraTypes.Long | number,
+//   blockHash: string
+// ): Promise<unknown> =>
+//   cassandraClient.execute(
+//     `INSERT INTO gateway.block_status (block_height, block_hash, synced, txs_synced)` +
+//       ` VALUES (?, ?, ?, ?) IF NOT EXISTS`,
+//     [toLong(blockHeight), blockHash, false, false]
+//   );
 
-export const getBlockStatus = async (): Promise<CassandraTypes.Long> => {
-  let cnt = (cassandra as any).types.Long.fromNumber(0);
-  try {
-    const response = await cassandraClient.execute(
-      `SELECT * FROM gateway.block_status limit 1;`
-    );
-    cnt = response.rows[0].block_height;
-  } catch (error) {}
+// export const getBlockStatus = async (): Promise<CassandraTypes.Long> => {
+//   let cnt = (cassandra as any).types.Long.fromNumber(0);
+//   try {
+//     const response = await cassandraClient.execute(
+//       `SELECT * FROM gateway.block_status limit 1;`
+//     );
+//     cnt = response.rows[0].block_height;
+//   } catch (error) {}
 
-  return cnt;
-};
+//   return cnt;
+// };

@@ -145,31 +145,51 @@ const runPaginatedSearch = ({
   offset: number;
 }): Promise<{ result: any; hasNextPage: boolean }> => {
   const result = [];
-
+  let cnt = -1;
   return new Promise(
     (resolve: (val?: any) => void, reject: (err: string) => void) => {
-      cassandraClient.eachRow(
-        query.query,
-        query.params,
-        {
-          autoPage: false,
-          fetchSize: fetchSize + 1,
-          prepare: true,
-        },
-        function (n, row) {
-          if (n + 1 > offset) {
-            result.push(row);
-          }
-        },
-        function (err, res) {
-          if (err) {
-            reject((err || '').toString());
-          } else {
-            const hasNextPage = res.nextPage !== undefined;
-            resolve({ hasNextPage, result });
+      const stream = cassandraClient.stream(query.query, query.params, {
+        autoPage: false,
+        prepare: true,
+      });
+      stream.on('readable', function streamReadable() {
+        let item = '';
+        if (cnt < offset + fetchSize) {
+          while ((item = (stream as any).read())) {
+            if (offset < cnt && cnt < offset + fetchSize) {
+              result.push(item);
+            }
+            cnt += 1;
           }
         }
-      );
+      });
+      stream.on('end', function streamEnd() {
+        resolve({ hasNextPage: cnt >= offset + fetchSize, result });
+      });
+      stream.on('error', function onError(reason: any) {
+        reject((reason || '').toString());
+      });
+      // })
+      //   function (n, row) {
+      //     if (n + 1 > offset) {
+      //       console.log(
+      //         row.height.toInt(),
+      //         'bigger than last?',
+      //         last < row.height.toInt()
+      //       );
+      //       last = row.height.toInt();
+      //       result.push(row);
+      //     }
+      //   },
+      //   function (err, res) {
+      //     if (err) {
+
+      //     } else {
+      //       const hasNextPage = res.nextPage !== undefined;
+
+      //     }
+      //   }
+      // );
     }
   );
 };
@@ -235,6 +255,7 @@ export const resolvers = {
         select: resolveGqlTxSelect(fieldsWithSubFields),
         minHeight: queryParams.block?.min || undefined,
         maxHeight: queryParams.block?.max || undefined,
+        sortOrder: queryParams.sort || undefined,
       };
 
       // No selection = no search
@@ -341,6 +362,7 @@ export const resolvers = {
         minHeight,
         maxHeight,
         before: timestamp,
+        sortOrder: queryParams.sort || undefined,
       });
 
       const { result, hasNextPage = false } = await runPaginatedSearch({

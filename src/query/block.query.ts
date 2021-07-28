@@ -52,6 +52,7 @@ export async function getBlock({
     body = await got.get(url, {
       responseType: 'json',
       resolveBodyOnly: true,
+      timeout: 15 * 1000,
     });
   } catch (error) {
     coolNode(tryNode);
@@ -79,6 +80,7 @@ export async function currentBlock(): Promise<BlockType | undefined> {
     jsonPayload = await got.get(`${tryNode}/block/current`, {
       responseType: 'json',
       resolveBodyOnly: true,
+      timeout: 15 * 1000,
     });
   } catch (error) {
     coolNode(tryNode);

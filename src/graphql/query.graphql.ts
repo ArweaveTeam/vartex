@@ -10,6 +10,8 @@ import { default as cqlBuilder } from '@ridi/cql-builder';
 
 const { Insert, Select, Update, Delete, CqlBuilderError } = cqlBuilder;
 
+export type TxSortOrder = 'HEIGHT_ASC' | 'HEIGHT_DESC';
+
 config();
 
 export interface QueryParams {
@@ -22,6 +24,7 @@ export interface QueryParams {
   select?: any;
   blocks?: boolean;
   since?: string;
+  sortOrder?: TxSortOrder;
   status?: 'any' | 'confirmed' | 'pending';
   tags?: TagFilter[];
   pendingMinutes?: number;
@@ -83,6 +86,12 @@ export function generateTransactionQuery(params: QueryParams): any {
     cql.where('block_height <=', params.maxHeight);
   }
 
+  if (params.sortOrder === 'HEIGHT_ASC') {
+    cql.order('block_height ASC');
+  } else {
+    cql.order('block_height DESC');
+  }
+
   return cql.build();
 }
 
@@ -93,12 +102,19 @@ export interface BlockQueryParams {
   before?: string;
   minHeight?: number;
   maxHeight?: number;
+  sortOrder?: TxSortOrder;
 }
 
 export function generateBlockQuery(params: BlockQueryParams): any {
   const { id, ids, select, before, minHeight, maxHeight } = params;
 
-  const cql = Select().table('block', 'gateway').field(select).filtering();
+  const cql = Select()
+    .table(
+      params.sortOrder === 'HEIGHT_ASC' ? 'block_gql_asc' : 'block_gql_desc',
+      'gateway'
+    )
+    .field(select)
+    .filtering();
 
   // const query = connection.queryBuilder().select(select).from('blocks');
   if (id) {

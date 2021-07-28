@@ -21,15 +21,18 @@ client
        WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1' }`,
       'USE gateway',
       `DROP TABLE IF EXISTS poa`,
-      `DROP TABLE IF EXISTS sync_status`,
-      `DROP TABLE IF EXISTS poll_status`,
       `DROP TABLE IF EXISTS block_by_tx_id`,
-      `DROP TABLE IF EXISTS block_status`,
       `DROP TABLE IF EXISTS block_height_by_block_hash`,
       `DROP TABLE IF EXISTS block`,
+      `DROP TABLE IF EXISTS block_gql_asc`,
+      `DROP TABLE IF EXISTS block_gql_desc`,
       `DROP TABLE IF EXISTS tx_offset`,
       `DROP TABLE IF EXISTS tx_tag`,
       `DROP TABLE IF EXISTS transaction`,
+      // not used anymore
+      `DROP TABLE IF EXISTS block_status`,
+      `DROP TABLE IF EXISTS sync_status`,
+      `DROP TABLE IF EXISTS poll_status`,
     ];
     let p = Promise.resolve();
     // Create the schema executing the queries serially

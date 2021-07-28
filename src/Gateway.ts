@@ -18,6 +18,7 @@ import { txUploadRoute, txGetByIdRoute } from './route/transaction.route.js';
 import { proxyRoute } from './route/proxy.route.js';
 import { dataRouteRegex, dataRoute } from './route/data.route.js';
 import { peerRoute } from './route/peer.route.js';
+import { hashListRoute } from './route/hash-list.route.js';
 import { koiLogger, koiLogsRoute, koiLogsRawRoute } from './route/koi.route.js';
 import { findPeers } from './query/node.query.js';
 import { startSync } from './database/sync.database.js';
@@ -41,6 +42,7 @@ export function start(): void {
 
   app.get('/', statusRoute);
   app.get('/status', statusRoute);
+  app.get('/hash_list', hashListRoute);
 
   app.get(dataRouteRegex, dataRoute);
 

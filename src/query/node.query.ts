@@ -18,7 +18,10 @@ export const NODES = process.env.ARWEAVE_NODES
 
 type WeightedNode = { id: string; weight: number };
 
-let nodeTemperatures: WeightedNode[] = [];
+let nodeTemperatures: WeightedNode[] = [
+  { id: 'https://arweave.net', weight: 2 },
+  { id: 'http://lon-1.eu-west-1.arweave.net:1984', weight: 2 },
+];
 
 const syncNodeTemperatures = () => {
   nodeTemperatures = NODES.map((url: string) => {
@@ -33,18 +36,17 @@ const syncNodeTemperatures = () => {
 };
 
 export const findPeers = async () => {
-  await superagent.get('https://www.arweave.net/peers').then((payload) => {
-    const rootPeers = JSON.parse(payload.text);
-    rootPeers.forEach(
-      (peer: string) =>
-        peer &&
-        !peer.startsWith('127.0') &&
-        !NODES.includes(peer) &&
-        NODES.push(peer)
-    );
-
-    syncNodeTemperatures();
-  });
+  // await superagent.get('https://www.arweave.net/peers').then((payload) => {
+  //   const rootPeers = JSON.parse(payload.text);
+  //   rootPeers.forEach(
+  //     (peer: string) =>
+  //       peer &&
+  //       !peer.startsWith('127.0') &&
+  //       !NODES.includes(peer) &&
+  //       NODES.push(peer)
+  //   );
+  //   syncNodeTemperatures();
+  // });
 };
 
 export function grabNode() {

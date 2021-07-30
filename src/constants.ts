@@ -10,3 +10,7 @@ if (HTTP_TIMEOUT_SECONDS === NaN) {
   console.error('the provided value for HTTP_TIMEOUT_SECONDS was not a number');
   process.exit(1);
 }
+
+export const KEYSPACE: string = process.env['KEYSPACE']
+  ? process.env['KEYSPACE']
+  : 'gateway';

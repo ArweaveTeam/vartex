@@ -1,4 +1,7 @@
 import got from 'got';
+import fs from 'fs/promises';
+import path from 'path';
+import { log } from '../utility/log.utility.js';
 import { grabNode, warmNode, coolNode } from './node.query.js';
 import { HTTP_TIMEOUT_SECONDS } from '../constants.js';
 
@@ -34,37 +37,53 @@ export async function getBlock({
   hash,
   height,
   gauge,
-  completed,
+  getProgress,
 }: {
   hash: string | undefined;
   height: number;
   gauge?: any;
-  completed?: string;
+  getProgress?: () => string;
 }): Promise<BlockType | undefined> {
   const tryNode = grabNode();
   const url = hash
     ? `${tryNode}/block/hash/${hash}`
     : `${tryNode}/block/height/${height}`;
-  gauge && gauge.show(`${completed || ''} ${url}`);
-  let body;
+  gauge && gauge.show(`${getProgress ? getProgress() || '' : ''} ${url}`);
+  // const
 
+  let body;
   try {
-    body = await got.get(url, {
+    body = (await got.get(url, {
       responseType: 'json',
       resolveBodyOnly: true,
-      timeout: 15 * 1000,
-    });
+      timeout: HTTP_TIMEOUT_SECONDS * 1000,
+      followRedirect: true,
+    })) as BlockType;
   } catch (error) {
     coolNode(tryNode);
-    // console.error(error);
-    return undefined;
+    if (error instanceof got.TimeoutError) {
+      gauge.show(`timeout: ${url}`);
+    } else if (error instanceof got.HTTPError) {
+      gauge.show(`error'd: ${url}`);
+    }
+  }
+
+  if (!body) {
+    return getBlock({ hash, height, gauge, getProgress });
   }
 
   if (hash && height !== body.height) {
-    console.error(
-      'fatal inconsistency: hash and height dont match for hash:',
-      hash,
-      height !== body.height
+    gauge && gauge.stop();
+    log.error(
+      'fatal inconsistency: hash and height dont match for hash:' +
+        'wanted: ' +
+        hash +
+        ' got: ' +
+        body.hash +
+        '\nwanted: ' +
+        height +
+        ' got: ' +
+        body.height
     );
     // REVIEW: does assuming re-forking condition work better than fatal error?
     process.exit(1);

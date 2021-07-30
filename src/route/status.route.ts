@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { topHeight, syncHeight } from '../database/sync.database.js';
+import { topHeight } from '../database/sync.database.js';
 import { toLong } from '../database/cassandra.database.js';
 import { getNodeInfo } from '../query/node.query.js';
 
@@ -11,7 +11,7 @@ export async function statusRoute(req: Request, res: Response) {
     const delta = toLong(info.height).sub(topHeight).toString();
 
     return res.status(200).send({
-      status: !syncHeight.equals(0) ? 'SYNCING' : 'OK',
+      status: 'OK',
       gatewayHeight: topHeight.toString(),
       arweaveHeight: info.height,
       delta,

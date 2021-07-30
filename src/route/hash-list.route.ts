@@ -1,6 +1,7 @@
 import * as R from 'rambda';
 import { Request, Response } from 'express';
 import { concurrent, types as CassandraTypes } from 'cassandra-driver';
+import { KEYSPACE } from '../constants.js';
 import { cassandraClient } from '../database/cassandra.database.js';
 
 export async function hashListRoute(
@@ -13,7 +14,9 @@ export async function hashListRoute(
     'Transfer-Encoding': 'chunked',
   });
   res.write('[');
-  const stream = cassandraClient.stream('SELECT indep_hash FROM gateway.block');
+  const stream = cassandraClient.stream(
+    `SELECT indep_hash FROM ${KEYSPACE}.block`
+  );
   stream.on('end', function streamEnd() {
     res.write(']');
     res.end();

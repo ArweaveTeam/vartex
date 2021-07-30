@@ -135,6 +135,20 @@ const resolveGqlBlockSelect = (userFields: any): string[] => {
   return select;
 };
 
+// const runPaginatedSearch = ({
+//   fetchSize,
+//   query,
+//   offset,
+// }: {
+//   fetchSize: number;
+//   query: { query: string; params: any[] };
+//   offset: number;
+// }): Promise<{ result: any; hasNextPage: boolean }> => {
+//   cassandraClient.execute(query.query, query.params, {
+//     executionProfile: 'gql',
+//   });
+// };
+
 const runPaginatedSearch = ({
   fetchSize,
   query,
@@ -145,54 +159,98 @@ const runPaginatedSearch = ({
   offset: number;
 }): Promise<{ result: any; hasNextPage: boolean }> => {
   const result = [];
-  let cnt = -1;
+  let last = 0;
   return new Promise(
     (resolve: (val?: any) => void, reject: (err: string) => void) => {
-      const stream = cassandraClient.stream(query.query, query.params, {
-        autoPage: false,
-        prepare: true,
-      });
-      stream.on('readable', function streamReadable() {
-        let item = '';
-        if (cnt < offset + fetchSize) {
-          while ((item = (stream as any).read())) {
-            if (offset < cnt && cnt < offset + fetchSize) {
-              result.push(item);
-            }
-            cnt += 1;
+      cassandraClient.eachRow(
+        query.query,
+        query.params,
+        {
+          autoPage: false,
+          fetchSize: 1,
+          prepare: true,
+          executionProfile: 'gql',
+        },
+        function (n, row) {
+          if (n + 1 > offset) {
+            console.log(
+              row.height.toInt(),
+              'bigger than last?',
+              last < row.height.toInt()
+            );
+            last = row.height.toInt();
+            result.push(row);
+          }
+        },
+        function (err, res) {
+          if (err) {
+            reject((err || '').toString());
+          } else {
+            const hasNextPage = res.nextPage !== undefined;
+            resolve({ hasNextPage, result });
           }
         }
-      });
-      stream.on('end', function streamEnd() {
-        resolve({ hasNextPage: cnt >= offset + fetchSize, result });
-      });
-      stream.on('error', function onError(reason: any) {
-        reject((reason || '').toString());
-      });
-      // })
-      //   function (n, row) {
-      //     if (n + 1 > offset) {
-      //       console.log(
-      //         row.height.toInt(),
-      //         'bigger than last?',
-      //         last < row.height.toInt()
-      //       );
-      //       last = row.height.toInt();
-      //       result.push(row);
-      //     }
-      //   },
-      //   function (err, res) {
-      //     if (err) {
-
-      //     } else {
-      //       const hasNextPage = res.nextPage !== undefined;
-
-      //     }
-      //   }
-      // );
+      );
     }
   );
 };
+
+// const runPaginatedSearch = ({
+//   fetchSize,
+//   query,
+//   offset,
+// }: {
+//   fetchSize: number;
+//   query: { query: string; params: any[] };
+//   offset: number;
+// }): Promise<{ result: any; hasNextPage: boolean }> => {
+//   const result = [];
+//   let cnt = -1;
+
+//   return new Promise(
+//     (resolve: (val?: any) => void, reject: (err: string) => void) => {
+//       const stream: any = cassandraClient.stream(query.query, query.params, {
+//         autoPage: true,
+//         prepare: true,
+//       });
+//       stream.on('readable', function streamReadable() {
+//         let item = '';
+//         // console.log(stream, Object.keys(stream));
+//         if (cnt < offset + fetchSize) {
+//           while ((item = (stream as any).read())) {
+//             if (offset < cnt && cnt < offset + fetchSize) {
+//               console.error(item);
+//               result.push(item);
+//               stream.pause();
+//               return true;
+//             } else {
+//               console.error('DONE', result);
+//               resolve({ hasNextPage: false, result });
+//               stream.pause();
+//               return false;
+//               // stream.close();
+//             }
+//             cnt += 1;
+//           }
+//         } else {
+//           console.error('DONE', result);
+//           stream.pause();
+//           resolve({ hasNextPage: false, result });
+//           return false;
+//           // stream.close();
+//         }
+//       });
+//       stream.on('end', function streamEnd() {
+//         console.error('END');
+//         resolve({ hasNextPage: cnt >= offset + fetchSize, result });
+//       });
+//       stream.on('error', function onError(reason: any) {
+//         console.error('ERROR');
+//         reject((reason || '').toString());
+//       });
+//     }
+//   );
+// };
 
 export const resolvers = {
   Query: {
@@ -307,6 +365,8 @@ export const resolvers = {
           await generateBlockQuery({
             select: blockFieldMap,
             id: queryParams.id,
+            offset: 0,
+            fetchSize: 100,
           })
         ).first();
       } else {
@@ -362,6 +422,8 @@ export const resolvers = {
         minHeight,
         maxHeight,
         before: timestamp,
+        offset,
+        fetchSize,
         sortOrder: queryParams.sort || undefined,
       });
 

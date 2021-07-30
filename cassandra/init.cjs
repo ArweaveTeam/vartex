@@ -2,6 +2,8 @@
 const cassandra = require('cassandra-driver');
 require('dotenv').config();
 
+const KEYSPACE = process.env['KEYSPACE'] ? process.env['KEYSPACE'] : 'gateway';
+
 const contactPoints = process.env.CASSANDRA_CONTACT_POINTS
   ? JSON.parse(process.env.CASSANDRA_CONTACT_POINTS)
   : ['localhost:9042'];
@@ -15,9 +17,9 @@ client
   .connect()
   .then(function () {
     const queries = [
-      `CREATE KEYSPACE IF NOT EXISTS gateway
+      `CREATE KEYSPACE IF NOT EXISTS ${KEYSPACE}
        WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1' }`,
-      'USE gateway',
+      `USE ${KEYSPACE}`,
       `CREATE TABLE IF NOT EXISTS poa (
          option text,
          tx_path text,
@@ -56,21 +58,14 @@ client
          weave_size bigint,
          PRIMARY KEY (indep_hash)
        )`,
-       // make sorting possible with gql
-       `CREATE TABLE IF NOT EXISTS block_gql_asc (
+      // make sorting possible with gql
+      `CREATE TABLE IF NOT EXISTS block_gql (
           height bigint,
           indep_hash text,
           timestamp bigint,
-          PRIMARY KEY ((indep_hash), height, timestamp)
+          PRIMARY KEY (indep_hash, height)
         )
-        WITH CLUSTERING ORDER BY (height ASC, timestamp ASC)`,
-       `CREATE TABLE IF NOT EXISTS block_gql_desc (
-          height bigint,
-          indep_hash text,
-          timestamp bigint,
-          PRIMARY KEY ((indep_hash), height, timestamp)
-        )
-        WITH CLUSTERING ORDER BY (height DESC, timestamp DESC)`,
+        WITH CLUSTERING ORDER BY (height DESC)`,
       // optimize for search
       // tag id is tx_id + tag_index
       `CREATE TABLE IF NOT EXISTS tx_tag (

@@ -1,0 +1,21 @@
+name: Test database
+
+on: push
+
+jobs:
+  setup:
+    name: Setup Cassandra
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: fabasoad/setup-cassandra-action@v1.0.0
+        with:
+          host: 'localhost'
+          port: 9042
+          connect-timeout: 30
+      - name: Install node dependencies
+        run: |
+          yarn install
+      - name: Initialize database tables
+        run: |
+          node cassandra/init.cjs

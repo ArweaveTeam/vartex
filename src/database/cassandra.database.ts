@@ -3,6 +3,7 @@ import * as cassandra from 'cassandra-driver';
 import * as R from 'rambda';
 import { types as CassandraTypes } from 'cassandra-driver';
 import { ImportQueue, Poa, TxOffset } from '../types/cassandra.types.js';
+import { KEYSPACE } from '../constants.js';
 import { config } from 'dotenv';
 
 config();
@@ -56,6 +57,11 @@ export const cassandraClient = new cassandra.Client({
     }),
     new cassandra.ExecutionProfile('gql', {
       readTimeout: 5000,
+      consistency: cassandra.types.consistencies.all,
+      serialConsistency: cassandra.types.consistencies.serial,
+    }),
+    new cassandra.ExecutionProfile('full', {
+      readTimeout: 15000,
       consistency: cassandra.types.consistencies.all,
       serialConsistency: cassandra.types.consistencies.serial,
     }),
@@ -290,25 +296,25 @@ const transformTag = (
   return tagObj;
 };
 
-const poaInsertQuery = `INSERT INTO gateway.poa (${poaKeys.join(
+const poaInsertQuery = `INSERT INTO ${KEYSPACE}.poa (${poaKeys.join(
   ', '
 )}) VALUES (${poaKeys.map(() => '?').join(', ')})`;
 
 const blockInsertQuery = (nonNilBlockKeys: string[]) =>
-  `INSERT INTO gateway.block (${nonNilBlockKeys.join(
+  `INSERT INTO ${KEYSPACE}.block (${nonNilBlockKeys.join(
     ', '
   )}) VALUES (${nonNilBlockKeys.map(() => '?').join(', ')})`;
 
 const transactionInsertQuery = (nonNilTxKeys: string[]) =>
-  `INSERT INTO gateway.transaction (${nonNilTxKeys.join(
+  `INSERT INTO ${KEYSPACE}.transaction (${nonNilTxKeys.join(
     ', '
   )}) VALUES (${nonNilTxKeys.map(() => '?').join(', ')})`;
 
-const txOffsetInsertQuery = `INSERT INTO gateway.tx_offset (${txOffsetKeys.join(
+const txOffsetInsertQuery = `INSERT INTO ${KEYSPACE}.tx_offset (${txOffsetKeys.join(
   ', '
 )}) VALUES (${txOffsetKeys.map(() => '?').join(', ')})`;
 
-const txTagsInsertQuery = `INSERT INTO gateway.tx_tag (${txTagKeys.join(
+const txTagsInsertQuery = `INSERT INTO ${KEYSPACE}.tx_tag (${txTagKeys.join(
   ', '
 )}) VALUES (${txTagKeys.map(() => '?').join(', ')})`;
 
@@ -317,13 +323,13 @@ const txTagsInsertQuery = `INSERT INTO gateway.tx_tag (${txTagKeys.join(
 //   SET synced = true
 //   WHERE block_height = ? and block_hash = ?`;
 
-const blockHeightByHashInsertQuery = `INSERT INTO gateway.block_height_by_block_hash (block_height, block_hash) VALUES (?, ?) IF NOT EXISTS`;
+const blockHeightByHashInsertQuery = `INSERT INTO ${KEYSPACE}.block_height_by_block_hash (block_height, block_hash) VALUES (?, ?) IF NOT EXISTS`;
 
-const blockByTxIdInsertQuery = `INSERT INTO gateway.block_by_tx_id (tx_id, block_height, block_hash) VALUES (?, ?, ?) IF NOT EXISTS`;
+const blockByTxIdInsertQuery = `INSERT INTO ${KEYSPACE}.block_by_tx_id (tx_id, block_height, block_hash) VALUES (?, ?, ?) IF NOT EXISTS`;
 
-const blockGqlAscInsertQuery = `INSERT INTO gateway.block_gql_asc (height, indep_hash, timestamp) VALUES (?, ?, ?)`;
+const blockGqlInsertQuery = `INSERT INTO ${KEYSPACE}.block_gql (height, indep_hash, timestamp) VALUES (?, ?, ?)`;
 
-const blockGqlDescInsertQuery = `INSERT INTO gateway.block_gql_desc (height, indep_hash, timestamp) VALUES (?, ?, ?)`;
+// const blockGqlDescInsertQuery = `INSERT INTO gateway.block_gql_desc (height, indep_hash, timestamp) VALUES (?, ?, ?)`;
 
 // Note the last synced block isn't
 // nececcarily the latest one, than
@@ -373,12 +379,13 @@ export const makeTxImportQuery = (
       [tx.id, blockData.height, blockData.indep_hash],
       {
         prepare: true,
+        executionProfile: 'full',
       }
     ),
     cassandraClient.execute(
       transactionInsertQuery(nonNilTxKeys),
       txInsertParams,
-      { prepare: true }
+      { prepare: true, executionProfile: 'full' }
     ),
   ]
     .concat(
@@ -393,6 +400,7 @@ export const makeTxImportQuery = (
           ),
           {
             prepare: true,
+            executionProfile: 'full',
           }
         )
       )
@@ -405,6 +413,7 @@ export const makeTxImportQuery = (
               transformTxOffsetKeys(tx),
               {
                 prepare: true,
+                executionProfile: 'full',
               }
             ),
           ]
@@ -457,21 +466,22 @@ export const makeBlockImportQuery = (input: any) => () => {
   return [
     cassandraClient.execute(poaInsertQuery, transformPoaKeys(input), {
       prepare: true,
+      executionProfile: 'full',
     }),
     cassandraClient.execute(
-      blockGqlAscInsertQuery,
+      blockGqlInsertQuery,
       [input.height, input.indep_hash, input.timestamp],
-      { prepare: true }
+      { prepare: true, executionProfile: 'full' }
     ),
     cassandraClient.execute(
-      blockGqlDescInsertQuery,
-      [input.height, input.indep_hash, input.timestamp],
-      { prepare: true }
+      blockHeightByHashInsertQuery,
+      [input.height, input.indep_hash],
+      { prepare: true, executionProfile: 'full' }
     ),
     cassandraClient.execute(
       blockInsertQuery(nonNilBlockKeys),
       blockInsertParams,
-      { prepare: true }
+      { prepare: true, executionProfile: 'full' }
     ),
   ];
 };
@@ -481,11 +491,15 @@ export const getMaxHeightBlock = async (): Promise<
 > => {
   // note that the block_hash table is sorted descendingly by block height
   const response = await cassandraClient.execute(
-    'SELECT height,indep_hash FROM gateway.block_gql_desc limit 1;'
+    `SELECT height,indep_hash FROM ${KEYSPACE}.block_gql limit 1;`
   );
 
   const row = response.rows[0];
-  return [row['indep_hash'], row['height']];
+  if (row) {
+    return [row['indep_hash'], row['height']];
+  } else {
+    return ['', toLong(-1)];
+  }
 };
 
 // export const makeBlockPlaceholder = (

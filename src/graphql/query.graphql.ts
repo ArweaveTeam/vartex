@@ -1,6 +1,7 @@
 import * as R from 'rambda';
 import { types as CassandraTypes } from 'cassandra-driver';
 import { config } from 'dotenv';
+import { KEYSPACE } from '../constants.js';
 import { indices } from '../utility/order.utility.js';
 import { ISO8601DateTimeString } from '../utility/encoding.utility.js';
 import { TagFilter } from './types.js';
@@ -38,7 +39,7 @@ export function generateTransactionQuery(params: QueryParams): any {
   // console.log('PARAMS', params);
 
   const cql = Select()
-    .table('transaction', 'gateway')
+    .table('transaction', KEYSPACE)
     .field(params.select)
     .filtering();
 
@@ -100,18 +101,29 @@ export interface BlockQueryParams {
   ids?: string[];
   select?: any;
   before?: string;
+  offset: number;
+  fetchSize: number;
   minHeight?: number;
   maxHeight?: number;
   sortOrder?: TxSortOrder;
 }
 
 export function generateBlockQuery(params: BlockQueryParams): any {
-  const { id, ids, select, before, minHeight, maxHeight } = params;
+  const {
+    id,
+    ids,
+    select,
+    before,
+    offset,
+    fetchSize,
+    minHeight,
+    maxHeight,
+  } = params;
 
   const cql = Select()
     .table(
       params.sortOrder === 'HEIGHT_ASC' ? 'block_gql_asc' : 'block_gql_desc',
-      'gateway'
+      KEYSPACE
     )
     .field(select)
     .filtering();
@@ -155,7 +167,7 @@ export function generateBlockQuery(params: BlockQueryParams): any {
 }
 
 export function generateTagQuery(tags: TagFilter[]) {
-  const cql = Select().table('tx_tag', 'gateway').field('tx_id').filtering();
+  const cql = Select().table('tx_tag', KEYSPACE).field('tx_id').filtering();
   tags.forEach((tag) => {
     cql.where('name = ?', tag.name.toString());
     if (Array.isArray(tag.values)) {

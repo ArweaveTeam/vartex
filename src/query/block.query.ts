@@ -73,13 +73,12 @@ export async function getBlock({
   }
 
   if (hash && height !== body.height) {
-    gauge && gauge.stop();
     log.error(
       'fatal inconsistency: hash and height dont match for hash:' +
         'wanted: ' +
         hash +
         ' got: ' +
-        body.hash +
+        body.indep_hash +
         '\nwanted: ' +
         height +
         ' got: ' +

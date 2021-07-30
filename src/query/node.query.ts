@@ -160,7 +160,7 @@ export function getHashList({ retry = 0 }): Promise<string[] | undefined> {
       .then((payload) => {
         // TODO: when it hits 100mb+ look into streaming solutions
         // https://github.com/uhop/stream-json
-        const body = JSON.parse(payload.text);
+        const body = R.reverse(JSON.parse(payload.text));
         warmNode(tryNode);
         return fs
           .writeFile('cache/hash_list.json', JSON.stringify(body, undefined, 2))

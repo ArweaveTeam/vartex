@@ -30,13 +30,11 @@ export interface QueryParams {
   tags?: TagFilter[];
   pendingMinutes?: number;
   minHeight?: number;
-  maxHeight?: number;
+  maxHeight?: CassandraTypes.Long;
 }
 
 export function generateTransactionQuery(params: QueryParams): any {
   // const { to, from, tags, id, ids, status = 'confirmed', select } = params;
-
-  // console.log('PARAMS', params);
 
   const cql = Select()
     .table('transaction', KEYSPACE)
@@ -79,19 +77,15 @@ export function generateTransactionQuery(params: QueryParams): any {
     cql.where('target = ?', params.to);
   }
 
-  if (params.minHeight >= 0) {
-    cql.where('block_height >=', params.minHeight);
-  }
+  cql.where('block_height >=', params.minHeight);
 
-  if (params.maxHeight >= 0) {
-    cql.where('block_height <=', params.maxHeight);
-  }
+  cql.where('block_height <=', params.maxHeight);
 
-  if (params.sortOrder === 'HEIGHT_ASC') {
-    cql.order('block_height ASC');
-  } else {
-    cql.order('block_height DESC');
-  }
+  // if (params.sortOrder === 'HEIGHT_ASC') {
+  //   cql.order('block_height ASC');
+  // } else {
+  //   cql.order('block_height DESC');
+  // }
 
   return cql.build();
 }
@@ -104,7 +98,7 @@ export interface BlockQueryParams {
   offset: number;
   fetchSize: number;
   minHeight?: number;
-  maxHeight?: number;
+  maxHeight?: CassandraTypes.Long;
   sortOrder?: TxSortOrder;
 }
 
@@ -114,7 +108,7 @@ export function generateBlockQuery(params: BlockQueryParams): any {
     ids,
     select,
     before,
-    offset,
+    offset = 0,
     fetchSize,
     minHeight,
     maxHeight,
@@ -146,22 +140,22 @@ export function generateBlockQuery(params: BlockQueryParams): any {
   }
 
   if (before) {
-    cql.where(
-      'timestamp < ?',
-      CassandraTypes.Long.fromNumber(
-        Math.floor(
-          CassandraTypes.TimeUuid.fromString(before).getDate().valueOf() / 1000
-        )
-      )
-    );
+    cql.where('timestamp < ?', before);
   }
 
-  if (minHeight && minHeight >= 0) {
-    cql.where('height >= ?', minHeight);
-  }
-  if (maxHeight && maxHeight >= 0) {
-    cql.where('height <= ?', maxHeight);
-  }
+  cql.where(
+    'height >= ?',
+    params.sortOrder === 'HEIGHT_ASC' ? minHeight + offset : minHeight
+  );
+
+  cql.where(
+    'height <= ?',
+    params.sortOrder === 'HEIGHT_DESC'
+      ? (maxHeight as any).sub(offset).toString()
+      : maxHeight.toString()
+  );
+
+  cql.limit(fetchSize);
 
   return cql.build();
 }

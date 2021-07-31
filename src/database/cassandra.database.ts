@@ -31,10 +31,11 @@ const contactPoints = process.env.CASSANDRA_CONTACT_POINTS
 export const cassandraClient = new cassandra.Client({
   contactPoints,
   localDataCenter: 'datacenter1',
-  encoding: {
-    map: Map,
-    set: Set,
-  },
+  queryOptions: { isIdempotent: true },
+  // encoding: {
+  //   map: Map,
+  //   set: Set,
+  // },
   socketOptions: {
     connectTimeout: 5000,
     defunctReadTimeoutThreshold: 64,
@@ -64,6 +65,9 @@ export const cassandraClient = new cassandra.Client({
       readTimeout: 15000,
       consistency: cassandra.types.consistencies.all,
       serialConsistency: cassandra.types.consistencies.serial,
+      graphOptions: {
+        writeConsistency: cassandra.types.consistencies.all,
+      },
     }),
   ],
 });
@@ -327,9 +331,9 @@ const blockHeightByHashInsertQuery = `INSERT INTO ${KEYSPACE}.block_height_by_bl
 
 const blockByTxIdInsertQuery = `INSERT INTO ${KEYSPACE}.block_by_tx_id (tx_id, block_height, block_hash) VALUES (?, ?, ?) IF NOT EXISTS`;
 
-const blockGqlInsertQuery = `INSERT INTO ${KEYSPACE}.block_gql (height, indep_hash, timestamp) VALUES (?, ?, ?)`;
+const blockGqlInsertAscQuery = `INSERT INTO ${KEYSPACE}.block_gql_asc (partition_id, height, indep_hash, timestamp) VALUES ('gql1', ?, ?, ?)`;
 
-// const blockGqlDescInsertQuery = `INSERT INTO gateway.block_gql_desc (height, indep_hash, timestamp) VALUES (?, ?, ?)`;
+const blockGqlInsertDescQuery = `INSERT INTO ${KEYSPACE}.block_gql_desc (partition_id, height, indep_hash, timestamp) VALUES ('gql2', ?, ?, ?)`;
 
 // Note the last synced block isn't
 // nececcarily the latest one, than
@@ -462,15 +466,22 @@ export const makeBlockImportQuery = (input: any) => () => {
     },
     []
   );
-
+  const blockTimeUuid = CassandraTypes.TimeUuid.fromDate(
+    new Date(input.timestamp * 1000)
+  );
   return [
     cassandraClient.execute(poaInsertQuery, transformPoaKeys(input), {
       prepare: true,
       executionProfile: 'full',
     }),
     cassandraClient.execute(
-      blockGqlInsertQuery,
-      [input.height, input.indep_hash, input.timestamp],
+      blockGqlInsertAscQuery,
+      [input.height, input.indep_hash, blockTimeUuid],
+      { prepare: true, executionProfile: 'full' }
+    ),
+    cassandraClient.execute(
+      blockGqlInsertDescQuery,
+      [input.height, input.indep_hash, blockTimeUuid],
       { prepare: true, executionProfile: 'full' }
     ),
     cassandraClient.execute(

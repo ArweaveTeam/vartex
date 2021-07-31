@@ -1,7 +1,8 @@
 import * as R from 'rambda';
 import moment from 'moment';
 import { types as CassandraTypes } from 'cassandra-driver';
-import { cassandraClient } from '../database/cassandra.database.js';
+import { cassandraClient, toLong } from '../database/cassandra.database.js';
+import { topHeight } from '../database/sync.database.js';
 import graphqlFields from 'graphql-fields';
 import { config } from 'dotenv';
 import {
@@ -41,7 +42,7 @@ interface FieldMap {
   owner: string;
   owner_address: string;
   signature: string;
-  timestamp: number;
+  timestamp: number | CassandraTypes.TimeUuid;
   block_id: string;
   block_timestamp: string;
   block_height: string;
@@ -167,7 +168,7 @@ const runPaginatedSearch = ({
         query.params,
         {
           autoPage: false,
-          fetchSize: 1,
+          fetchSize,
           prepare: true,
           executionProfile: 'gql',
         },
@@ -311,8 +312,8 @@ export const resolvers = {
         blocks: true,
         before: timestamp,
         select: resolveGqlTxSelect(fieldsWithSubFields),
-        minHeight: queryParams.block?.min || undefined,
-        maxHeight: queryParams.block?.max || undefined,
+        minHeight: queryParams.block?.min || 0,
+        maxHeight: toLong(queryParams.block?.max || topHeight),
         sortOrder: queryParams.sort || undefined,
       };
 
@@ -419,25 +420,31 @@ export const resolvers = {
       const blockQuery = generateBlockQuery({
         ids,
         select,
-        minHeight,
-        maxHeight,
+        minHeight: minHeight || 0,
+        maxHeight: toLong(maxHeight || topHeight),
         before: timestamp,
         offset,
         fetchSize,
         sortOrder: queryParams.sort || undefined,
       });
+      const hasNextPage = false;
+      const result = await cassandraClient.execute(
+        blockQuery.query,
+        blockQuery.params,
+        { prepare: true, executionProfile: 'gql' }
+      );
 
-      const { result, hasNextPage = false } = await runPaginatedSearch({
-        query: blockQuery,
-        fetchSize,
-        offset,
-      });
+      // const { result, hasNextPage = false } = await runPaginatedSearch({
+      //   query: blockQuery,
+      //   fetchSize,
+      //   offset,
+      // });
 
       return {
         pageInfo: {
           hasNextPage,
         },
-        edges: result.map((block, index) => ({
+        edges: result.rows.map((block, index) => ({
           cursor: encodeCursor({ timestamp, offset: offset + index + 1 }),
           node: block,
         })),
@@ -506,7 +513,9 @@ export const resolvers = {
     },
     */
     timestamp: (parent: FieldMap) => {
-      return parent?.timestamp.toString();
+      return moment(
+        (parent?.timestamp as CassandraTypes.TimeUuid).getDate()
+      ).unix();
     },
   },
 };

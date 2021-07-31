@@ -59,13 +59,22 @@ client
          PRIMARY KEY (indep_hash)
        )`,
       // make sorting possible with gql
-      `CREATE TABLE IF NOT EXISTS block_gql (
+      `CREATE TABLE IF NOT EXISTS block_gql_desc (
+          partition_id text,
           height bigint,
           indep_hash text,
-          timestamp bigint,
-          PRIMARY KEY (indep_hash, height)
+          timestamp timeuuid,
+          PRIMARY KEY (partition_id, height, timestamp)
         )
-        WITH CLUSTERING ORDER BY (height DESC)`,
+        WITH CLUSTERING ORDER BY (height DESC, timestamp DESC)`,
+      `CREATE TABLE IF NOT EXISTS block_gql_asc (
+          partition_id text,
+          height bigint,
+          indep_hash text,
+          timestamp timeuuid,
+          PRIMARY KEY (partition_id, height, timestamp)
+        )
+        WITH CLUSTERING ORDER BY (height ASC, timestamp ASC)`,
       // optimize for search
       // tag id is tx_id + tag_index
       `CREATE TABLE IF NOT EXISTS tx_tag (
@@ -77,8 +86,8 @@ client
          PRIMARY KEY (tag_index, tx_id)
       )
       WITH CLUSTERING ORDER BY (tx_id DESC)`,
-      `CREATE INDEX IF NOT EXISTS ON tx_tag (name)`,
-      `CREATE INDEX IF NOT EXISTS ON tx_tag (value)`,
+      // `CREATE INDEX IF NOT EXISTS ON tx_tag (name)`,
+      // `CREATE INDEX IF NOT EXISTS ON tx_tag (value)`,
       `CREATE TABLE IF NOT EXISTS block_by_tx_id (
          tx_id text,
          block_height bigint,
@@ -102,7 +111,6 @@ client
         signature text,
         tag_count int,
         target text,
-        tx_uuid timeuuid,
         PRIMARY KEY ((id), block_height)
       )
       WITH CLUSTERING ORDER BY (block_height DESC)`,

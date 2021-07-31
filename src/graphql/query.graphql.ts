@@ -119,7 +119,7 @@ export function generateBlockQuery(params: BlockQueryParams): any {
       params.sortOrder === 'HEIGHT_ASC' ? 'block_gql_asc' : 'block_gql_desc',
       KEYSPACE
     )
-    .field(select)
+    .field(R.append('indep_hash', select))
     .filtering();
 
   // const query = connection.queryBuilder().select(select).from('blocks');
@@ -158,6 +158,21 @@ export function generateBlockQuery(params: BlockQueryParams): any {
   cql.limit(fetchSize);
 
   return cql.build();
+}
+
+export interface DeferedBlockQueryParams {
+  indep_hash: string;
+  deferedSelect: string[];
+}
+
+export function generateDeferedBlockQuery(
+  params: DeferedBlockQueryParams
+): any {
+  return Select()
+    .table('block', KEYSPACE)
+    .where('indep_hash = ?', params.indep_hash)
+    .field(params.deferedSelect)
+    .build();
 }
 
 export function generateTagQuery(tags: TagFilter[]) {

@@ -20,6 +20,7 @@ import {
   QueryParams,
   generateTransactionQuery,
   generateBlockQuery,
+  generateDeferedBlockQuery,
   generateTagQuery,
 } from './query.graphql.js';
 import * as DbMapper from '../database/mapper.database.js';
@@ -87,6 +88,9 @@ const edgeFieldMapBlock = {
   'edges.node.id': 'indep_hash',
   'edges.node.timestamp': 'timestamp',
   'edges.node.height': 'height',
+};
+
+const edgeFieldDeferedMapBlock = {
   'edges.node.previous': 'previous_block',
 };
 
@@ -94,8 +98,7 @@ const blockFieldMap = {
   id: 'blocks.id',
   timestamp: 'blocks.mined_at',
   height: 'blocks.height',
-  previous: 'blocks.previous_block',
-  extended: 'blocks.extended',
+  // extended: 'blocks.extended',
 };
 
 const hydrateGqlTx = async (tx) => {
@@ -126,14 +129,21 @@ const resolveGqlTxSelect = (userFields: any): string[] => {
   return select;
 };
 
-const resolveGqlBlockSelect = (userFields: any): string[] => {
-  const select = [];
-  R.keys(edgeFieldMapBlock).forEach((keyPath) => {
-    if (R.hasPath(keyPath, userFields)) {
-      select.push(edgeFieldMapBlock[keyPath]);
-    }
+const resolveGqlBlockSelect = (userFields: any): string[][] => {
+  const select: string[] = [];
+  const deferedSelect: string[] = [];
+  [
+    [select, edgeFieldMapBlock],
+    [deferedSelect, edgeFieldDeferedMapBlock],
+  ].forEach(([arr, fieldMap]: [string[], any]) => {
+    R.keys(fieldMap).forEach((keyPath) => {
+      if (R.hasPath(keyPath as string, userFields)) {
+        arr.push(fieldMap[keyPath]);
+      }
+    });
   });
-  return select;
+
+  return [select, deferedSelect];
 };
 
 // const runPaginatedSearch = ({
@@ -405,10 +415,12 @@ export const resolvers = {
       if (queryParams.height && queryParams.height.max) {
         maxHeight = queryParams.height.max;
       }
-      const select = resolveGqlBlockSelect(fieldsWithSubFields);
+      const [select, deferedSelect] = resolveGqlBlockSelect(
+        fieldsWithSubFields
+      );
 
       // No selection = no search
-      if (R.isEmpty(select)) {
+      if (R.isEmpty(select) && R.isEmpty(deferedSelect)) {
         return {
           pageInfo: {
             hasNextPage: false,
@@ -428,23 +440,48 @@ export const resolvers = {
         sortOrder: queryParams.sort || undefined,
       });
       const hasNextPage = false;
-      const result = await cassandraClient.execute(
+
+      let { rows: result } = await cassandraClient.execute(
         blockQuery.query,
         blockQuery.params,
         { prepare: true, executionProfile: 'gql' }
       );
 
-      // const { result, hasNextPage = false } = await runPaginatedSearch({
-      //   query: blockQuery,
-      //   fetchSize,
-      //   offset,
-      // });
+      if (!R.isEmpty(deferedSelect)) {
+        result = await Promise.all(
+          result.map(async (row) => {
+            const deferedBlockQuery = generateDeferedBlockQuery({
+              deferedSelect,
+              indep_hash: row.indep_hash,
+            });
+
+            const {
+              rows: deferedResult,
+            } = await cassandraClient.execute(
+              deferedBlockQuery.query,
+              deferedBlockQuery.params,
+              { prepare: true, executionProfile: 'gql' }
+            );
+            for (const key of R.keys(deferedResult[0])) {
+              switch (key) {
+                case 'previous_block': {
+                  row['previous'] = deferedResult[0][key];
+                  break;
+                }
+                default: {
+                }
+              }
+            }
+            return row;
+          })
+        );
+      }
 
       return {
         pageInfo: {
           hasNextPage,
         },
-        edges: result.rows.map((block, index) => ({
+        edges: result.map((block, index) => ({
           cursor: encodeCursor({ timestamp, offset: offset + index + 1 }),
           node: block,
         })),

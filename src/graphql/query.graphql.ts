@@ -119,7 +119,9 @@ export function generateBlockQuery(params: BlockQueryParams): any {
       params.sortOrder === 'HEIGHT_ASC' ? 'block_gql_asc' : 'block_gql_desc',
       KEYSPACE
     )
-    .field(R.append('indep_hash', select))
+    .field(
+      select.includes('indep_hash') ? select : R.append('indep_hash', select)
+    )
     .filtering();
 
   // const query = connection.queryBuilder().select(select).from('blocks');

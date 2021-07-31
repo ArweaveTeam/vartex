@@ -31,6 +31,7 @@ const DEFAULT_PAGE_SIZE = parseInt(process.env.DEFAULT_PAGE_SIZE || '10');
 const MAX_PAGE_SIZE = parseInt(process.env.MAX_PAGE_SIZE || '100');
 
 interface FieldMap {
+  indep_hash: string;
   id: string;
   anchor: string;
   recipient: string;
@@ -95,7 +96,7 @@ const edgeFieldDeferedMapBlock = {
 };
 
 const blockFieldMap = {
-  id: 'blocks.id',
+  id: 'blocks.indep_hash',
   timestamp: 'blocks.mined_at',
   height: 'blocks.height',
   // extended: 'blocks.extended',
@@ -145,20 +146,6 @@ const resolveGqlBlockSelect = (userFields: any): string[][] => {
 
   return [select, deferedSelect];
 };
-
-// const runPaginatedSearch = ({
-//   fetchSize,
-//   query,
-//   offset,
-// }: {
-//   fetchSize: number;
-//   query: { query: string; params: any[] };
-//   offset: number;
-// }): Promise<{ result: any; hasNextPage: boolean }> => {
-//   cassandraClient.execute(query.query, query.params, {
-//     executionProfile: 'gql',
-//   });
-// };
 
 const runPaginatedSearch = ({
   fetchSize,
@@ -549,6 +536,9 @@ export const resolvers = {
       return parent.extended?.block_size;
     },
     */
+    id: (parent: FieldMap) => {
+      return parent.indep_hash;
+    },
     timestamp: (parent: FieldMap) => {
       return moment(
         (parent?.timestamp as CassandraTypes.TimeUuid).getDate()

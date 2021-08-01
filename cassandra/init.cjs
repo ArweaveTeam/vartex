@@ -11,6 +11,7 @@ const contactPoints = process.env.CASSANDRA_CONTACT_POINTS
 const client = new cassandra.Client({
   contactPoints,
   localDataCenter: 'datacenter1',
+  credentials: { username: 'cassandra', password: 'cassandra' },
 });
 
 client
@@ -97,8 +98,6 @@ client
       `CREATE TABLE IF NOT EXISTS transaction (
         block_height bigint,
         block_hash text,
-        block_timestamp bigint,
-        data text,
         data_root text,
         data_size bigint,
         data_tree frozen<list<text>>,
@@ -112,8 +111,23 @@ client
         tag_count int,
         target text,
         PRIMARY KEY ((id), block_height)
-      )
-      WITH CLUSTERING ORDER BY (block_height DESC)`,
+      )`,
+      `CREATE TABLE IF NOT EXISTS transaction_gql_desc (
+          partition_id text,
+          height bigint,
+          indep_hash text,
+          timestamp timeuuid,
+          PRIMARY KEY (partition_id, height, timestamp)
+       )
+       WITH CLUSTERING ORDER BY (height DESC, timestamp DESC)`,
+      `CREATE TABLE IF NOT EXISTS transaction_gql_asc (
+          partition_id text,
+          height bigint,
+          indep_hash text,
+          timestamp timeuuid,
+          PRIMARY KEY (partition_id, height, timestamp)
+       )
+       WITH CLUSTERING ORDER BY (height ASC, timestamp ASC)`,
       `CREATE TABLE IF NOT EXISTS tx_offset (
          tx_id text,
          size bigint,

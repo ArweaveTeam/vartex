@@ -1,0 +1,35 @@
+version: '3.9'
+
+networks:
+  arlocal:
+    driver: bridge
+
+services:
+  cassandra:
+    image: 'bitnami/cassandra:3.11.10'
+    ports:
+      - '9042:9042'
+      - '7199:7199'
+      - '7000:7000'
+    environment:
+      - CASSANDRA_CLUSTER_NAME="arweave-community-gateway"
+      - CASSANDRA_TRANSPORT_PORT_NUMBER=7000
+      - CASSANDRA_JMX_PORT_NUMBER=7199
+      - CASSANDRA_CQL_PORT_NUMBER=9042
+      - CASSANDRA_HOST=cassandra
+    networks:
+      - arlocal
+  gateway:
+    build:
+      context: .
+      args:
+        CASSANDRA_CONTACT_POINTS: '["cassandra:9042"]'
+    ports:
+      - '3000:3000'
+    links:
+      - cassandra
+      - clickhouse
+    networks:
+      arlocal:
+    userns_mode: host
+    # restart: always

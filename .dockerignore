@@ -2,17 +2,13 @@
 **
 
 # Include Essential Gateway Files
-!/bin
-!/.env
 !/types.graphql
 !/codegen.yml
-!/knexfile.ts
 !/yarn.lock
 !/package.json
-!/package-lock.json
 !/tsconfig.json
 !/src/**
-!/migrations/**
+!/cassandra/**
 
 # Ignore Unnecessary Files
 **/*.log

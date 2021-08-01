@@ -19,7 +19,8 @@
     "test": "echo TODO",
     "lint": "eslint \"test/*.ts\" \"test/**/*.ts\" \"src/*.ts\" \"src/**/*.ts\" \"migrations/*.ts\" \"knexfile.ts\"",
     "gql": "npx graphql-codegen --config codegen.yml",
-    "start": "npm run gql && TS_NODE_FILES=true node --experimental-specifier-resolution=node --max-old-space-size=4096 --loader ts-node/esm.mjs src/Gateway.ts",
+    "start": "yarn run gql && TS_NODE_FILES=true node --experimental-specifier-resolution=node --max-old-space-size=4096 --loader ts-node/esm.mjs src/Gateway.ts",
+    "start:docker": "yarn run migrate:init && yarn run start",
     "migrate:init": "node cassandra/init.cjs",
     "migrate:nuke": "node cassandra/nuke.cjs"
   },

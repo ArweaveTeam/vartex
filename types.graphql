@@ -105,9 +105,9 @@ input TagFilter {
   """
   values: [String!]!
   """
-  The operator to apply to to the tag filter. Defaults to EQ (equal).
+  @deprecated (now ignored) The operator to apply to to the tag filter. Defaults to EQ (equal).
   """
-  op: TagOperator = EQ
+  op: TagOperator = EQ @deprecated(reason: "op is too expensive filter as it requires iterating trough every row and is furthermore unsupported in cassandra-db")
 }
 """
 Find blocks within a given range
@@ -306,7 +306,7 @@ type Tag {
 }
 
 """
-The operator to apply to a tag value.
+@deprecated op is too expensive filter as it requires iterating trough every row and is furthermore unsupported in cassandra-db
 """
 enum TagOperator {
   """

@@ -76,14 +76,14 @@ export function generateTransactionQuery(params: QueryParams): any {
       if (Array.isArray(values)) {
         for (const value of values) {
           cql.where(
-            'tags CONTAINS (?, ?)',
+            `tags CONTAINS (?, ?)`,
             toB64url(name || ''),
             toB64url(value || '')
           );
         }
       } else {
         cql.where(
-          'tags CONTAINS (?, ?)',
+          `tags CONTAINS (?, ?)`,
           toB64url(name || ''),
           toB64url(values || '')
         );

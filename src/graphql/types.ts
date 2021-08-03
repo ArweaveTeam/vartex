@@ -184,11 +184,11 @@ export type TagFilter = {
    * Returns all transactions where the \`app-name\` tag has a value of either \`app-1\` _or_ \`app-2\` _or_ \`app-3\`.
    */
   values: Array<Scalars['String']>;
-  /** The operator to apply to to the tag filter. Defaults to EQ (equal). */
+  /** @deprecated (now ignored) The operator to apply to to the tag filter. Defaults to EQ (equal). */
   op?: Maybe<TagOperator>;
 };
 
-/** The operator to apply to a tag value. */
+/** @deprecated op is too expensive filter as it requires iterating trough every row and is furthermore unsupported in cassandra-db */
 export enum TagOperator {
   /** Equal */
   Eq = 'EQ',

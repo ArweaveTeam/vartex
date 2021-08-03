@@ -193,20 +193,6 @@ export const resolvers = {
         maxHeight = toLong(queryParams.block.max).mul(1000);
       }
 
-      let maybeResolvedTags;
-
-      if (queryParams.tags !== undefined) {
-        const searchTagsQuery = generateTagQuery(queryParams.tags);
-        const tagsResult = await cassandraClient.execute(
-          searchTagsQuery.query,
-          searchTagsQuery.params,
-          { prepare: true }
-        );
-        if (!R.isEmpty(tagsResult.rows)) {
-          maybeResolvedTags = tagsResult.rows.map((t) => t.tx_id);
-        }
-      }
-
       const params: Partial<Omit<QueryParams, 'after'> & { before: string }> = {
         limit: fetchSize + 1,
         offset: offset,
@@ -240,16 +226,6 @@ export const resolvers = {
       );
 
       let hasNextPage = false;
-
-      // const resultWithTags = await Promise.all(
-      //   result.map(async (tx) =>
-      //     R.assoc(
-      //       'tags',
-      //       txQuery.tags !== undefined ? await DbMapper.tagsByTxId(tx.id) : [],
-      //       tx
-      //     )
-      //   )
-      // );
 
       return {
         pageInfo: {

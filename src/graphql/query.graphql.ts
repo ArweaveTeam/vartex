@@ -5,8 +5,7 @@ import { KEYSPACE } from '../constants.js';
 import { indices } from '../utility/order.utility.js';
 import { ISO8601DateTimeString } from '../utility/encoding.utility.js';
 import { TagFilter } from './types.js';
-import { tagToB64, toB64url } from '../query/transaction.query.js';
-import * as DbMapper from '../database/mapper.database.js';
+import { toB64url } from '../query/transaction.query.js';
 import { default as cqlBuilder } from '@ridi/cql-builder';
 
 const { Insert, Select, Update, Delete, CqlBuilderError } = cqlBuilder;
@@ -72,7 +71,24 @@ export function generateTransactionQuery(params: QueryParams): any {
     );
   }
 
-  if (!R.isEmpty(params.tags)) {
+  if (Array.isArray(params.tags) && !R.isEmpty(params.tags)) {
+    for (const { name, values = '' } of params.tags) {
+      if (Array.isArray(values)) {
+        for (const value of values) {
+          cql.where(
+            'tags CONTAINS (?, ?)',
+            toB64url(name || ''),
+            toB64url(value || '')
+          );
+        }
+      } else {
+        cql.where(
+          'tags CONTAINS (?, ?)',
+          toB64url(name || ''),
+          toB64url(values || '')
+        );
+      }
+    }
   }
 
   if (params.since) {

@@ -77,13 +77,14 @@ const blockQueue = new PriorityQueue(function (
 });
 
 const txQueue = new PriorityQueue(function (
-  a: { height: CassandraTypes.Long; index: number },
-  b: { height: CassandraTypes.Long; index: number }
+  a: { height: CassandraTypes.Long; txIndex: CassandraTypes.Long },
+  b: { height: CassandraTypes.Long; txIndex: CassandraTypes.Long }
 ) {
-  if (a.height === b.height) {
-    return a.index - b.index;
+  const comp = a.height.compare(b.height);
+  if (comp === 0) {
+    return a.txIndex.compare(b.txIndex);
   } else {
-    return a.height.compare(b.height);
+    return comp;
   }
 });
 
@@ -92,12 +93,12 @@ const tagsQueue: ImportQueue = {};
 const blockQueueState: QueueState = {
   isProcessing: false,
   isStarted: false,
-  lastBatchPrio: toLong(-1),
+  lastPrio: toLong(-1),
 };
 const txQueueState: QueueState = {
   isProcessing: false,
   isStarted: false,
-  lastBatchPrio: toLong(-1),
+  lastPrio: toLong(-1),
 };
 
 const tagsQueueState: QueueState = { isProcessing: false, isStarted: false };
@@ -129,29 +130,25 @@ const createQueue = (
 const createPriorityQueue = (queueSource: any, queueState: QueueState) => (
   nextHeight: CassandraTypes.Long
 ): void => {
-  if (
-    queueSource.isEmpty() ||
-    !nextHeight ||
-    isRepairing ||
-    queueState.isProcessing
-  ) {
+  if (queueSource.isEmpty() || isRepairing || queueState.isProcessing) {
     return;
   }
   queueSource.sortQueue();
   const peek = !queueSource.isEmpty() && queueSource.peek();
 
   if (
-    CassandraTypes.Long.isLong(peek.height) &&
-    nextHeight.equals(peek.height)
+    (CassandraTypes.Long.isLong(peek.height) &&
+      nextHeight.equals(peek.height)) ||
+    CassandraTypes.Long.isLong(peek.txIndex)
   ) {
     queueState.isProcessing = true;
-    queueState.lastBatchPrio = peek.height;
+    queueState.lastPrio = peek.txIndex || peek.height;
 
     Promise.all(peek.callback()).then(() => {
       queueSource.pop();
       queueState.isProcessing = false;
 
-      if (peek.height.gt(topHeight)) {
+      if (!peek.txIndex && peek.height.gt(topHeight)) {
         topHeight = peek.height;
       }
     });
@@ -166,13 +163,14 @@ function startQueueProcessors() {
   if (!blockQueueState.isStarted) {
     blockQueueState.isStarted = true;
     setInterval(function processQ() {
-      !blockQueueState.isProcessing &&
-        processBlockQueue(blockQueueState.lastBatchPrio.add(1));
+      processBlockQueue(blockQueueState.lastPrio.add(1));
     }, 50);
   }
   if (!txQueueState.isStarted) {
     txQueueState.isStarted = true;
-    setInterval(processTxQueue, 10);
+    setInterval(function processTxQ() {
+      processTxQueue(txQueueState.lastPrio.add(1));
+    }, 10);
   }
   if (!tagsQueueState.isStarted) {
     tagsQueueState.isStarted = true;
@@ -420,13 +418,24 @@ export async function startSync() {
   });
   gauge.setTheme(trackerTheme);
 
-  const unsyncedBlocks: UnsyncedBlock[] = firstRun
+  let unsyncedBlocks: UnsyncedBlock[] = firstRun
     ? hashList.map((hash, height) => ({ hash, height }))
     : await findMissingBlocks(hashList, gauge);
 
-  const initialLastBlock = toLong(unsyncedBlocks[0].height).add(-1);
-  blockQueueState.lastBatchPrio = initialLastBlock;
-  txQueueState.lastBatchPrio = initialLastBlock;
+  let initialLastBlock = toLong(unsyncedBlocks[0].height).add(-1);
+
+  if (developmentSyncLength) {
+    unsyncedBlocks = R.slice(
+      developmentSyncLength,
+      unsyncedBlocks.length,
+      unsyncedBlocks
+    );
+
+    initialLastBlock = toLong(developmentSyncLength).sub(1);
+  }
+
+  blockQueueState.lastPrio = initialLastBlock;
+  txQueueState.lastPrio = initialLastBlock.mul(MAX_TX_PER_BLOCK);
 
   if (firstRun) {
     log.info(
@@ -490,10 +499,14 @@ export function storeBlock(
             callback: makeBlockImportQuery(newSyncBlock),
             height: newSyncBlockHeight,
           });
-          (newSyncBlock.txs || []).forEach((txId: string, index: number) => {
-            const txIndex = newSyncBlockHeight.mul(MAX_TX_PER_BLOCK).add(index);
-            storeTransaction(txId, txIndex, newSyncBlockHeight, newSyncBlock);
-          });
+          await Promise.all(
+            (newSyncBlock.txs || []).map((txId: string, index: number) => {
+              const txIndex = newSyncBlockHeight
+                .mul(MAX_TX_PER_BLOCK)
+                .add(index);
+              storeTransaction(txId, txIndex, newSyncBlockHeight, newSyncBlock);
+            })
+          );
           return;
         } else {
           await new Promise((res) => setTimeout(res, 100));
@@ -540,9 +553,16 @@ export async function storeTransaction(
     // if (ans102) {
     //   await processAns(formattedTransaction.id, height);
     // }
+
     txQueue.enqueue({
-      callback: makeTxImportQuery(txIndex, currentTransaction, blockData),
-      height: toLong(txIndex),
+      height,
+      callback: makeTxImportQuery(
+        height,
+        txIndex,
+        currentTransaction,
+        blockData
+      ),
+      txIndex: toLong(txIndex),
     });
   } else {
     console.error('Fatal network error');

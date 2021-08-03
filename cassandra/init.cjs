@@ -65,7 +65,7 @@ client
           bucket_id text,
           height bigint,
           indep_hash text,
-          timestamp bigint,
+          timestamp timeuuid,
           PRIMARY KEY ((partition_id, bucket_id), height, timestamp)
         )
         WITH CLUSTERING ORDER BY (height ASC, timestamp ASC)`,
@@ -75,7 +75,7 @@ client
           bucket_id text,
           height bigint,
           indep_hash text,
-          timestamp bigint,
+          timestamp timeuuid,
           PRIMARY KEY ((partition_id, bucket_id), height, timestamp)
         )
       WITH CLUSTERING ORDER BY (height DESC, timestamp DESC)`,
@@ -143,6 +143,7 @@ client
          tx_id text,
          owner text,
          target text,
+         bundle_id text,
          PRIMARY KEY ((partition_id, bucket_id), tx_index, tag_index)
       )
       WITH CLUSTERING ORDER BY (tx_index ASC, tag_index ASC)`,
@@ -157,6 +158,7 @@ client
          tx_id text,
          owner text,
          target text,
+         bundle_id text,
          PRIMARY KEY ((partition_id, bucket_id), tx_index, tag_index)
       )
       WITH CLUSTERING ORDER BY (tx_index DESC, tag_index DESC)`,
@@ -170,6 +172,7 @@ client
          PRIMARY KEY (tx_id)
        )`,
       `CREATE TABLE IF NOT EXISTS transaction (
+        tx_index bigint,
         block_height bigint,
         block_hash text,
         data_root text,

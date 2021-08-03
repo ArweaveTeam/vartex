@@ -38,6 +38,7 @@ interface FieldMap {
   recipient: string;
   tags: any[];
   fee: string;
+  height: CassandraTypes.Long;
   quantity: string;
   data_size: number;
   data_type: string;
@@ -46,6 +47,7 @@ interface FieldMap {
   owner_address: string;
   signature: string;
   timestamp: number | CassandraTypes.TimeUuid;
+  previous: string;
   block_id: string;
   block_timestamp: string;
   block_height: string;
@@ -461,7 +463,8 @@ export const resolvers = {
             for (const key of R.keys(deferedResult[0])) {
               switch (key) {
                 case 'previous_block': {
-                  row['previous'] = deferedResult[0][key];
+                  // fallback for block 0 (this was always like this, so I'm keeping old behviour in check)
+                  row['previous'] = deferedResult[0][key] || row.indep_hash;
                   break;
                 }
                 default: {
@@ -548,8 +551,14 @@ export const resolvers = {
       return parent.extended?.block_size;
     },
     */
+    height: (parent: FieldMap) => {
+      return parent.height.toInt();
+    },
     id: (parent: FieldMap) => {
       return parent.indep_hash;
+    },
+    previous: (parent: FieldMap) => {
+      return parent.previous;
     },
     timestamp: (parent: FieldMap) => {
       return moment(

@@ -417,12 +417,13 @@ export async function startSync() {
       ).rows[0].height;
       lastTx = (
         await cassandraClient.execute(
-          `SELECT tx_index FROM ${KEYSPACE}.tx_tag_gql_by_name_desc LIMIT 1`
+          `SELECT tx_index FROM ${KEYSPACE}.tx_id_gql_desc LIMIT 1`
         )
       ).rows[0].tx_index;
+
       topTxIndex = lastTx;
     } catch (error) {
-      console.error(error);
+      // console.error(error);
     }
   }
 

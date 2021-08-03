@@ -52,6 +52,7 @@ const PARALLEL = (isNaN as any)(process.env['PARALLEL'])
 
 export let topHash: string = '';
 export let topHeight: CassandraTypes.Long = toLong(0);
+export let topTxIndex: CassandraTypes.Long = toLong(0);
 
 const developmentSyncLength: number | undefined =
   !process.env['DEVELOPMENT_SYNC_LENGTH'] ||
@@ -151,6 +152,9 @@ const createPriorityQueue = (queueSource: any, queueState: QueueState) => (
 
       if (!peek.txIndex && peek.height.gt(topHeight)) {
         topHeight = peek.height;
+      }
+      if (peek.txIndex && peek.txIndex.gt(topTxIndex)) {
+        topTxIndex = peek.txIndex;
       }
     });
   }
@@ -401,13 +405,26 @@ export async function startSync() {
 
   const hashList: string[] = await getHashList({});
   const firstRun = await detectFirstRun();
-  const lastBlock: CassandraTypes.Long = firstRun
-    ? toLong(-1)
-    : (
+  let lastBlock: CassandraTypes.Long = toLong(-1);
+  let lastTx: CassandraTypes.Long = toLong(-1);
+
+  if (!firstRun) {
+    try {
+      lastBlock = (
         await cassandraClient.execute(
-          `SELECT height FROM ${KEYSPACE}.block LIMIT 1`
+          `SELECT height FROM ${KEYSPACE}.block_gql_desc LIMIT 1`
         )
       ).rows[0].height;
+      lastTx = (
+        await cassandraClient.execute(
+          `SELECT tx_index FROM ${KEYSPACE}.tx_tag_gql_by_name_desc LIMIT 1`
+        )
+      ).rows[0].tx_index;
+      topTxIndex = lastTx;
+    } catch (error) {
+      console.error(error);
+    }
+  }
 
   const gauge = new Gauge(process.stderr, {
     template: [

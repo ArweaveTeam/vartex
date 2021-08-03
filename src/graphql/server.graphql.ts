@@ -16,7 +16,7 @@ export function graphServer(
   const graphServer = new (ApolloServer as any)({
     typeDefs,
     resolvers,
-    debug: false,
+    debug: true,
     playground: {
       settings: {
         'schema.polling.enable': false,

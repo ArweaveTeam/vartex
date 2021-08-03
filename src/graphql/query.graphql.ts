@@ -25,30 +25,40 @@ export interface QueryParams {
   select?: any;
   blocks?: boolean;
   since?: string;
+  before?: string;
   sortOrder?: TxSortOrder;
   status?: 'any' | 'confirmed' | 'pending';
   tags?: TagFilter[];
   pendingMinutes?: number;
-  minHeight?: number;
+  minHeight?: CassandraTypes.Long;
   maxHeight?: CassandraTypes.Long;
 }
 
 export function generateTransactionQuery(params: QueryParams): any {
   // const { to, from, tags, id, ids, status = 'confirmed', select } = params;
 
-  const cql = Select()
-    .table('transaction', KEYSPACE)
-    .field(params.select)
-    .filtering();
+  let table = 'tx_id_gql_desc';
+
+  if (!R.isEmpty(params.tags)) {
+    table =
+      params.sortOrder === 'HEIGHT_ASC'
+        ? 'tx_tag_gql_by_name_asc'
+        : 'tx_tag_gql_by_name_desc';
+  } else {
+    table =
+      params.sortOrder === 'HEIGHT_ASC' ? 'tx_id_gql_asc' : 'tx_id_gql_desc';
+  }
+
+  const cql = Select().table(table, KEYSPACE).field(params.select).filtering();
 
   if (params.id) {
-    cql.where('id = ?', params.id);
+    cql.where('tx_id = ?', params.id);
   } else if (params.ids && Array.isArray(params.ids)) {
     cql.where.apply(
       cql,
       R.concat(
         [
-          `id IN ( ${R.range(0, params.ids.length)
+          `tx_id IN ( ${R.range(0, params.ids.length)
             .map(() => '?')
             .join(', ')} )`,
         ],
@@ -69,23 +79,33 @@ export function generateTransactionQuery(params: QueryParams): any {
     );
   }
 
-  if (params.status === 'confirmed') {
-    cql.where('block_height >= ?', CassandraTypes.Long.fromNumber(0));
-  }
+  // if (params.status === 'confirmed') {
+  //   cql.where('block_height >= ?', CassandraTypes.Long.fromNumber(0));
+  // }
 
   if (params.to) {
     cql.where('target = ?', params.to);
   }
 
-  cql.where('block_height >=', params.minHeight);
-
-  cql.where('block_height <=', params.maxHeight);
-
-  // if (params.sortOrder === 'HEIGHT_ASC') {
-  //   cql.order('block_height ASC');
-  // } else {
-  //   cql.order('block_height DESC');
+  // if (params.before) {
+  //   cql.where('timestamp < ?', params.before);
   // }
+
+  cql.where(
+    'tx_index >= ?',
+    params.sortOrder === 'HEIGHT_ASC'
+      ? params.minHeight.add(params.offset).toString()
+      : params.minHeight.toString()
+  );
+
+  cql.where(
+    'tx_index <= ?',
+    params.sortOrder === 'HEIGHT_DESC'
+      ? params.maxHeight.sub(params.offset).toString()
+      : params.maxHeight.toString()
+  );
+
+  cql.limit(params.limit);
 
   return cql.build();
 }
@@ -97,7 +117,7 @@ export interface BlockQueryParams {
   before?: string;
   offset: number;
   fetchSize: number;
-  minHeight?: number;
+  minHeight?: CassandraTypes.Long;
   maxHeight?: CassandraTypes.Long;
   sortOrder?: TxSortOrder;
 }
@@ -147,7 +167,9 @@ export function generateBlockQuery(params: BlockQueryParams): any {
 
   cql.where(
     'height >= ?',
-    params.sortOrder === 'HEIGHT_ASC' ? minHeight + offset : minHeight
+    params.sortOrder === 'HEIGHT_ASC'
+      ? minHeight.add(offset).toString()
+      : minHeight.toString()
   );
 
   cql.where(

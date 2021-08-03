@@ -2,7 +2,7 @@ import * as R from 'rambda';
 import moment from 'moment';
 import { types as CassandraTypes } from 'cassandra-driver';
 import { cassandraClient, toLong } from '../database/cassandra.database.js';
-import { topHeight } from '../database/sync.database.js';
+import { topHeight, topTxIndex } from '../database/sync.database.js';
 import graphqlFields from 'graphql-fields';
 import { config } from 'dotenv';
 import {
@@ -33,6 +33,7 @@ const MAX_PAGE_SIZE = parseInt(process.env.MAX_PAGE_SIZE || '100');
 interface FieldMap {
   indep_hash: string;
   id: string;
+  tx_id: string;
   anchor: string;
   recipient: string;
   tags: any[];
@@ -71,10 +72,10 @@ const fieldMap = {
 };
 
 const edgeFieldMapTx = {
-  'edges.node.id': 'id',
+  'edges.node.id': 'tx_id',
   'edges.node.last_tx': 'anchor',
   'edges.node.target': 'recipient',
-  'edges.node.tags': 'id', // note, tags are stored elsewhere, but for getting those we need the txid
+  'edges.node.tags': 'tags', // note, tags are stored elsewhere, but for getting those we need the txid
   'edges.node.reward': 'fee',
   'edges.node.quantity': 'quantity',
   'edges.node.data_size': 'data_size',
@@ -147,51 +148,51 @@ const resolveGqlBlockSelect = (userFields: any): string[][] => {
   return [select, deferedSelect];
 };
 
-const runPaginatedSearch = ({
-  fetchSize,
-  query,
-  offset,
-}: {
-  fetchSize: number;
-  query: { query: string; params: any[] };
-  offset: number;
-}): Promise<{ result: any; hasNextPage: boolean }> => {
-  const result = [];
-  let last = 0;
-  return new Promise(
-    (resolve: (val?: any) => void, reject: (err: string) => void) => {
-      cassandraClient.eachRow(
-        query.query,
-        query.params,
-        {
-          autoPage: false,
-          fetchSize,
-          prepare: true,
-          executionProfile: 'gql',
-        },
-        function (n, row) {
-          if (n + 1 > offset) {
-            console.log(
-              row.height.toInt(),
-              'bigger than last?',
-              last < row.height.toInt()
-            );
-            last = row.height.toInt();
-            result.push(row);
-          }
-        },
-        function (err, res) {
-          if (err) {
-            reject((err || '').toString());
-          } else {
-            const hasNextPage = res.nextPage !== undefined;
-            resolve({ hasNextPage, result });
-          }
-        }
-      );
-    }
-  );
-};
+// const runPaginatedSearch = ({
+//   fetchSize,
+//   query,
+//   offset,
+// }: {
+//   fetchSize: number;
+//   query: { query: string; params: any[] };
+//   offset: number;
+// }): Promise<{ result: any; hasNextPage: boolean }> => {
+//   const result = [];
+//   let last = 0;
+//   return new Promise(
+//     (resolve: (val?: any) => void, reject: (err: string) => void) => {
+//       cassandraClient.eachRow(
+//         query.query,
+//         query.params,
+//         {
+//           autoPage: false,
+//           fetchSize,
+//           prepare: true,
+//           executionProfile: 'gql',
+//         },
+//         function (n, row) {
+//           if (n + 1 > offset) {
+//             console.log(
+//               row.height.toInt(),
+//               'bigger than last?',
+//               last < row.height.toInt()
+//             );
+//             last = row.height.toInt();
+//             result.push(row);
+//           }
+//         },
+//         function (err, res) {
+//           if (err) {
+//             reject((err || '').toString());
+//           } else {
+//             const hasNextPage = res.nextPage !== undefined;
+//             resolve({ hasNextPage, result });
+//           }
+//         }
+//       );
+//     }
+//   );
+// };
 
 // const runPaginatedSearch = ({
 //   fetchSize,
@@ -281,6 +282,18 @@ export const resolvers = {
         MAX_PAGE_SIZE
       );
 
+      let ids: Array<string> = [];
+      let minHeight = toLong(0);
+      let maxHeight = toLong(topTxIndex);
+
+      if (queryParams.block && queryParams.block.min) {
+        minHeight = toLong(queryParams.block.min).mul(1000);
+      }
+
+      if (queryParams.block && queryParams.block.max) {
+        maxHeight = toLong(queryParams.block.max).mul(1000);
+      }
+
       let maybeResolvedTags;
 
       if (queryParams.tags !== undefined) {
@@ -295,22 +308,18 @@ export const resolvers = {
         }
       }
 
-      const ids = maybeResolvedTags
-        ? queryParams.ids || undefined
-        : R.concat(queryParams.ids || [], maybeResolvedTags);
-
       const params: Partial<Omit<QueryParams, 'after'> & { before: string }> = {
         limit: fetchSize + 1,
         offset: offset,
-        ids,
+        ids: queryParams.ids || undefined,
         to: queryParams.recipients || undefined,
         from: queryParams.owners || undefined,
         tags: queryParams.tags || undefined,
         blocks: true,
         before: timestamp,
         select: resolveGqlTxSelect(fieldsWithSubFields),
-        minHeight: queryParams.block?.min || 0,
-        maxHeight: toLong(queryParams.block?.max || topHeight),
+        minHeight,
+        maxHeight,
         sortOrder: queryParams.sort || undefined,
       };
 
@@ -325,19 +334,19 @@ export const resolvers = {
       }
       const txQuery = generateTransactionQuery(params);
 
-      const { result, hasNextPage = false } = await runPaginatedSearch({
-        query: R.dissoc('tags', txQuery),
-        fetchSize,
-        offset,
-      });
+      let { rows: result } = await cassandraClient.execute(
+        txQuery.query,
+        txQuery.params,
+        { prepare: true, executionProfile: 'gql' }
+      );
+
+      let hasNextPage = false;
 
       const resultWithTags = await Promise.all(
         result.map(async (tx) =>
           R.assoc(
             'tags',
-            txQuery.tags !== undefined
-              ? await DbMapper.tagsByTxId(result.id)
-              : [],
+            txQuery.tags !== undefined ? await DbMapper.tagsByTxId(tx.id) : [],
             tx
           )
         )
@@ -388,19 +397,19 @@ export const resolvers = {
       );
 
       let ids: Array<string> = [];
-      let minHeight = 0;
-      let maxHeight = MAX_PAGE_SIZE;
+      let minHeight = toLong(0);
+      let maxHeight = toLong(topHeight);
 
       if (queryParams.ids) {
         ids = queryParams.ids;
       }
 
       if (queryParams.height && queryParams.height.min) {
-        minHeight = queryParams.height.min;
+        minHeight = toLong(queryParams.height.min);
       }
 
       if (queryParams.height && queryParams.height.max) {
-        maxHeight = queryParams.height.max;
+        maxHeight = toLong(queryParams.height.max);
       }
       const [select, deferedSelect] = resolveGqlBlockSelect(
         fieldsWithSubFields
@@ -419,8 +428,8 @@ export const resolvers = {
       const blockQuery = generateBlockQuery({
         ids,
         select,
-        minHeight: minHeight || 0,
-        maxHeight: toLong(maxHeight || topHeight),
+        minHeight,
+        maxHeight,
         before: timestamp,
         offset,
         fetchSize,
@@ -476,6 +485,9 @@ export const resolvers = {
     },
   },
   Transaction: {
+    id: (parent: FieldMap) => {
+      return parent.tx_id;
+    },
     tags: (parent: FieldMap) => {
       return parent.tags.map(utf8DecodeTag);
     },

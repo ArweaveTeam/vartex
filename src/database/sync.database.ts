@@ -81,11 +81,10 @@ const txQueue = new PriorityQueue(function (
   a: { height: CassandraTypes.Long; txIndex: CassandraTypes.Long },
   b: { height: CassandraTypes.Long; txIndex: CassandraTypes.Long }
 ) {
-  const comp = a.height.compare(b.height);
-  if (comp === 0) {
+  if (a.height.equals(b.height)) {
     return a.txIndex.compare(b.txIndex);
   } else {
-    return comp;
+    return a.height.compare(b.height);
   }
 });
 
@@ -136,7 +135,8 @@ const createPriorityQueue = (queueSource: any, queueState: QueueState) => (
   }
   queueSource.sortQueue();
   const peek = !queueSource.isEmpty() && queueSource.peek();
-
+  if (!CassandraTypes.Long.isLong(peek.txIndex)) {
+  }
   if (
     (CassandraTypes.Long.isLong(peek.height) &&
       nextHeight.equals(peek.height)) ||
@@ -420,8 +420,6 @@ export async function startSync() {
           `SELECT tx_index FROM ${KEYSPACE}.tx_id_gql_desc LIMIT 1`
         )
       ).rows[0].tx_index;
-
-      topTxIndex = lastTx;
     } catch (error) {
       // console.error(error);
     }
@@ -451,6 +449,11 @@ export async function startSync() {
     );
 
     initialLastBlock = toLong(developmentSyncLength).sub(1);
+    topTxIndex = initialLastBlock.mul(MAX_TX_PER_BLOCK);
+    topHeight = initialLastBlock;
+  } else {
+    topTxIndex = lastTx;
+    topHeight = lastBlock;
   }
 
   blockQueueState.lastPrio = initialLastBlock;
@@ -556,6 +559,7 @@ export async function storeTransaction(
   blockData: { [k: string]: any }
 ) {
   const currentTransaction = await getTransaction({ txId });
+
   if (currentTransaction) {
     let maybeTxOffset = {};
     const dataSize = toLong(currentTransaction.data_size);

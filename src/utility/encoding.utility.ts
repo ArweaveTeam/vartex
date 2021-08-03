@@ -1,4 +1,5 @@
 import Ar from 'arweave/node/ar.js';
+import { types as CassandraTypes } from 'cassandra-driver';
 import * as B64js from 'base64-js';
 import { base32 } from 'rfc4648';
 import { createHash } from 'crypto';
@@ -171,16 +172,16 @@ export function arToWinston(amount: string) {
 }
 
 export function utf8DecodeTag(
-  tag: Tag
+  tag: CassandraTypes.Tuple
 ): { name: string | undefined; value: string | undefined } {
   let name;
   let value;
   try {
-    const nameBuffer = fromB64Url(tag.name);
+    const nameBuffer = fromB64Url(tag.get(0));
     if (isValidUTF8(nameBuffer)) {
       name = nameBuffer.toString('utf8');
     }
-    const valueBuffer = fromB64Url(tag.value);
+    const valueBuffer = fromB64Url(tag.get(1));
     if (isValidUTF8(valueBuffer)) {
       value = valueBuffer.toString('utf8');
     }

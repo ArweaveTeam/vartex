@@ -77,7 +77,7 @@ const edgeFieldMapTx = {
   'edges.node.id': 'tx_id',
   'edges.node.last_tx': 'anchor',
   'edges.node.target': 'recipient',
-  'edges.node.tags': 'tags', // note, tags are stored elsewhere, but for getting those we need the txid
+  'edges.node.tags': 'tags',
   'edges.node.reward': 'fee',
   'edges.node.quantity': 'quantity',
   'edges.node.data_size': 'data_size',
@@ -149,109 +149,6 @@ const resolveGqlBlockSelect = (userFields: any): string[][] => {
 
   return [select, deferedSelect];
 };
-
-// const runPaginatedSearch = ({
-//   fetchSize,
-//   query,
-//   offset,
-// }: {
-//   fetchSize: number;
-//   query: { query: string; params: any[] };
-//   offset: number;
-// }): Promise<{ result: any; hasNextPage: boolean }> => {
-//   const result = [];
-//   let last = 0;
-//   return new Promise(
-//     (resolve: (val?: any) => void, reject: (err: string) => void) => {
-//       cassandraClient.eachRow(
-//         query.query,
-//         query.params,
-//         {
-//           autoPage: false,
-//           fetchSize,
-//           prepare: true,
-//           executionProfile: 'gql',
-//         },
-//         function (n, row) {
-//           if (n + 1 > offset) {
-//             console.log(
-//               row.height.toInt(),
-//               'bigger than last?',
-//               last < row.height.toInt()
-//             );
-//             last = row.height.toInt();
-//             result.push(row);
-//           }
-//         },
-//         function (err, res) {
-//           if (err) {
-//             reject((err || '').toString());
-//           } else {
-//             const hasNextPage = res.nextPage !== undefined;
-//             resolve({ hasNextPage, result });
-//           }
-//         }
-//       );
-//     }
-//   );
-// };
-
-// const runPaginatedSearch = ({
-//   fetchSize,
-//   query,
-//   offset,
-// }: {
-//   fetchSize: number;
-//   query: { query: string; params: any[] };
-//   offset: number;
-// }): Promise<{ result: any; hasNextPage: boolean }> => {
-//   const result = [];
-//   let cnt = -1;
-
-//   return new Promise(
-//     (resolve: (val?: any) => void, reject: (err: string) => void) => {
-//       const stream: any = cassandraClient.stream(query.query, query.params, {
-//         autoPage: true,
-//         prepare: true,
-//       });
-//       stream.on('readable', function streamReadable() {
-//         let item = '';
-//         // console.log(stream, Object.keys(stream));
-//         if (cnt < offset + fetchSize) {
-//           while ((item = (stream as any).read())) {
-//             if (offset < cnt && cnt < offset + fetchSize) {
-//               console.error(item);
-//               result.push(item);
-//               stream.pause();
-//               return true;
-//             } else {
-//               console.error('DONE', result);
-//               resolve({ hasNextPage: false, result });
-//               stream.pause();
-//               return false;
-//               // stream.close();
-//             }
-//             cnt += 1;
-//           }
-//         } else {
-//           console.error('DONE', result);
-//           stream.pause();
-//           resolve({ hasNextPage: false, result });
-//           return false;
-//           // stream.close();
-//         }
-//       });
-//       stream.on('end', function streamEnd() {
-//         console.error('END');
-//         resolve({ hasNextPage: cnt >= offset + fetchSize, result });
-//       });
-//       stream.on('error', function onError(reason: any) {
-//         console.error('ERROR');
-//         reject((reason || '').toString());
-//       });
-//     }
-//   );
-// };
 
 export const resolvers = {
   Query: {
@@ -344,21 +241,21 @@ export const resolvers = {
 
       let hasNextPage = false;
 
-      const resultWithTags = await Promise.all(
-        result.map(async (tx) =>
-          R.assoc(
-            'tags',
-            txQuery.tags !== undefined ? await DbMapper.tagsByTxId(tx.id) : [],
-            tx
-          )
-        )
-      );
+      // const resultWithTags = await Promise.all(
+      //   result.map(async (tx) =>
+      //     R.assoc(
+      //       'tags',
+      //       txQuery.tags !== undefined ? await DbMapper.tagsByTxId(tx.id) : [],
+      //       tx
+      //     )
+      //   )
+      // );
 
       return {
         pageInfo: {
           hasNextPage,
         },
-        edges: resultWithTags.map((tx, index) => ({
+        edges: result.map((tx, index) => ({
           cursor: encodeCursor({ timestamp, offset: offset + index + 1 }),
           node: tx,
         })),

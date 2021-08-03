@@ -39,15 +39,20 @@ export function generateTransactionQuery(params: QueryParams): any {
 
   let table = 'tx_id_gql_desc';
 
-  if (!R.isEmpty(params.tags)) {
-    table =
-      params.sortOrder === 'HEIGHT_ASC'
-        ? 'tx_tag_gql_by_name_asc'
-        : 'tx_tag_gql_by_name_desc';
-  } else {
-    table =
-      params.sortOrder === 'HEIGHT_ASC' ? 'tx_id_gql_asc' : 'tx_id_gql_desc';
-  }
+  // table =
+  //   params.sortOrder === 'HEIGHT_ASC'
+  //     ? 'tx_tag_gql_by_name_asc'
+  //     : 'tx_tag_gql_by_name_desc';
+
+  table =
+    params.sortOrder === 'HEIGHT_ASC' ? 'tx_id_gql_asc' : 'tx_id_gql_desc';
+
+  // if (table.startsWith('tx_tag') && params.select.includes('tags')) {
+  //   params.select = R.pipe(
+  //     R.reject(R.equals('tags')),
+  //     R.concat(['tag_name', 'tag_value'])
+  //   )(params.select);
+  // }
 
   const cql = Select().table(table, KEYSPACE).field(params.select).filtering();
 
@@ -65,6 +70,9 @@ export function generateTransactionQuery(params: QueryParams): any {
         params.ids
       )
     );
+  }
+
+  if (!R.isEmpty(params.tags)) {
   }
 
   if (params.since) {

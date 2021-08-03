@@ -417,7 +417,9 @@ export const makeTxImportQuery = (
         getGqlTxIdAscPartitionName(height),
         getGqlTxIdAscBucketName(height),
         txIndex,
-        tx.tags,
+        (tx.tags || []).map(({ name, value }) =>
+          CassandraTypes.Tuple.fromArray([name, value])
+        ),
         tx.id,
         tx.owner,
         tx.target,
@@ -431,7 +433,9 @@ export const makeTxImportQuery = (
         getGqlTxIdDescPartitionName(height),
         getGqlTxIdDescBucketName(height),
         txIndex,
-        tx.tags,
+        (tx.tags || []).map(({ name, value }) =>
+          CassandraTypes.Tuple.fromArray([name, value])
+        ),
         tx.id,
         tx.owner,
         tx.target,

@@ -139,7 +139,8 @@ const createPriorityQueue = (queueSource: any, queueState: QueueState) => (
   if (
     (CassandraTypes.Long.isLong(peek.height) &&
       nextHeight.equals(peek.height)) ||
-    CassandraTypes.Long.isLong(peek.txIndex)
+    (CassandraTypes.Long.isLong(peek.txIndex) &&
+      peek.height.lessThanOrEqual(nextHeight))
   ) {
     queueState.isProcessing = true;
     queueState.lastPrio = peek.txIndex || peek.height;
@@ -169,7 +170,7 @@ function startQueueProcessors() {
   if (!txQueueState.isStarted) {
     txQueueState.isStarted = true;
     setInterval(function processTxQ() {
-      processTxQueue(txQueueState.lastPrio.add(1));
+      processTxQueue(blockQueueState.lastPrio); // follow block height when syncing tx's
     }, 10);
   }
   if (!tagsQueueState.isStarted) {

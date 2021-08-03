@@ -28,7 +28,6 @@ services:
       - '3000:3000'
     links:
       - cassandra
-      - clickhouse
     networks:
       arlocal:
     userns_mode: host

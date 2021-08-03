@@ -5,6 +5,21 @@ import { types as CassandraTypes } from 'cassandra-driver';
 import { ImportQueue, Poa, TxOffset } from '../types/cassandra.types.js';
 import { KEYSPACE } from '../constants.js';
 import { config } from 'dotenv';
+import {
+  MAX_TX_PER_BLOCK,
+  getGqlBlockHeightAscPartitionName,
+  getGqlBlockHeightAscBucketName,
+  getGqlBlockHeightDescPartitionName,
+  getGqlBlockHeightDescBucketName,
+  getGqlTxIdAscPartitionName,
+  getGqlTxIdAscBucketName,
+  getGqlTxIdDescPartitionName,
+  getGqlTxIdDescBucketName,
+  getGqlTxTagAscPartitionName,
+  getGqlTxTagAscBucketName,
+  getGqlTxTagDescPartitionName,
+  getGqlTxTagDescBucketName,
+} from './constants.database';
 
 config();
 
@@ -237,7 +252,7 @@ const transformTxKey = (key: string, txData: any, blockData: any) => {
     }
 
     case 'data_root':
-    case 'id':
+    case 'tx_id':
     case 'last_tx':
     case 'owner':
     case 'signature':
@@ -335,26 +350,24 @@ const blockGqlInsertAscQuery = `INSERT INTO ${KEYSPACE}.block_gql_asc (partition
 
 const blockGqlInsertDescQuery = `INSERT INTO ${KEYSPACE}.block_gql_desc (partition_id, height, indep_hash, timestamp) VALUES ('gql2', ?, ?, ?)`;
 
-// Note the last synced block isn't
-// nececcarily the latest one, than
-// always needs verification on init
-// const syncStatusUpdateQuery = `
-//   UPDATE gateway.sync_status
-//   SET last_block_height = ?, last_block_hash = ?
-//   WHERE session_uuid = ? and random_uuid = ?`;
+const txIdGqlInsertAscQuery = `INSERT INTO ${KEYSPACE}.tx_id_gql_asc
+                               (partition_id, bucket_id, tx_index, tags, tx_id, owner, target, bundle_id)
+                               VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
 
-// const syncStatusLastBlocklistHeightUpdateQuery = `
-//   UPDATE gateway.sync_status
-//   SET last_hash_list_length = ?
-//   WHERE session_uuid = ? and random_uuid = ?`;
+const txIdGqlInsertDescQuery = `INSERT INTO ${KEYSPACE}.tx_id_gql_desc
+                                (partition_id, bucket_id, tx_index, tags, tx_id, owner, target, bundle_id)
+                                VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
 
-// const pollStatusInsertQuery = `
-//   INSERT INTO gateway.poll_status
-//   (current_block_hash,current_block_height,random_uuid,time_uuid)
-//   VALUES (?, ?, ?, ?)
-// `;
+const txTagGqlInsertAscQuery = `INSERT INTO ${KEYSPACE}.tx_tag_gql_by_name_asc
+                                (partition_id, bucket_id, tx_index, tag_index, tag_value, tx_id, owner, target, bundle_id)
+                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+
+const txTagGqlInsertDescQuery = `INSERT INTO ${KEYSPACE}.tx_tag_gql_by_name_desc
+                                 (partition_id, bucket_id, tx_index, tag_index, tag_value, tx_id, owner, target, bundle_id)
+                                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
 export const makeTxImportQuery = (
+  txIndex: CassandraTypes.Long,
   tx: { [k: string]: any },
   blockData: { [k: string]: any }
 ) => () => {
@@ -377,80 +390,127 @@ export const makeTxImportQuery = (
     []
   );
 
-  return [
-    cassandraClient.execute(
-      blockByTxIdInsertQuery,
-      [tx.id, blockData.height, blockData.indep_hash],
-      {
-        prepare: true,
-        executionProfile: 'full',
-      }
-    ),
-    cassandraClient.execute(
-      transactionInsertQuery(nonNilTxKeys),
-      txInsertParams,
-      { prepare: true, executionProfile: 'full' }
-    ),
-  ]
-    .concat(
-      (tx.tags || []).map((tag: UpstreamTag, index: number) =>
-        cassandraClient.execute(
-          txTagsInsertQuery,
-          transformTag(
-            tag,
-            tx,
-            index,
-            index + 1 < tx.tags.length ? index + 1 : undefined
-          ),
-          {
-            prepare: true,
-            executionProfile: 'full',
-          }
+  const tagsTuple = (tx.tags || []).map(({ name, value }) =>
+    CassandraTypes.Tuple.fromArray([name, value])
+  );
+  return (
+    [
+      cassandraClient.execute(
+        blockByTxIdInsertQuery,
+        [tx.id, blockData.height, blockData.indep_hash],
+        {
+          prepare: true,
+          executionProfile: 'full',
+        }
+      ),
+      cassandraClient.execute(
+        transactionInsertQuery(nonNilTxKeys),
+        txInsertParams,
+        { prepare: true, executionProfile: 'full' }
+      ),
+
+      cassandraClient.execute(
+        txIdGqlInsertAscQuery,
+        [
+          getGqlTxIdAscPartitionName(txIndex),
+          getGqlTxIdAscBucketName(txIndex),
+          txIndex,
+          tagsTuple,
+          tx.id,
+          tx.owner,
+          tx.target,
+          '', // FIXME ANS-102/ANS-104
+        ],
+        { prepare: true, executionProfile: 'full' }
+      ),
+      cassandraClient.execute(
+        txIdGqlInsertDescQuery,
+        [
+          getGqlTxIdDescPartitionName(txIndex),
+          getGqlTxIdDescBucketName(txIndex),
+          txIndex,
+          tagsTuple,
+          tx.id,
+          tx.owner,
+          tx.target,
+          '', // FIXME ANS-102/ANS-104
+        ],
+        { prepare: true, executionProfile: 'full' }
+      ),
+    ]
+      .concat(
+        (tx.tags || []).map((tag: UpstreamTag, index: number) =>
+          cassandraClient.execute(
+            txTagGqlInsertAscQuery,
+            [
+              getGqlTxTagAscPartitionName(txIndex),
+              getGqlTxTagAscBucketName(txIndex),
+              txIndex,
+              index,
+              tag.value || '',
+              tag.name || '',
+              tx.id,
+              tx.owner,
+              tx.target,
+              '', // FIXME ANS-102/ANS-104
+            ],
+            { prepare: true, executionProfile: 'full' }
+          )
         )
       )
-    )
-    .concat(
-      dataSize && dataSize.gt(0)
-        ? [
-            cassandraClient.execute(
-              txOffsetInsertQuery,
-              transformTxOffsetKeys(tx),
-              {
-                prepare: true,
-                executionProfile: 'full',
-              }
-            ),
-          ]
-        : []
-    );
+      .concat(
+        (tx.tags || []).map((tag: UpstreamTag, index: number) =>
+          cassandraClient.execute(
+            txTagGqlInsertDescQuery,
+            [
+              getGqlTxTagDescPartitionName(txIndex),
+              getGqlTxTagDescBucketName(txIndex),
+              txIndex,
+              index,
+              tag.value || '',
+              tag.name || '',
+              tx.id,
+              tx.owner,
+              tx.target,
+              '', // FIXME ANS-102/ANS-104
+            ],
+            { prepare: true, executionProfile: 'full' }
+          )
+        )
+      )
+      // .concat(
+      //   (tx.tags || []).map((tag: UpstreamTag, index: number) =>
+      //     cassandraClient.execute(
+      //       txTagsInsertQuery,
+      //       transformTag(
+      //         tag,
+      //         tx,
+      //         index,
+      //         index + 1 < tx.tags.length ? index + 1 : undefined
+      //       ),
+      //       {
+      //         prepare: true,
+      //         executionProfile: 'full',
+      //       }
+      //     )
+      //   )
+      // )
+      .concat(
+        dataSize && dataSize.gt(0)
+          ? [
+              cassandraClient.execute(
+                txOffsetInsertQuery,
+                transformTxOffsetKeys(tx),
+                {
+                  prepare: true,
+                  executionProfile: 'full',
+                }
+              ),
+            ]
+          : []
+      )
+  );
 };
-
-// export const newSyncStatus = ({
-//   blockHeight,
-//   blockHash,
-// }: {
-//   blockHeight: CassandraTypes.Long;
-//   blockHash: string;
-// }): Promise<unknown> => {
-//   return cassandraClient.execute(syncStatusUpdateQuery, [
-//     blockHeight,
-//     blockHash,
-//     currentSessionId,
-//     currentSessionRandomId,
-//   ]);
-// };
-
-// export const newLastSessionHashSyncStatus = ({
-//   lastSessionHashLength,
-// }: {
-//   lastSessionHashLength: CassandraTypes.Long;
-// }): Promise<unknown> => {
-//   return cassandraClient.execute(syncStatusLastBlocklistHeightUpdateQuery, [
-//     lastSessionHashLength,
-//     currentSessionId,
-//     currentSessionRandomId,
-//   ]);
-// };
 
 export const makeBlockImportQuery = (input: any) => () => {
   const nonNilBlockKeys: string[] = [];
@@ -469,6 +529,7 @@ export const makeBlockImportQuery = (input: any) => () => {
   const blockTimeUuid = CassandraTypes.TimeUuid.fromDate(
     new Date(input.timestamp * 1000)
   );
+
   return [
     cassandraClient.execute(poaInsertQuery, transformPoaKeys(input), {
       prepare: true,
@@ -476,12 +537,24 @@ export const makeBlockImportQuery = (input: any) => () => {
     }),
     cassandraClient.execute(
       blockGqlInsertAscQuery,
-      [input.height, input.indep_hash, blockTimeUuid],
+      [
+        getGqlBlockHeightAscPartitionName(input.height),
+        getGqlBlockHeightAscBucketName(input.height),
+        input.height,
+        input.indep_hash,
+        blockTimeUuid,
+      ],
       { prepare: true, executionProfile: 'full' }
     ),
     cassandraClient.execute(
       blockGqlInsertDescQuery,
-      [input.height, input.indep_hash, blockTimeUuid],
+      [
+        getGqlBlockHeightDescPartitionName(input.height),
+        getGqlBlockHeightDescBucketName(input.height),
+        input.height,
+        input.indep_hash,
+        blockTimeUuid,
+      ],
       { prepare: true, executionProfile: 'full' }
     ),
     cassandraClient.execute(
@@ -512,25 +585,3 @@ export const getMaxHeightBlock = async (): Promise<
     return ['', toLong(-1)];
   }
 };
-
-// export const makeBlockPlaceholder = (
-//   blockHeight: CassandraTypes.Long | number,
-//   blockHash: string
-// ): Promise<unknown> =>
-//   cassandraClient.execute(
-//     `INSERT INTO gateway.block_status (block_height, block_hash, synced, txs_synced)` +
-//       ` VALUES (?, ?, ?, ?) IF NOT EXISTS`,
-//     [toLong(blockHeight), blockHash, false, false]
-//   );
-
-// export const getBlockStatus = async (): Promise<CassandraTypes.Long> => {
-//   let cnt = (cassandra as any).types.Long.fromNumber(0);
-//   try {
-//     const response = await cassandraClient.execute(
-//       `SELECT * FROM gateway.block_status limit 1;`
-//     );
-//     cnt = response.rows[0].block_height;
-//   } catch (error) {}
-
-//   return cnt;
-// };

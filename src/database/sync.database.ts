@@ -9,6 +9,7 @@ import GaugeThemes from 'gauge/themes';
 import { config } from 'dotenv';
 import { types as CassandraTypes } from 'cassandra-driver';
 import { KEYSPACE } from '../constants';
+import { MAX_TX_PER_BLOCK } from './constants.database';
 import { log } from '../utility/log.utility';
 import { ansBundles } from '../utility/ans.utility';
 import { mkdir } from '../utility/file.utility';
@@ -489,8 +490,9 @@ export function storeBlock(
             callback: makeBlockImportQuery(newSyncBlock),
             height: newSyncBlockHeight,
           });
-          (newSyncBlock.txs || []).forEach((txId: string) => {
-            storeTransaction(txId, newSyncBlockHeight, newSyncBlock);
+          (newSyncBlock.txs || []).forEach((txId: string, index: number) => {
+            const txIndex = newSyncBlockHeight.mul(MAX_TX_PER_BLOCK).add(index);
+            storeTransaction(txId, txIndex, newSyncBlockHeight, newSyncBlock);
           });
           return;
         } else {
@@ -517,6 +519,7 @@ export function storeBlock(
 
 export async function storeTransaction(
   txId: string,
+  txIndex: CassandraTypes.Long,
   height: CassandraTypes.Long,
   blockData: { [k: string]: any }
 ) {
@@ -538,11 +541,8 @@ export async function storeTransaction(
     //   await processAns(formattedTransaction.id, height);
     // }
     txQueue.enqueue({
-      callback: makeTxImportQuery(
-        R.mergeAll([currentTransaction, maybeTxOffset]),
-        blockData
-      ),
-      height: toLong(height),
+      callback: makeTxImportQuery(txIndex, currentTransaction, blockData),
+      height: toLong(txIndex),
     });
   } else {
     console.error('Fatal network error');

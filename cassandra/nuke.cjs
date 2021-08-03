@@ -28,15 +28,25 @@ client
       `DROP TABLE IF EXISTS block`,
       `DROP TABLE IF EXISTS block_gql_asc`,
       `DROP TABLE IF EXISTS block_gql_desc`,
-      `DROP TABLE IF EXISTS tx_offset`,
+
+      `DROP INDEX IF EXISTS tx_id_gql_asc_owner_idx`,
+      `DROP INDEX IF EXISTS tx_id_gql_desc_owner_idx`,
+      `DROP INDEX IF EXISTS tx_id_gql_asc_target_idx`,
+      `DROP INDEX IF EXISTS tx_id_gql_desc_target_idx`,
+      `DROP INDEX IF EXISTS tx_id_gql_asc_bundle_id_idx`,
+      `DROP INDEX IF EXISTS tx_id_gql_desc_bundle_id_idx`,
+      `DROP INDEX IF EXISTS tx_tag_gql_by_name_asc_tag_name`,
+      `DROP INDEX IF EXISTS tx_tag_gql_by_name_desc_tag_name`,
+
+      `DROP TABLE IF EXISTS tx_id_gql_asc`,
+      `DROP TABLE IF EXISTS tx_id_gql_desc`,
+      `DROP TABLE IF EXISTS tx_tag_gql_by_name_asc`,
+      `DROP TABLE IF EXISTS tx_tag_gql_by_name_desc`,
+
       `DROP TABLE IF EXISTS tx_tag`,
+      `DROP TABLE IF EXISTS tx_offset`,
       `DROP TABLE IF EXISTS transaction`,
-      `DROP TABLE IF EXISTS transaction_gql_desc`,
-      `DROP TABLE IF EXISTS transaction_gql_asc`,
-      // not used anymore
-      `DROP TABLE IF EXISTS block_status`,
-      `DROP TABLE IF EXISTS sync_status`,
-      `DROP TABLE IF EXISTS poll_status`,
+
     ];
     let p = Promise.resolve();
     // Create the schema executing the queries serially

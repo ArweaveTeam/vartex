@@ -59,36 +59,110 @@ client
          weave_size bigint,
          PRIMARY KEY (indep_hash)
        )`,
-      // make sorting possible with gql
-      `CREATE TABLE IF NOT EXISTS block_gql_desc (
-          partition_id text,
-          height bigint,
-          indep_hash text,
-          timestamp timeuuid,
-          PRIMARY KEY (partition_id, height, timestamp)
-        )
-        WITH CLUSTERING ORDER BY (height DESC, timestamp DESC)`,
+      // bucket at 500k
       `CREATE TABLE IF NOT EXISTS block_gql_asc (
           partition_id text,
+          bucket_id text,
           height bigint,
           indep_hash text,
-          timestamp timeuuid,
-          PRIMARY KEY (partition_id, height, timestamp)
+          timestamp bigint,
+          PRIMARY KEY ((partition_id, bucket_id), height, timestamp)
         )
         WITH CLUSTERING ORDER BY (height ASC, timestamp ASC)`,
-      // optimize for search
-      // tag id is tx_id + tag_index
-      `CREATE TABLE IF NOT EXISTS tx_tag (
-         tag_index int,
-         next_tag_index int,
+      // bucket at 500k
+      `CREATE TABLE IF NOT EXISTS block_gql_desc (
+          partition_id text,
+          bucket_id text,
+          height bigint,
+          indep_hash text,
+          timestamp bigint,
+          PRIMARY KEY ((partition_id, bucket_id), height, timestamp)
+        )
+      WITH CLUSTERING ORDER BY (height DESC, timestamp DESC)`,
+
+      // bucket at 50000
+      `CREATE TABLE IF NOT EXISTS tx_id_gql_asc (
+         partition_id text,
+         bucket_id text,
+         tx_index bigint,
+         tags list<frozen<tuple<text,text>>>,
          tx_id text,
+         owner text,
+         target text,
+         bundle_id text,
+         PRIMARY KEY ((partition_id, bucket_id), tx_index)
+       )
+       WITH CLUSTERING ORDER BY (tx_index ASC)`,
+
+      // bucket at 50000
+      `CREATE TABLE IF NOT EXISTS tx_id_gql_desc (
+         partition_id text,
+         bucket_id text,
+         tx_index bigint,
+         tags list<frozen<tuple<text,text>>>,
+         tx_id text,
+         owner text,
+         target text,
+         bundle_id text,
+         PRIMARY KEY ((partition_id, bucket_id), tx_index)
+       )
+       WITH CLUSTERING ORDER BY (tx_index DESC)`,
+
+      // bucket at 50000
+      `CREATE TABLE IF NOT EXISTS tx_tag (
+         partition_id text,
+         bucket_id text,
+         tx_index bigint,
+         tag_index int,
+         tx_id text,
+         next_tag_index int,
          name text,
          value text,
-         PRIMARY KEY (tag_index, tx_id)
+         PRIMARY KEY ((partition_id, bucket_id), tx_index, tag_index)
       )
-      WITH CLUSTERING ORDER BY (tx_id DESC)`,
-      // `CREATE INDEX IF NOT EXISTS ON tx_tag (name)`,
-      // `CREATE INDEX IF NOT EXISTS ON tx_tag (value)`,
+      WITH CLUSTERING ORDER BY (tx_index DESC, tag_index DESC)`,
+
+      // reuse tx_id tables for owners filters, optimize later
+      `CREATE INDEX IF NOT EXISTS ON tx_id_gql_asc (owner)`,
+      `CREATE INDEX IF NOT EXISTS ON tx_id_gql_desc (owner)`,
+      // reuse tx_id tables for recipients filters, optimize later
+      `CREATE INDEX IF NOT EXISTS ON tx_id_gql_asc (target)`,
+      `CREATE INDEX IF NOT EXISTS ON tx_id_gql_desc (target)`,
+      // reuse tx_id tables for bundle filters, optimize later
+      `CREATE INDEX IF NOT EXISTS ON tx_id_gql_asc (bundle_id)`,
+      `CREATE INDEX IF NOT EXISTS ON tx_id_gql_desc (bundle_id)`,
+
+      // bucket at 50000
+      `CREATE TABLE IF NOT EXISTS tx_tag_gql_by_name_asc (
+         partition_id text,
+         bucket_id text,
+         tx_index bigint,
+         tag_index int,
+         tag_name text,
+         tag_value text,
+         tx_id text,
+         owner text,
+         target text,
+         PRIMARY KEY ((partition_id, bucket_id), tx_index, tag_index)
+      )
+      WITH CLUSTERING ORDER BY (tx_index ASC, tag_index ASC)`,
+      // bucket at 50000
+      `CREATE TABLE IF NOT EXISTS tx_tag_gql_by_name_desc (
+         partition_id text,
+         bucket_id text,
+         tx_index bigint,
+         tag_index int,
+         tag_name text,
+         tag_value text,
+         tx_id text,
+         owner text,
+         target text,
+         PRIMARY KEY ((partition_id, bucket_id), tx_index, tag_index)
+      )
+      WITH CLUSTERING ORDER BY (tx_index DESC, tag_index DESC)`,
+      `CREATE INDEX IF NOT EXISTS ON tx_tag_gql_by_name_asc (tag_name)`,
+      `CREATE INDEX IF NOT EXISTS ON tx_tag_gql_by_name_desc (tag_name)`,
+
       `CREATE TABLE IF NOT EXISTS block_by_tx_id (
          tx_id text,
          block_height bigint,
@@ -102,46 +176,31 @@ client
         data_size bigint,
         data_tree frozen<list<text>>,
         format int,
-        id text,
+        tx_id text,
         last_tx text,
         owner text,
         quantity bigint,
         reward bigint,
         signature text,
-        tag_count int,
+        tags list<frozen<tuple<text,text>>>,
         target text,
-        PRIMARY KEY ((id), block_height)
+        PRIMARY KEY (tx_id)
       )`,
-      `CREATE TABLE IF NOT EXISTS transaction_gql_desc (
-          partition_id text,
-          height bigint,
-          indep_hash text,
-          timestamp timeuuid,
-          PRIMARY KEY (partition_id, height, timestamp)
-       )
-       WITH CLUSTERING ORDER BY (height DESC, timestamp DESC)`,
-      `CREATE TABLE IF NOT EXISTS transaction_gql_asc (
-          partition_id text,
-          height bigint,
-          indep_hash text,
-          timestamp timeuuid,
-          PRIMARY KEY (partition_id, height, timestamp)
-       )
-       WITH CLUSTERING ORDER BY (height ASC, timestamp ASC)`,
+
       `CREATE TABLE IF NOT EXISTS tx_offset (
          tx_id text,
          size bigint,
          offset bigint,
          PRIMARY KEY(tx_id)
        )`,
-      `CREATE TABLE IF NOT EXISTS manifest (
-         manifest_url text,
-         manifest_id text,
-         tx_id text,
-         path text,
-         PRIMARY KEY(manifest_id, tx_id)
-       )
-       WITH CLUSTERING ORDER BY (tx_id DESC)`,
+      // `CREATE TABLE IF NOT EXISTS manifest (
+      //    manifest_url text,
+      //    manifest_id text,
+      //    tx_id text,
+      //    path text,
+      //    PRIMARY KEY(manifest_id, tx_id)
+      //  )
+      //  WITH CLUSTERING ORDER BY (tx_id DESC)`,
     ];
     let p = Promise.resolve();
     // Create the schema executing the queries serially

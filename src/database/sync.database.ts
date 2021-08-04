@@ -364,12 +364,10 @@ export async function startSync() {
       `[sync] missing ${unsyncedBlocks.length} blocks, starting sync...`
     );
   }
-  console.error('PREDR');
   // check health
   if (!firstRun) {
     await Dr.fixNonLinearBlockOrder();
   }
-  console.error('POSTDOC');
 
   gauge.enable();
 

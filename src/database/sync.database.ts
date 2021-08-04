@@ -23,7 +23,12 @@ import {
   Tag,
 } from '../query/transaction.query';
 import { getDataFromChunks } from '../query/node.query';
-import { ImportQueue, QueueState } from '../types/cassandra.types';
+import {
+  DeleteRowData,
+  ImportQueue,
+  UnsyncedBlock,
+  QueueState,
+} from '../types/cassandra.types';
 import {
   cassandraClient,
   getMaxHeightBlock,
@@ -32,6 +37,7 @@ import {
   toLong,
 } from './cassandra.database';
 import { blockMapper, blockHeightToHashMapper } from './mapper.database';
+import * as Dr from './doctor.database';
 import { cacheANSEntries } from '../caching/ans.entry.caching';
 
 config();
@@ -235,94 +241,6 @@ const detectFirstRun = async (): Promise<boolean> => {
   }
 };
 
-interface UnsyncedBlock {
-  height: number;
-  hash: string;
-}
-
-interface DeleteRowData extends UnsyncedBlock {
-  timestamp: CassandraTypes.Long;
-}
-
-const deleteBlock = async ({
-  hash,
-  height,
-  timestamp,
-}: {
-  hash: string;
-  height: string;
-  timestamp: string;
-}): Promise<void> => {
-  try {
-    await cassandraClient.execute(
-      `DELETE FROM ${KEYSPACE}.block WHERE indep_hash='${hash}' IF EXISTS`
-    );
-    await cassandraClient.execute(
-      `DELETE FROM ${KEYSPACE}.block_gql_asc WHERE indep_hash='${hash}' AND height=${height} AND timestamp=${timestamp} IF EXISTS`
-    );
-    await cassandraClient.execute(
-      `DELETE FROM ${KEYSPACE}.block_gql_desc WHERE indep_hash='${hash}' AND height=${height} AND timestamp=${timestamp} IF EXISTS`
-    );
-  } catch (error) {
-    console.error('FATAL error while deleting block with hash:', hash);
-    console.error(error);
-    process.exit(1);
-  }
-};
-
-const fixNonLinearBlockOrder = (): Promise<void> => {
-  let cutAfter: any;
-  let lastRow: any;
-
-  return new Promise(
-    (resolve: (val?: any) => void, reject: (err: string) => void) => {
-      cassandraClient.eachRow(
-        `SELECT height,indep_hash,timestamp FROM ${KEYSPACE}.block`,
-        [],
-        {
-          autoPage: true,
-          prepare: false,
-          executionProfile: 'fast',
-        },
-        function (n, row) {
-          if (!lastRow || row.height.add(1).equals(lastRow.height)) {
-            lastRow = row;
-          } else {
-            cutAfter = lastRow.height.lt(row.height) ? lastRow : row;
-            lastRow = row;
-          }
-        },
-        async function (err, res) {
-          const maxHeightRes = await cassandraClient.execute(
-            `SELECT MAX(height) FROM ${KEYSPACE}.block_gql ALLOW FILTERING`,
-            { executionProfile: 'fast' }
-          );
-          const maxHeight =
-            maxHeightRes.rows[0]['system.max(height)'] || toLong(0);
-
-          for (const blockHeightToDelete of R.range(
-            cutAfter ? cutAfter.height.sub(1).toInt() : 0,
-            maxHeight.add(1).toInt()
-          )) {
-            const { block_hash } = await blockHeightToHashMapper.get({
-              block_height: blockHeightToDelete,
-            });
-            const currentBlock = await blockMapper.get({
-              height: blockHeightToDelete,
-              indep_hash: block_hash,
-            });
-            await deleteBlock({
-              hash: block_hash.toString(),
-              height: blockHeightToDelete.toString(),
-              timestamp: currentBlock.timestamp.toString(),
-            });
-          }
-        }
-      );
-    }
-  );
-};
-
 const findMissingBlocks = (
   hashList: string[],
   gauge: any
@@ -331,14 +249,12 @@ const findMissingBlocks = (
     acc[height] = { height, hash };
     return acc;
   }, {});
-  const scheduledForDelete: DeleteRowData[] = [];
-
   gauge.enable();
   log.info(`[database] Looking for missing blocks...`);
   return new Promise(
     (resolve: (val?: any) => void, reject: (err: string) => void) => {
       cassandraClient.eachRow(
-        `SELECT height,indep_hash,timestamp FROM ${KEYSPACE}.block`,
+        `SELECT height,indep_hash,timestamp,txs FROM ${KEYSPACE}.block`,
         [],
         {
           autoPage: true,
@@ -352,18 +268,7 @@ const findMissingBlocks = (
           }
           const matchingRow = hashListObj[row.height];
 
-          // mismatch situation, remove both of them from the db
           if (
-            matchingRow &&
-            (!R.equals(matchingRow['hash'], row.indep_hash) ||
-              !R.equals(matchingRow['height'], row.height))
-          ) {
-            scheduledForDelete.push({
-              hash: row.hash,
-              height: row.height,
-              timestamp: row.timestamp,
-            });
-          } else if (
             matchingRow &&
             R.equals(matchingRow['hash'], row.indep_hash) &&
             R.equals(matchingRow['height'], row.height)
@@ -377,20 +282,6 @@ const findMissingBlocks = (
           if (err) {
             reject((err || '').toString());
           } else {
-            if (!R.isEmpty(scheduledForDelete)) {
-              const uniqueDeletes = R.uniq(scheduledForDelete);
-              log.info(
-                `[sync] ${uniqueDeletes.length} inconsistent rows scheduled for deletion...`
-              );
-              for (const { hash, height, timestamp } of uniqueDeletes) {
-                await deleteBlock({
-                  hash: hash.toString(),
-                  height: height.toString(),
-                  timestamp: timestamp.toString(),
-                });
-              }
-            }
-
             resolve(R.pipe(R.values, R.sortBy(R.prop('height')))(hashListObj));
           }
         }
@@ -473,6 +364,12 @@ export async function startSync() {
       `[sync] missing ${unsyncedBlocks.length} blocks, starting sync...`
     );
   }
+  console.error('PREDR');
+  // check health
+  if (!firstRun) {
+    await Dr.fixNonLinearBlockOrder();
+  }
+  console.error('POSTDOC');
 
   gauge.enable();
 

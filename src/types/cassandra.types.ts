@@ -22,3 +22,12 @@ export interface TxOffset {
   size: CassandraTypes.Long;
   offset: CassandraTypes.Long;
 }
+
+export interface UnsyncedBlock {
+  height: number;
+  hash: string;
+}
+
+export interface DeleteRowData extends UnsyncedBlock {
+  timestamp: CassandraTypes.Long;
+}

@@ -54,7 +54,6 @@ client
          tx_root text,
          tx_tree frozen<list<text>>,
          txs frozen<list<text>>,
-         txs_synced boolean,
          wallet_list text,
          weave_size bigint,
          PRIMARY KEY (indep_hash)
@@ -165,12 +164,6 @@ client
       `CREATE INDEX IF NOT EXISTS ON tx_tag_gql_by_name_asc (tag_name)`,
       `CREATE INDEX IF NOT EXISTS ON tx_tag_gql_by_name_desc (tag_name)`,
 
-      `CREATE TABLE IF NOT EXISTS block_by_tx_id (
-         tx_id text,
-         block_height bigint,
-         block_hash text,
-         PRIMARY KEY (tx_id)
-       )`,
       `CREATE TABLE IF NOT EXISTS transaction (
         tx_index bigint,
         block_height bigint,

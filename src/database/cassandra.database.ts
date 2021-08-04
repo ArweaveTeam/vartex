@@ -342,14 +342,9 @@ const txTagsInsertQuery = `INSERT INTO ${KEYSPACE}.tx_tag (${txTagKeys.join(
   ', '
 )}) VALUES (${txTagKeys.map(() => '?').join(', ')})`;
 
-// const blockStatusUpdateQuery = `
-//   UPDATE gateway.block_status
-//   SET synced = true
-//   WHERE block_height = ? and block_hash = ?`;
-
 const blockHeightByHashInsertQuery = `INSERT INTO ${KEYSPACE}.block_height_by_block_hash (block_height, block_hash) VALUES (?, ?) IF NOT EXISTS`;
 
-const blockByTxIdInsertQuery = `INSERT INTO ${KEYSPACE}.block_by_tx_id (tx_id, block_height, block_hash) VALUES (?, ?, ?) IF NOT EXISTS`;
+// const blockByTxIdInsertQuery = `INSERT INTO ${KEYSPACE}.block_by_tx_id (tx_id, block_height, block_hash) VALUES (?, ?, ?) IF NOT EXISTS`;
 
 const blockGqlInsertAscQuery = `INSERT INTO ${KEYSPACE}.block_gql_asc (partition_id, bucket_id, height, indep_hash, timestamp) VALUES (?, ?, ?, ?, ?)`;
 
@@ -397,14 +392,6 @@ export const makeTxImportQuery = (
   );
 
   return [
-    cassandraClient.execute(
-      blockByTxIdInsertQuery,
-      [tx.id, height, blockData.indep_hash],
-      {
-        prepare: true,
-        executionProfile: 'full',
-      }
-    ),
     cassandraClient.execute(
       transactionInsertQuery(nonNilTxKeys),
       txInsertParams,

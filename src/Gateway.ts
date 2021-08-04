@@ -4,7 +4,6 @@ import gpmeImport from 'graphql-playground-middleware-express';
 import { config } from 'dotenv';
 import cors from 'cors';
 import { jsonMiddleware } from './middleware/json.middleware.js';
-import { logMiddleware } from './middleware/log.middleware.js';
 import { manifestMiddleware } from './middleware/manifest.middleware.js';
 import { log } from './utility/log.utility.js';
 import {
@@ -34,7 +33,6 @@ export function start(): void {
 
   app.use(cors());
   app.use(jsonMiddleware);
-  app.use(logMiddleware);
   app.use(sessionMiddleware);
   app.use(sessionPinningMiddleware);
   app.use(koiLogger.logger);

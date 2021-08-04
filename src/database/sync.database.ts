@@ -8,7 +8,7 @@ import Gauge from 'gauge';
 import GaugeThemes from 'gauge/themes';
 import { config } from 'dotenv';
 import { types as CassandraTypes } from 'cassandra-driver';
-import { KEYSPACE } from '../constants';
+import { IPC_DATA, KEYSPACE } from '../constants';
 import { MAX_TX_PER_BLOCK } from './constants.database';
 import { log } from '../utility/log.utility';
 import { ansBundles } from '../utility/ans.utility';
@@ -425,7 +425,8 @@ export async function startSync() {
     }
   }
 
-  const gauge = new Gauge(process.stderr, {
+  const gauge = new Gauge(process.stdout, {
+    // tty: 79,
     template: [
       { type: 'progressbar', length: 0 },
       { type: 'activityIndicator', kerning: 1, length: 2 },

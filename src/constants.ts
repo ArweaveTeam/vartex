@@ -14,3 +14,5 @@ if (HTTP_TIMEOUT_SECONDS === NaN) {
 export const KEYSPACE: string = process.env['KEYSPACE']
   ? process.env['KEYSPACE']
   : 'gateway';
+
+export let IPC_DATA = {};

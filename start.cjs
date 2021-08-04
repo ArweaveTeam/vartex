@@ -13,8 +13,10 @@ const timestamp = [
 
 let proc;
 let retry = true;
+let retryCount = 0;
+const retries = 10;
 
-function start(nodefile) {
+function start() {
   proc = child_process.spawn(
     'node',
     [
@@ -26,21 +28,17 @@ function start(nodefile) {
     {
       env: { ...process.env, TS_NODE_FILES: true },
       shell: true,
-      stdio: ['pipe', null, null, null, 'pipe'], // 'overlapped', //['pipe', 'pipe', 'pipe'], //
+      stdio: 'inherit',
     }
   );
 
-  proc.stdout.on('data', function (data) {
-    process.stdout.write(data.toString());
-  });
-
-  proc.stderr.on('data', function (data) {
-    process.stdout.write(data.toString());
-  });
-
   proc.on('exit', function (code) {
-    console.log('child process exited with code ' + code);
-    setTimeout(start, 0);
+    if (retry && retries < retryCount) {
+      console.log('child process exited with code ' + code, 'retrying...');
+      setTimeout(start, 0);
+    } else {
+      console.log('child process exited with code ' + code);
+    }
   });
 }
 
@@ -52,6 +50,8 @@ exitHook(() => {
   process.exit(0);
 });
 
+setTimeout(() => console.log('ALIVE!'), Number.MAX_NUMBER);
+
 start();
 
-process.stdin.resume();
+// process.stdin.resume();

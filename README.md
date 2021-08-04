@@ -54,3 +54,5 @@ This webpage should look similar to.
 ```bash
 https://arweave.dev/graphql
 ```
+
+**Note:** The docker files are still in progress and are unlikely to work at this moment.

@@ -48,6 +48,10 @@ const contactPoints = process.env.CASSANDRA_CONTACT_POINTS
 export const cassandraClient = new cassandra.Client({
   contactPoints,
   localDataCenter: 'datacenter1',
+  credentials: {
+    username: process.env.CASSANDRA_USERNAME,
+    password: process.env.CASSANDRA_PASSWORD,
+  },
   queryOptions: { isIdempotent: true },
   // encoding: {
   //   map: Map,

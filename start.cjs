@@ -50,8 +50,6 @@ exitHook(() => {
   process.exit(0);
 });
 
-setTimeout(() => console.log('ALIVE!'), Number.MAX_NUMBER);
-
 start();
 
 // process.stdin.resume();

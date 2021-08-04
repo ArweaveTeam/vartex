@@ -1,29 +1,32 @@
 import * as R from 'rambda';
 import moment from 'moment';
+import { KEYSPACE } from '../constants';
 import { types as CassandraTypes } from 'cassandra-driver';
-import { cassandraClient, toLong } from '../database/cassandra.database.js';
-import { topHeight, topTxIndex } from '../database/sync.database.js';
+import { cassandraClient, toLong } from '../database/cassandra.database';
+import { topHeight, topTxIndex } from '../database/sync.database';
 import graphqlFields from 'graphql-fields';
 import { config } from 'dotenv';
 import {
   QueryTransactionsArgs,
   QueryBlockArgs,
   QueryBlocksArgs,
-} from './types.js';
+} from './types';
 import {
+  ownerToAddress,
   ISO8601DateTimeString,
   winstonToAr,
   utf8DecodeTag,
-} from '../utility/encoding.utility.js';
-import { TransactionHeader } from '../types/arweave.types.js';
+} from '../utility/encoding.utility';
+import { TransactionHeader } from '../types/arweave.types';
 import {
   QueryParams,
   generateTransactionQuery,
   generateBlockQuery,
+  generateDeferedTxBlockQuery,
   generateDeferedBlockQuery,
   generateTagQuery,
-} from './query.graphql.js';
-import * as DbMapper from '../database/mapper.database.js';
+} from './query.graphql';
+import * as DbMapper from '../database/mapper.database';
 
 config();
 
@@ -48,6 +51,7 @@ interface FieldMap {
   signature: string;
   timestamp: number | CassandraTypes.TimeUuid;
   previous: string;
+  block: any;
   block_id: string;
   block_timestamp: string;
   block_height: string;
@@ -66,7 +70,7 @@ const fieldMap = {
   parent: 'transactions.parent',
   owner: 'transactions.owner',
   owner_address: 'transactions.owner_address',
-  signature: 'transactions.signature',
+  // signature: 'transactions.signature',
   block_id: 'blocks.id',
   block_timestamp: 'blocks.mined_at',
   block_height: 'blocks.height',
@@ -85,18 +89,17 @@ const edgeFieldMapTx = {
   'edges.node.parent': 'parent',
   'edges.node.owner': 'owner',
   'edges.node.owner_address': 'owner_address',
-  'edges.node.signature': 'signature',
+  // 'edges.node.signature': 'signature',
 };
 
 const edgeFieldMapBlock = {
   'edges.node.id': 'indep_hash',
   'edges.node.timestamp': 'timestamp',
   'edges.node.height': 'height',
-};
-
-const edgeFieldDeferedMapBlock = {
   'edges.node.previous': 'previous_block',
 };
+
+const edgeFieldDeferedMapBlock = {};
 
 const blockFieldMap = {
   id: 'blocks.indep_hash',
@@ -123,10 +126,18 @@ const hydrateGqlTx = async (tx) => {
   return R.assoc('tags', tags, hydrated);
 };
 
-const resolveGqlTxSelect = (userFields: any): string[] => {
+const resolveGqlTxSelect = (
+  userFields: any,
+  singleTx: boolean = false
+): string[] => {
   const select = [];
   R.keys(edgeFieldMapTx).forEach((keyPath) => {
-    if (R.hasPath(keyPath, userFields)) {
+    if (
+      R.hasPath(
+        singleTx ? keyPath.replace('edges.node.', '') : keyPath,
+        userFields
+      )
+    ) {
       select.push(edgeFieldMapTx[keyPath]);
     }
   });
@@ -154,16 +165,114 @@ export const resolvers = {
   Query: {
     transaction: async (
       parent: FieldMap,
-      queryParams: { id: string },
-      { req, connection }: any
+      queryParams: any,
+      { req, connection }: any,
+      info: any
     ) => {
-      const tx = await DbMapper.transactionMapper.get({ id: queryParams.id });
-      // map tx to fieldMap
-      if (!tx) {
-        throw new Error(`id: "${queryParams.id}" does not exist!`);
-      } else {
-        return await hydrateGqlTx(tx);
+      const { timestamp, offset } = parseCursor(
+        queryParams.after || newCursor()
+      );
+      const fieldsWithSubFields = graphqlFields(info);
+
+      const fetchSize = Math.min(
+        queryParams.first || DEFAULT_PAGE_SIZE,
+        MAX_PAGE_SIZE
+      );
+
+      let ids: Array<string> = [];
+      let minHeight = toLong(0);
+      let maxHeight = toLong(topTxIndex);
+
+      if (queryParams.block && queryParams.block.min) {
+        minHeight = toLong(queryParams.block.min).mul(1000);
       }
+
+      if (queryParams.block && queryParams.block.max) {
+        maxHeight = toLong(queryParams.block.max).mul(1000);
+      }
+
+      const params: any = {
+        id: queryParams.id || undefined,
+        select: resolveGqlTxSelect(fieldsWithSubFields, true),
+      };
+      // No selection = no search
+      if (R.isEmpty(params.select)) {
+        return { data: { transaction: null } };
+      }
+      // todo, elide selectors not selected from user
+      if (!params.select.includes('tx_id')) {
+        params.select = R.append('tx_id', params.select);
+      }
+
+      params.select = R.append('tx_index', params.select);
+      const txQuery = generateTransactionQuery(params);
+
+      let { rows: resultArray } = await cassandraClient.execute(
+        txQuery.query,
+        txQuery.params,
+        { prepare: true, executionProfile: 'gql' }
+      );
+
+      if (R.isEmpty(resultArray)) {
+        return { data: { transaction: null } };
+      }
+
+      const result = resultArray[0];
+
+      if (fieldsWithSubFields.signature !== undefined) {
+        let {
+          rows: resultTxArray,
+        } = await cassandraClient.execute(
+          `SELECT signature FROM ${KEYSPACE}.transaction WHERE tx_id = ?`,
+          [result.tx_id],
+          { prepare: true, executionProfile: 'gql' }
+        );
+
+        result.signature = resultTxArray[0].signature;
+      }
+
+      if (fieldsWithSubFields.block !== undefined) {
+        // const [select] = resolveGqlBlockSelect(fieldsWithSubFields);
+        let selectParams = [];
+        const userSelectKeys = R.keys(fieldsWithSubFields.block);
+        ['id', 'timestamp', 'height', 'previous'].forEach((selectKey) => {
+          if (userSelectKeys.includes(selectKey)) {
+            switch (selectKey) {
+              case 'id': {
+                selectParams = R.append('indep_hash', selectParams);
+                break;
+              }
+              case 'previous': {
+                selectParams = R.append('previous_block', selectParams);
+                break;
+              }
+              default: {
+                selectParams = R.append(selectKey, selectParams);
+              }
+            }
+          }
+        });
+
+        const blockQuery = generateDeferedTxBlockQuery(
+          result.tx_index.divide(1000),
+          selectParams
+        );
+
+        let { rows: blockResult } = await cassandraClient.execute(
+          blockQuery.query,
+          blockQuery.params,
+          {
+            prepare: true,
+            executionProfile: 'gql',
+          }
+        );
+        if (R.isEmpty(blockResult)) {
+          result.block = null;
+        } else {
+          result.block = blockResult[0];
+        }
+      }
+      return result as any;
     },
     transactions: async (
       parent: string,
@@ -389,18 +498,21 @@ export const resolvers = {
       };
     },
     block: (parent: FieldMap) => {
-      if (parent.block_id) {
-        return {
-          id: parent.block_id,
-          previous: parent.block_previous,
-          timestamp: moment(parent.block_timestamp).unix(),
-          height: parent.block_height,
-        };
-      }
+      return parent.block;
+      // if (parent.tx_id) {
+      //   return parent.block;
+      // } else if (parent.block_id) {
+      //   return {
+      //     id: parent.block_id,
+      //     previous: parent.block_previous,
+      //     timestamp: moment(parent.block_timestamp).unix(),
+      //     height: parent.block_height,
+      //   };
+      // }
     },
     owner: (parent: FieldMap) => {
       return {
-        address: parent.owner_address,
+        address: ownerToAddress(parent.owner),
         key: parent.owner,
       };
     },

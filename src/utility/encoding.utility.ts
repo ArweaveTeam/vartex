@@ -1,10 +1,10 @@
-import Ar from 'arweave/node/ar.js';
+import Ar from 'arweave/node/ar';
 import { types as CassandraTypes } from 'cassandra-driver';
 import * as B64js from 'base64-js';
 import { base32 } from 'rfc4648';
-import { createHash } from 'crypto';
+import crypto, { createHash } from 'crypto';
 import { Readable, PassThrough, Transform } from 'stream';
-import { Tag } from '../types/arweave.types.js';
+import { Tag } from '../types/arweave.types';
 
 const ar = new ((Ar as any).default as typeof Ar)();
 
@@ -58,6 +58,10 @@ export class Base64DUrlecode extends Transform {
 
 export function b64UrlToBuffer(b64UrlString: string): Uint8Array {
   return new Uint8Array(B64js.toByteArray(b64UrlDecode(b64UrlString)));
+}
+
+export function b64UrlToStringBuffer(b64UrlString: string): Buffer {
+  return new Buffer(B64js.toByteArray(b64UrlDecode(b64UrlString)));
 }
 
 export function b64UrlDecode(b64UrlString: string): string {
@@ -190,4 +194,8 @@ export function utf8DecodeTag(
     name,
     value,
   };
+}
+
+export function ownerToAddress(owner: string): string {
+  return toB64url(sha256(b64UrlToStringBuffer(owner)));
 }

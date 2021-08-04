@@ -64,6 +64,7 @@ client
           bucket_id text,
           height bigint,
           indep_hash text,
+          previous text,
           timestamp timeuuid,
           PRIMARY KEY ((partition_id, bucket_id), height, timestamp)
         )
@@ -74,6 +75,7 @@ client
           bucket_id text,
           height bigint,
           indep_hash text,
+          previous text,
           timestamp timeuuid,
           PRIMARY KEY ((partition_id, bucket_id), height, timestamp)
         )

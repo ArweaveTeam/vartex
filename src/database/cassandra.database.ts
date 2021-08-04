@@ -350,9 +350,9 @@ const blockHeightByHashInsertQuery = `INSERT INTO ${KEYSPACE}.block_height_by_bl
 
 // const blockByTxIdInsertQuery = `INSERT INTO ${KEYSPACE}.block_by_tx_id (tx_id, block_height, block_hash) VALUES (?, ?, ?) IF NOT EXISTS`;
 
-const blockGqlInsertAscQuery = `INSERT INTO ${KEYSPACE}.block_gql_asc (partition_id, bucket_id, height, indep_hash, timestamp) VALUES (?, ?, ?, ?, ?)`;
+const blockGqlInsertAscQuery = `INSERT INTO ${KEYSPACE}.block_gql_asc (partition_id, bucket_id, height, indep_hash, timestamp, previous) VALUES (?, ?, ?, ?, ?, ?)`;
 
-const blockGqlInsertDescQuery = `INSERT INTO ${KEYSPACE}.block_gql_desc (partition_id, bucket_id, height, indep_hash, timestamp) VALUES (?, ?, ?, ?, ?)`;
+const blockGqlInsertDescQuery = `INSERT INTO ${KEYSPACE}.block_gql_desc (partition_id, bucket_id, height, indep_hash, timestamp, previous) VALUES (?, ?, ?, ?, ?, ?)`;
 
 const txIdGqlInsertAscQuery = `INSERT INTO ${KEYSPACE}.tx_id_gql_asc
                                (partition_id, bucket_id, tx_index, tags, tx_id, owner, target, bundle_id)
@@ -543,6 +543,7 @@ export const makeBlockImportQuery = (input: any) => () => {
         height,
         input.indep_hash,
         blockTimeUuid,
+        input.previous,
       ],
       { prepare: true, executionProfile: 'full' }
     ),
@@ -554,6 +555,7 @@ export const makeBlockImportQuery = (input: any) => () => {
         height,
         input.indep_hash,
         blockTimeUuid,
+        input.previous,
       ],
       { prepare: true, executionProfile: 'full' }
     ),

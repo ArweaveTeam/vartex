@@ -1,11 +1,12 @@
 import * as R from 'rambda';
 import { types as CassandraTypes } from 'cassandra-driver';
+import * as Constants from '../database/constants.database';
 import { config } from 'dotenv';
-import { KEYSPACE } from '../constants.js';
-import { indices } from '../utility/order.utility.js';
-import { ISO8601DateTimeString } from '../utility/encoding.utility.js';
-import { TagFilter } from './types.js';
-import { toB64url } from '../query/transaction.query.js';
+import { KEYSPACE } from '../constants';
+import { indices } from '../utility/order.utility';
+import { ISO8601DateTimeString } from '../utility/encoding.utility';
+import { TagFilter } from './types';
+import { toB64url } from '../query/transaction.query';
 import { default as cqlBuilder } from '@ridi/cql-builder';
 
 const { Insert, Select, Update, Delete, CqlBuilderError } = cqlBuilder;
@@ -34,29 +35,16 @@ export interface QueryParams {
 }
 
 export function generateTransactionQuery(params: QueryParams): any {
-  // const { to, from, tags, id, ids, status = 'confirmed', select } = params;
-
   let table = 'tx_id_gql_desc';
-
-  // table =
-  //   params.sortOrder === 'HEIGHT_ASC'
-  //     ? 'tx_tag_gql_by_name_asc'
-  //     : 'tx_tag_gql_by_name_desc';
 
   table =
     params.sortOrder === 'HEIGHT_ASC' ? 'tx_id_gql_asc' : 'tx_id_gql_desc';
 
-  // if (table.startsWith('tx_tag') && params.select.includes('tags')) {
-  //   params.select = R.pipe(
-  //     R.reject(R.equals('tags')),
-  //     R.concat(['tag_name', 'tag_value'])
-  //   )(params.select);
-  // }
-
   const cql = Select().table(table, KEYSPACE).field(params.select).filtering();
 
-  if (params.id) {
+  if (params.id !== undefined) {
     cql.where('tx_id = ?', params.id);
+    return cql.build();
   } else if (params.ids && Array.isArray(params.ids)) {
     cql.where.apply(
       cql,
@@ -220,6 +208,22 @@ export function generateDeferedBlockQuery(
     .table('block', KEYSPACE)
     .where('indep_hash = ?', params.indep_hash)
     .field(params.deferedSelect)
+    .build();
+}
+
+export function generateDeferedTxBlockQuery(
+  height: CassandraTypes.Long,
+  fieldSelect: any
+): any {
+  return Select()
+    .table('block_gql_asc', KEYSPACE)
+    .field(fieldSelect)
+    .where('height = ?', height)
+    .where(
+      'partition_id = ?',
+      Constants.getGqlBlockHeightAscPartitionName(height)
+    )
+    .where('bucket_id = ?', Constants.getGqlBlockHeightAscBucketName(height))
     .build();
 }
 

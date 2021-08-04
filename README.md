@@ -5,6 +5,10 @@ Please don't attempt to use at this point in time! :pray:
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 
+## Prerequisites
+- NodeJS v16.4.0 or higher
+- Cassandra v3.11.10 or higher
+
 ## Environment
 
 By default, there is a default environment you can use located at `.env.example` in the repository.
@@ -17,6 +21,8 @@ cp .env.example .env
 ```
 
 ## Compilation
+
+Start Cassandra and then run the following command to compile the gateway.
 
 ```bash
 # with npm
@@ -48,3 +54,5 @@ This webpage should look similar to.
 ```bash
 https://arweave.dev/graphql
 ```
+
+**Note:** The docker files are still in progress and are unlikely to work at this moment.

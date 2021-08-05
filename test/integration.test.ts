@@ -2,7 +2,7 @@ import { jest } from '@jest/globals';
 import got from 'got';
 import nock from 'nock';
 import net from 'net';
-import { startSync } from '../src/database/sync.database';
+import { startSync, signalHook } from '../src/database/sync.database';
 import * as helpers from './helpers';
 
 describe('integration suite', function () {
@@ -16,10 +16,13 @@ describe('integration suite', function () {
       CASSANDRA_PASSWORD: 'cassandra',
       PARALLEL: '32',
       KEYSPACE: 'testway',
+      NODE_ENV: 'test',
       ...process.env,
     };
     await helpers.waitForCassandra();
   });
+
+  afterAll(signalHook);
 
   beforeEach(async () => {
     jest.resetModules();

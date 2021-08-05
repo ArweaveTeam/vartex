@@ -149,7 +149,10 @@ export async function getNodeInfo({
 export async function getHashList({
   retry = 0,
 }): Promise<string[] | undefined> {
-  const hashListCachePath = 'cache/hash_list.json';
+  const hashListCachePath =
+    process.env.NODE_ENV === 'test'
+      ? 'cache/hash_list_test.json'
+      : 'cache/hash_list.json';
   const cacheExists = existsSync(hashListCachePath);
 
   if (cacheExists) {
@@ -168,7 +171,10 @@ export async function getHashList({
       });
       const linearHashList = R.reverse(body as any);
       return fs
-        .writeFile('cache/hash_list.json', JSON.stringify(body, undefined, 2))
+        .writeFile(
+          hashListCachePath,
+          JSON.stringify(linearHashList, undefined, 2)
+        )
         .then(() => linearHashList as string[]);
     } catch (error) {
       coolNode(tryNode);

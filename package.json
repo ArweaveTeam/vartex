@@ -72,7 +72,7 @@
     "winston": "^3.3.3"
   },
   "devDependencies": {
-    "@graphql-codegen/cli": "2.0.0-alpha-f473a1ce.0",
+    "@graphql-codegen/cli": "^2.0.1",
     "@graphql-codegen/typescript": "1.23.1-alpha-428c427d0.0",
     "@graphql-codegen/typescript-resolvers": "1.20.1-alpha-428c427d0.0",
     "@types/event-stream": "^3.3.34",

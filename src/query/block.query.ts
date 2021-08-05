@@ -82,7 +82,9 @@ export async function getBlock({
         '\nwanted: ' +
         height +
         ' got: ' +
-        body.height
+        body.height +
+        ' while requesting ' +
+        url
     );
     // REVIEW: does assuming re-forking condition work better than fatal error?
     process.exit(1);

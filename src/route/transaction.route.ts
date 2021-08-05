@@ -1,6 +1,6 @@
 import * as R from 'rambda';
 import { Request, Response, NextFunction } from 'express';
-import superagent from 'superagent';
+import got from 'got';
 import {
   transactionMapper,
   txIdToBlockMapper,
@@ -13,10 +13,12 @@ export async function txUploadRoute(
   next: NextFunction
 ) {
   try {
-    const payload = await superagent
-      .post(`${req.session.node}/tx`)
-      .send(req.body);
-    return res.status(200).send(payload.body);
+    const body = await got.post(`${req.session.node}/tx`, {
+      followRedirect: true,
+      json: req.body,
+    });
+
+    return res.status(200).send(body);
   } catch (error) {
     console.log(error);
     return res.status(500).send(error);

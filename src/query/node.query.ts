@@ -3,7 +3,6 @@ import fs from 'fs/promises';
 import { types as CassandraTypes } from 'cassandra-driver';
 import * as R from 'rambda';
 import { config } from 'dotenv';
-import superagent from 'superagent';
 import rwc from 'random-weighted-choice';
 import got from 'got';
 import { log } from '../utility/log.utility.js';
@@ -88,37 +87,40 @@ export interface InfoType {
   node_state_latency: number;
 }
 
-export function getNodeInfo({
+export async function getNodeInfo({
   retry = 0,
   maxRetry = 100,
   keepAlive = false,
 }): Promise<InfoType | undefined> {
   const tryNode = grabNode();
 
-  return superagent
-    .get(`${tryNode}/info`)
-    .timeout((HTTP_TIMEOUT_SECONDS || 15) * 4 * 1000)
-    .then((payload) => {
-      const body = JSON.parse(payload.text);
-      warmNode(tryNode);
+  try {
+    const body: any = await got.get(`${tryNode}/info`, {
+      responseType: 'json',
+      resolveBodyOnly: true,
+      timeout: HTTP_TIMEOUT_SECONDS * 1000,
+      followRedirect: true,
+    });
 
-      return {
-        network: body.network,
-        version: body.version,
-        release: body.release,
-        height: body.height,
-        current: body.current,
-        blocks: body.blocks,
-        peers: body.peers,
-        queue_length: body.queue_length,
-        node_state_latency: body.node_state_latency,
-      };
-    })
-    .catch((error) => {
-      coolNode(tryNode, true);
-      return new Promise((res) => setTimeout(res, 10 + 2 * retry)).then(() => {
+    warmNode(tryNode);
+
+    return {
+      network: body.network,
+      version: body.version,
+      release: body.release,
+      height: body.height,
+      current: body.current,
+      blocks: body.blocks,
+      peers: body.peers,
+      queue_length: body.queue_length,
+      node_state_latency: body.node_state_latency,
+    };
+  } catch (error) {
+    coolNode(tryNode, true);
+    return new Promise((res) => setTimeout(res, 10 + 2 * retry)).then(
+      async () => {
         if (retry < maxRetry) {
-          return getNodeInfo({ retry: retry + 1, maxRetry });
+          return await getNodeInfo({ retry: retry + 1, maxRetry });
         } else {
           console.trace(
             '\n' +
@@ -134,16 +136,19 @@ export function getNodeInfo({
                 nodeTemperatures.map(R.prop('id')).join(', ') +
                 '\n'
             );
-            return getNodeInfo({ retry: 0, maxRetry });
+            return await getNodeInfo({ retry: 0, maxRetry });
           } else {
             return undefined;
           }
         }
-      });
-    });
+      }
+    );
+  }
 }
 
-export function getHashList({ retry = 0 }): Promise<string[] | undefined> {
+export async function getHashList({
+  retry = 0,
+}): Promise<string[] | undefined> {
   const hashListCachePath = 'cache/hash_list.json';
   const cacheExists = existsSync(hashListCachePath);
 
@@ -155,42 +160,36 @@ export function getHashList({ retry = 0 }): Promise<string[] | undefined> {
   } else {
     const tryNode = grabNode();
     log.info(`[database] fetching the hash_list, this may take a while...`);
-    return superagent
-      .get(`${tryNode}/hash_list`)
-      .then((payload) => {
-        // TODO: when it hits 100mb+ look into streaming solutions
-        // https://github.com/uhop/stream-json
-        const body = R.reverse(JSON.parse(payload.text));
-        warmNode(tryNode);
-        return fs
-          .writeFile('cache/hash_list.json', JSON.stringify(body, undefined, 2))
-          .then(() => body as string[]);
-      })
-      .catch(() => {
-        coolNode(tryNode);
-        return new Promise((res) => setTimeout(res, 10 + 2 * retry)).then(
-          () => {
-            if (retry < 100) {
-              return getHashList({ retry: retry + 1 });
-            } else {
-              console.trace(
-                'Failed to establish connection to any specified node after 100 retries'
-              );
-              process.exit(1);
-            }
-          }
-        );
+    try {
+      const body = await got.get(`${tryNode}/hash_list`, {
+        responseType: 'json',
+        resolveBodyOnly: true,
+        followRedirect: true,
       });
+      const linearHashList = R.reverse(body as any);
+      return fs
+        .writeFile('cache/hash_list.json', JSON.stringify(body, undefined, 2))
+        .then(() => linearHashList as string[]);
+    } catch (error) {
+      coolNode(tryNode);
+      return new Promise((res) => setTimeout(res, 10 + 2 * retry)).then(
+        async () => {
+          if (retry < 100) {
+            return await getHashList({ retry: retry + 1 });
+          } else {
+            console.trace(
+              'Failed to establish connection to any specified node after 100 retries'
+            );
+            process.exit(1);
+          }
+        }
+      );
+    }
   }
 }
 
 export async function getData(id: string): Promise<any> {
-  const payload = await superagent.get(`${grabNode()}/${id}`);
-  return payload.body;
-}
-
-export function getDataAsStream(id: string) {
-  return superagent.get(`${grabNode()}/${id}`);
+  return await got.get(`${grabNode()}/${id}`);
 }
 
 export async function getDataFromChunks({

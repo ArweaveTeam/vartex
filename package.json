@@ -6,6 +6,9 @@
   "author": "Arweave <hello@arweave.org>",
   "type": "module",
   "license": "MIT",
+  "engines": {
+    "node": ">=16"
+  },
   "prettier": {
     "singleQuote": true
   },
@@ -65,7 +68,6 @@
     "random-weighted-choice": "^0.1.4",
     "rfc4648": "^1.5.0",
     "shortid": "^2.2.16",
-    "superagent": "^6.1.0",
     "ts-node": "^10.1.0",
     "winston": "^3.3.3"
   },
@@ -83,7 +85,6 @@
     "@types/node": "^16.4.2",
     "@types/node-cron": "^2.0.4",
     "@types/shortid": "^0.0.29",
-    "@types/superagent": "^4.1.12",
     "@typescript-eslint/eslint-plugin": "^4.28.5-alpha.0",
     "@typescript-eslint/parser": "^4.28.5-alpha.0",
     "eslint": "^7.31.0",

@@ -1,6 +1,7 @@
-import superagent from 'superagent';
+import got from 'got';
 import { b64UrlToBuffer } from '../utility/encoding.utility.js';
 import { grabNode } from './node.query.js';
+import { HTTP_TIMEOUT_SECONDS } from '../constants.js';
 
 // export interface TransactionOffsetType {
 //   size: number;
@@ -43,8 +44,12 @@ export async function getChunk({
   retryCount?: number;
 }): Promise<ChunkType> {
   try {
-    const payload = await superagent.get(`${grabNode()}/chunk/${offset}`);
-    const body = JSON.parse(payload.text);
+    const body: any = await got.get(`${grabNode()}/chunk/${offset}`, {
+      responseType: 'json',
+      resolveBodyOnly: true,
+      timeout: HTTP_TIMEOUT_SECONDS * 1000,
+      followRedirect: true,
+    });
 
     const parsed_chunk = b64UrlToBuffer(body.chunk);
     const response_chunk = Buffer.from(parsed_chunk);

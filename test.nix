@@ -1,4 +1,4 @@
-{ pkgs ? import <nixpkgs> {} }:
+{ pkgs ? import (fetchTarball "https://github.com/NixOS/nixpkgs/archive/60b891a438e52919def82ee2c7eb3835d68db9a3.tar.gz") {} }:
 
 let cassandra4x = (pkgs.cassandra.overrideAttrs(o: {
       version = "4.0.0";
@@ -8,7 +8,7 @@ let cassandra4x = (pkgs.cassandra.overrideAttrs(o: {
       };
       preInstall = "touch javadoc";
     }));
-    yarn_latest = pkgs.yarn.override { nodejs = nodejs_latest; };
+    yarn_latest = pkgs.yarn.override { nodejs = pkgs.nodejs_latest; };
 in pkgs.mkShell {
   buildInputs = with pkgs; [
     cassandra4x

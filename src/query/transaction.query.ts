@@ -1,12 +1,12 @@
 import got from 'got';
-import { TagFilter } from '../graphql/types.js';
+import { TagFilter } from '../graphql/types';
 import {
   Base64UrlEncodedString,
   WinstonString,
   fromB64Url,
-} from '../utility/encoding.utility.js';
-import { grabNode, coolNode, warmNode } from './node.query.js';
-import { HTTP_TIMEOUT_SECONDS } from '../constants.js';
+} from '../utility/encoding.utility';
+import { grabNode, coolNode, warmNode } from './node.query';
+import { HTTP_TIMEOUT_SECONDS } from '../constants';
 
 export interface Tag {
   name: Base64UrlEncodedString;

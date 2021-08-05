@@ -1,6 +1,8 @@
+import { jest } from '@jest/globals';
 import got from 'got';
 import nock from 'nock';
 import net from 'net';
+import { startSync } from '../src/database/sync.database';
 import * as helpers from './helpers';
 
 describe('integration suite', function () {
@@ -30,5 +32,35 @@ describe('integration suite', function () {
   //   process.env = OLD_ENV;
   // });
 
-  test('', () => expect(1).toEqual(2));
+  test('it writes blocks into cassandra', async () => {
+    const mockBlocks = helpers.generateMockBlocks({ totalBlocks: 100 });
+    await startSync({ isTesting: true });
+
+    const txScope = nock('https://mockweave.net')
+      .get(/\/tx\/[^\/]*$/)
+      .reply(
+        200,
+        (data) => (console.error(data) as any) || 'Internal server error'
+      )
+      .persist();
+
+    const blockScope = nock('https://mockweave.net')
+      .get(/\/block\/hash\/[^\/]*$/)
+      .reply(
+        200,
+        (data) => (console.error(data) as any) || 'Internal server error'
+      )
+      .persist();
+
+    const hashListScope = nock('https://mockweave.net')
+      .get('/hash_list')
+      .reply(
+        200,
+        (data) => (console.error(data) as any) || 'Internal server error'
+      )
+      .persist();
+
+    // console.log(txScope, blockScope, hashListScope);
+    expect(1).toEqual(2);
+  });
 });

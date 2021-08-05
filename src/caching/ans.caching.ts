@@ -1,11 +1,11 @@
 import { types as CassandraTypes } from 'cassandra-driver';
 import fs from 'fs-jetpack';
 import { DataItemJson } from 'arweave-bundles';
-import { cacheFolder } from './file.caching.js';
-import { ansBundles } from '../utility/ans.utility.js';
-import { getDataFromChunks } from '../query/node.query.js';
-import { tagToUTF8 } from '../query/transaction.query.js';
-import { cacheANSEntries } from './ans.entry.caching.js';
+import { cacheFolder } from './file.caching';
+import { ansBundles } from '../utility/ans.utility';
+import { getDataFromChunks } from '../query/node.query';
+import { tagToUTF8 } from '../query/transaction.query';
+import { cacheANSEntries } from './ans.entry.caching';
 
 export async function streamAndCacheAns(id: string): Promise<boolean> {
   try {

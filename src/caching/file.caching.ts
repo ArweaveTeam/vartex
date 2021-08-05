@@ -1,7 +1,7 @@
 import { config } from 'dotenv';
 import fs from 'fs-jetpack';
-import { streamAndCacheTx } from './stream.caching.js';
-import { streamAndCacheAns } from './ans.caching.js';
+import { streamAndCacheTx } from './stream.caching';
+import { streamAndCacheAns } from './ans.caching';
 
 config();
 

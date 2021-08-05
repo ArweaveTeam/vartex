@@ -1,7 +1,7 @@
 import got from 'got';
-import { b64UrlToBuffer } from '../utility/encoding.utility.js';
-import { grabNode } from './node.query.js';
-import { HTTP_TIMEOUT_SECONDS } from '../constants.js';
+import { b64UrlToBuffer } from '../utility/encoding.utility';
+import { grabNode } from './node.query';
+import { HTTP_TIMEOUT_SECONDS } from '../constants';
 
 // export interface TransactionOffsetType {
 //   size: number;

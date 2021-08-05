@@ -1,9 +1,9 @@
 import got from 'got';
 import fs from 'fs/promises';
 import path from 'path';
-import { log } from '../utility/log.utility.js';
-import { grabNode, warmNode, coolNode } from './node.query.js';
-import { HTTP_TIMEOUT_SECONDS } from '../constants.js';
+import { log } from '../utility/log.utility';
+import { grabNode, warmNode, coolNode } from './node.query';
+import { HTTP_TIMEOUT_SECONDS } from '../constants';
 
 export interface BlockType {
   nonce: string;

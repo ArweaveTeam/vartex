@@ -1,6 +1,5 @@
 import * as R from 'rambda';
 import Fluture from 'fluture';
-import * as F from 'fluture';
 import PriorityQueue from '../utility/priority.queue';
 import pWaitFor from 'p-wait-for';
 import { DataItemJson } from 'arweave-bundles';
@@ -290,7 +289,7 @@ const findMissingBlocks = (
   );
 };
 
-export async function startSync() {
+export async function startSync({ isTesting = false }) {
   signalHook();
   // return;
   startQueueProcessors();
@@ -358,7 +357,7 @@ export async function startSync() {
     );
   } else if (R.isEmpty(unsyncedBlocks)) {
     log.info(`[sync] fully synced db`);
-    startPolling();
+    !isTesting && startPolling();
     return;
   } else {
     log.info(
@@ -374,15 +373,16 @@ export async function startSync() {
 
   const hashListLength = hashList.length;
 
-  F.fork((reason: string | void) => {
+  Fluture.fork((reason: string | void) => {
     console.error('Fatal', reason || '');
     process.exit(1);
   })(() => {
     gauge.disable();
     log.info(`Database fully in sync with block_list`);
+    if (isTesting) return;
     !isPollingStarted && startPolling();
   })(
-    F.parallel(PARALLEL)(
+    Fluture.parallel(PARALLEL)(
       unsyncedBlocks.map(({ height, hash }) => {
         const getProgress = () =>
           `${height}/${hashList.length}/${blockQueue.getSize()}`;

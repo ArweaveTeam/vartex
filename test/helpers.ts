@@ -1,3 +1,4 @@
+import * as R from 'rambda';
 import net from 'net';
 import path from 'path';
 import { fork } from 'child_process';
@@ -76,4 +77,41 @@ export function nuke(): Promise<string> {
       resolve((err || '').toString());
     });
   });
+}
+
+export function generateMockBlocks({ totalBlocks }) {
+  const template = {
+    nonce: 'n1',
+    previous_block: 'p0',
+    timestamp: 1,
+    last_retarget: 1,
+    diff: '1111',
+    height: 0,
+    hash: '_____x',
+    indep_hash: 'x1',
+    txs: [],
+    tx_root: 'root1',
+    wallet_list: 'wl1',
+    reward_addr: 'xyz1',
+    tags: [],
+    reward_pool: '123',
+    weave_size: '123',
+    block_size: '123',
+    cumulative_diff: '123',
+    hash_list_merkle: 'xxx',
+    poa: {
+      option: '1',
+      tx_path: 'txp1',
+      data_path: 'dp1',
+      chunk: 'ch1',
+    },
+  };
+
+  const blockHeights = R.range(0, totalBlocks);
+  return blockHeights.map((height) =>
+    R.pipe(
+      R.assoc('height', height),
+      R.assoc('indep_hash', `x${height}`)
+    )(template)
+  );
 }

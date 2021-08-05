@@ -5,9 +5,9 @@ import * as R from 'rambda';
 import { config } from 'dotenv';
 import rwc from 'random-weighted-choice';
 import got from 'got';
-import { log } from '../utility/log.utility.js';
-import { getChunk } from './chunk.query.js';
-import { HTTP_TIMEOUT_SECONDS } from '../constants.js';
+import { log } from '../utility/log.utility';
+import { getChunk } from './chunk.query';
+import { HTTP_TIMEOUT_SECONDS } from '../constants';
 
 config();
 

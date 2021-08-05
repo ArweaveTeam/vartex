@@ -29,7 +29,7 @@ in pkgs.mkShell {
     export SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
     export CASSANDRA_LOG_DIR="$(pwd)/logs"
     export JVM_OPTS="-Dcassandra.storagedir=/etc/defaults/cassandra"
-    cassandra -f &
+    (&>/dev/null cassandra -f &)
     yarn install
     yarn test
   '';

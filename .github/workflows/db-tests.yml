@@ -15,10 +15,4 @@ jobs:
           name: arweave-gateway-cassandra
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
       - name: do test
-        run: |
-          nix-shell --pure test.nix
-          which node
-          node --version
-          env
-          yarn install
-          yarn start
+        run: nix-shell --pure test.nix

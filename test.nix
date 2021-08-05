@@ -9,6 +9,7 @@ let cassandra4x = (pkgs.cassandra.overrideAttrs(o: {
       preInstall = "touch javadoc";
     }));
     yarn_latest = pkgs.yarn.override { nodejs = pkgs.nodejs_latest; };
+
 in pkgs.mkShell {
   buildInputs = with pkgs; [
     cassandra4x
@@ -16,4 +17,10 @@ in pkgs.mkShell {
     yarn_latest
     nodejs_latest
   ];
+
+  shellHook = ''
+    yarn install
+    yarn start
+  '';
+
 }

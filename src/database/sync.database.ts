@@ -1,5 +1,5 @@
 import * as R from 'rambda';
-import Fluture from 'fluture';
+import Fluture, { fork, parallel } from 'fluture/index.js';
 import PriorityQueue from '../utility/priority.queue';
 import pWaitFor from 'p-wait-for';
 import { DataItemJson } from 'arweave-bundles';
@@ -373,7 +373,7 @@ export async function startSync({ isTesting = false }) {
 
   const hashListLength = hashList.length;
 
-  Fluture.fork((reason: string | void) => {
+  fork((reason: string | void) => {
     console.error('Fatal', reason || '');
     process.exit(1);
   })(() => {
@@ -382,7 +382,7 @@ export async function startSync({ isTesting = false }) {
     if (isTesting) return;
     !isPollingStarted && startPolling();
   })(
-    Fluture.parallel(PARALLEL)(
+    parallel(PARALLEL)(
       unsyncedBlocks.map(({ height, hash }) => {
         const getProgress = () =>
           `${height}/${hashList.length}/${blockQueue.getSize()}`;

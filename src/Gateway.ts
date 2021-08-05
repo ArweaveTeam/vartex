@@ -67,7 +67,7 @@ export function start(): void {
         disableHealthCheck: true,
         schemaPolling: false,
       });
-      startSync();
+      startSync({});
     });
     app.get(
       '/graphql',

@@ -31,7 +31,7 @@ in pkgs.mkShell {
     export JVM_OPTS="-Dcassandra.storagedir=/etc/defaults/cassandra"
     (&>/dev/null cassandra -f &)
     yarn install
-    yarn test
+    yarn test || exit 1
   '';
 
 }

@@ -1,42 +1,28 @@
 import got from 'got';
 import nock from 'nock';
 import net from 'net';
+import * as helpers from './helpers';
 
 describe('integration suite', function () {
   jest.setTimeout(60000);
-  beforeAll(function () {
-    return new Promise((resolve, reject) => {
-      const maxRetry = 100;
-      let rtry = 0;
-      // Wait until cassandra is reachable
-      const retry = () => {
-        let client = net
-          .createConnection(9042, '127.0.0.1')
-          .on('error', function (error: string) {
-            rtry += 1;
-            if (rtry < maxRetry) {
-              new Promise((resolveRetry) => setTimeout(resolveRetry, 100)).then(
-                retry
-              );
-            } else {
-              throw new Error(
-                "Couldn't find cassandra running after 100 retries: " + error
-              );
-              reject();
-            }
-          })
-          .on('connect', function () {
-            try {
-              client.destroy();
-            } catch (error) {}
-            resolve(true);
-          });
-      };
-      retry();
-    });
+  beforeAll(async function () {
+    process.env = {
+      ARWEAVE_NODES: 'https://mockweave.net',
+      CASSANDRA_CONTACT_POINTS:
+        process.env.CASSANDRA_CONTACT_POINTS || 'localhost:9042',
+      CASSANDRA_USERNAME: 'cassandra',
+      CASSANDRA_PASSWORD: 'cassandra',
+      PARALLEL: '32',
+      KEYSPACE: 'testway',
+      ...process.env,
+    };
+    await helpers.waitForCassandra();
   });
-  beforeEach(() => {
+
+  beforeEach(async () => {
     jest.resetModules();
+    await helpers.nuke();
+    await helpers.initDb();
     // process.env = { ...OLD_ENV };
   });
 

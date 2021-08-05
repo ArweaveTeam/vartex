@@ -1,7 +1,5 @@
 name: Test database
 
-on: push
-
 jobs:
   setup:
     name: Setup Cassandra

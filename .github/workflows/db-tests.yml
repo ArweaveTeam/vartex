@@ -10,7 +10,7 @@ jobs:
       - uses: actions/checkout@v2
       - name: start cassandra
         run: |
-          docker run --name cassandra --network bridge -p 9042:9042 cassandra:4.0
+          docker run --name cassandra --network bridge -p 9042:9042 cassandra:4.0 --attached
       - name: Install node dependencies
         run: |
           yarn install

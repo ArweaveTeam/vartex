@@ -6104,9 +6104,9 @@ kleur@^3.0.3:
   resolved "https://registry.yarnpkg.com/kleur/-/kleur-3.0.3.tgz#a79c9ecc86ee1ce3fa6206d1216c501f147fc07e"
   integrity sha512-eTIzlVOSUR+JxdDFepEYcBMtZ9Qqdef+rnzWdRZuMbOywu5tO2w2N7rqjoANZ5k9vywhL6Br1VRjUIgTQx4E8w==
 
-"koi-logs@https://github.com/koii-network/logs":
+"koi-logs@https://github.com/koii-network/logs.git":
   version "1.0.3"
-  resolved "https://github.com/koii-network/logs#a206b9a3075fdd4aa039633426ba64fcb4386dd9"
+  resolved "https://github.com/koii-network/logs.git#a206b9a3075fdd4aa039633426ba64fcb4386dd9"
   dependencies:
     "@rollup/plugin-json" "^4.1.0"
     "@rollup/plugin-typescript" "^8.2.0"

@@ -15,4 +15,8 @@ jobs:
           name: arweave-gateway-cassandra
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
       - name: do test
-        run: nix-shell --pure test.nix
+        run: |
+          sudo mkdir -p /var/lib/cassandra/data/data
+          sudo mkdir -p /var/lib/cassandra/data/commitlog
+          sudo chmod -R +666 /var/lib/cassandra/data
+          nix-shell --pure test.nix

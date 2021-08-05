@@ -7,11 +7,17 @@ let cassandra4x = (pkgs.cassandra.overrideAttrs(o: {
         url = "https://apache.mirror.digionline.de/cassandra/4.0.0/apache-cassandra-4.0.0-bin.tar.gz";
       };
       preInstall = "touch javadoc";
+      postInstall = ''
+        echo "\n" 'data_file_directories: "/var/lib/cassandra/data"' >> $out/conf/cassandra.yml
+        sed -i -e 's|cassandra_storagedir=.*|cassandra_storagedir="/var/lib/cassandra/data"|g' \
+          $out/bin/cassandra.in.sh
+      '';
     }));
     yarn_latest = pkgs.yarn.override { nodejs = pkgs.nodejs_latest; };
 
 in pkgs.mkShell {
   buildInputs = with pkgs; [
+    git
     cassandra4x
     openssl
     yarn_latest
@@ -19,6 +25,11 @@ in pkgs.mkShell {
   ];
 
   shellHook = ''
+    export GIT_SSL_CAINFO=/etc/ssl/certs/ca-certificates.crt
+    export SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+    export CASSANDRA_LOG_DIR="$(pwd)/logs"
+    export JVM_OPTS="-Dcassandra.storagedir=/etc/defaults/cassandra"
+    cassandra
     yarn install
     yarn start
   '';

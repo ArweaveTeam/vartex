@@ -21,7 +21,7 @@
   "scripts": {
     "test": "jest test/*",
     "lint": "eslint \"test/*.ts\" \"test/**/*.ts\" \"src/*.ts\" \"src/**/*.ts\" \"migrations/*.ts\" \"knexfile.ts\"",
-    "gql": "sh node_modules/@graphql/codegen/bin.js --config codegen.yml",
+    "gql": "node_modules/@graphql-codegen/cli/bin.js --config codegen.yml",
     "prestart": "yarn run gql && yarn run migrate:init",
     "start": "yarn run prestart && TS_NODE_FILES=true node --experimental-specifier-resolution=node --max-old-space-size=4096 --loader ts-node/esm.mjs src/Gateway.ts",
     "start:prod": "yarn run prestart && node start.cjs",

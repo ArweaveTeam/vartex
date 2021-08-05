@@ -89,7 +89,6 @@ const edgeFieldMapTx = {
   'edges.node.parent': 'parent',
   'edges.node.owner': 'owner',
   'edges.node.owner_address': 'owner_address',
-  // 'edges.node.signature': 'signature',
 };
 
 const edgeFieldMapBlock = {
@@ -98,8 +97,6 @@ const edgeFieldMapBlock = {
   'edges.node.height': 'height',
   'edges.node.previous': 'previous_block',
 };
-
-const edgeFieldDeferedMapBlock = {};
 
 const blockFieldMap = {
   id: 'blocks.indep_hash',
@@ -144,21 +141,16 @@ const resolveGqlTxSelect = (
   return select;
 };
 
-const resolveGqlBlockSelect = (userFields: any): string[][] => {
+const resolveGqlBlockSelect = (userFields: any): string[] => {
   const select: string[] = [];
-  const deferedSelect: string[] = [];
-  [
-    [select, edgeFieldMapBlock],
-    [deferedSelect, edgeFieldDeferedMapBlock],
-  ].forEach(([arr, fieldMap]: [string[], any]) => {
-    R.keys(fieldMap).forEach((keyPath) => {
-      if (R.hasPath(keyPath as string, userFields)) {
-        arr.push(fieldMap[keyPath]);
-      }
-    });
+
+  R.keys(edgeFieldMapBlock).forEach((keyPath) => {
+    if (R.hasPath(keyPath as string, userFields)) {
+      select.push(fieldMap[keyPath]);
+    }
   });
 
-  return [select, deferedSelect];
+  return select;
 };
 
 export const resolvers = {
@@ -232,7 +224,6 @@ export const resolvers = {
       }
 
       if (fieldsWithSubFields.block !== undefined) {
-        // const [select] = resolveGqlBlockSelect(fieldsWithSubFields);
         let selectParams = [];
         const userSelectKeys = R.keys(fieldsWithSubFields.block);
         ['id', 'timestamp', 'height', 'previous'].forEach((selectKey) => {
@@ -302,6 +293,7 @@ export const resolvers = {
         maxHeight = toLong(queryParams.block.max).mul(1000);
       }
 
+      const selectsBlock = R.hasPath('edges.node.block', fieldsWithSubFields);
       const params: Partial<Omit<QueryParams, 'after'> & { before: string }> = {
         limit: fetchSize + 1,
         offset: offset,
@@ -311,21 +303,29 @@ export const resolvers = {
         tags: queryParams.tags || undefined,
         blocks: true,
         before: timestamp,
-        select: resolveGqlTxSelect(fieldsWithSubFields),
+        select: resolveGqlTxSelect(fieldsWithSubFields, false),
         minHeight,
         maxHeight,
         sortOrder: queryParams.sort || undefined,
       };
 
       // No selection = no search
-      if (R.isEmpty(params.select)) {
+      if (R.isEmpty(params.select) && !selectsBlock) {
         return {
           pageInfo: {
             hasNextPage: false,
           },
-          edges: {},
+          edges: [],
         };
       }
+
+      // todo, elide selectors not selected from user
+      if (!params.select.includes('tx_id')) {
+        params.select = R.append('tx_id', params.select);
+      }
+
+      params.select = R.append('tx_index', params.select);
+
       const txQuery = generateTransactionQuery(params);
 
       let { rows: result } = await cassandraClient.execute(
@@ -333,6 +333,54 @@ export const resolvers = {
         txQuery.params,
         { prepare: true, executionProfile: 'gql' }
       );
+
+      if (selectsBlock) {
+        let selectParams = [];
+        // let resultWithBlock = [];
+        const userSelectKeys = Object.keys(
+          R.path('edges.node.block', fieldsWithSubFields)
+        );
+        ['id', 'timestamp', 'height', 'previous'].forEach((selectKey) => {
+          if (userSelectKeys.includes(selectKey)) {
+            switch (selectKey) {
+              case 'id': {
+                selectParams = R.append('indep_hash', selectParams);
+                break;
+              }
+              case 'previous': {
+                selectParams = R.append('previous_block', selectParams);
+                break;
+              }
+              default: {
+                selectParams = R.append(selectKey, selectParams);
+              }
+            }
+          }
+        });
+        for (const res of result) {
+          const userSelectKeys = R.keys(fieldsWithSubFields.edges.node.block);
+
+          const blockQuery = generateDeferedTxBlockQuery(
+            res.tx_index.divide(1000),
+            selectParams
+          );
+
+          let { rows: blockResult } = await cassandraClient.execute(
+            blockQuery.query,
+            blockQuery.params,
+            {
+              prepare: true,
+              executionProfile: 'gql',
+            }
+          );
+
+          if (R.isEmpty(blockResult)) {
+            res.block = null;
+          } else {
+            res.block = blockResult[0];
+          }
+        }
+      }
 
       let hasNextPage = false;
 
@@ -395,12 +443,10 @@ export const resolvers = {
       if (queryParams.height && queryParams.height.max) {
         maxHeight = toLong(queryParams.height.max);
       }
-      const [select, deferedSelect] = resolveGqlBlockSelect(
-        fieldsWithSubFields
-      );
+      const select = resolveGqlBlockSelect(fieldsWithSubFields);
 
       // No selection = no search
-      if (R.isEmpty(select) && R.isEmpty(deferedSelect)) {
+      if (R.isEmpty(select)) {
         return {
           pageInfo: {
             hasNextPage: false,
@@ -426,37 +472,6 @@ export const resolvers = {
         blockQuery.params,
         { prepare: true, executionProfile: 'gql' }
       );
-
-      if (!R.isEmpty(deferedSelect)) {
-        result = await Promise.all(
-          result.map(async (row) => {
-            const deferedBlockQuery = generateDeferedBlockQuery({
-              deferedSelect,
-              indep_hash: row.indep_hash,
-            });
-
-            const {
-              rows: deferedResult,
-            } = await cassandraClient.execute(
-              deferedBlockQuery.query,
-              deferedBlockQuery.params,
-              { prepare: true, executionProfile: 'gql' }
-            );
-            for (const key of R.keys(deferedResult[0])) {
-              switch (key) {
-                case 'previous_block': {
-                  // fallback for block 0 (this was always like this, so I'm keeping old behviour in check)
-                  row['previous'] = deferedResult[0][key] || row.indep_hash;
-                  break;
-                }
-                default: {
-                }
-              }
-            }
-            return row;
-          })
-        );
-      }
 
       return {
         pageInfo: {

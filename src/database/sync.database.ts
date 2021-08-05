@@ -292,7 +292,7 @@ const findMissingBlocks = (
 
 export async function startSync() {
   signalHook();
-  return;
+  // return;
   startQueueProcessors();
 
   const hashList: string[] = await getHashList({});

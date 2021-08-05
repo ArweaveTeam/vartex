@@ -6,6 +6,7 @@ export interface QueueState {
   isProcessing: boolean;
   isStarted: boolean;
   lastPrio?: CassandraTypes.Long;
+  importedHeights?: any;
 }
 
 export interface Poa {

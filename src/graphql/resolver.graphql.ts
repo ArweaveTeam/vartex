@@ -30,6 +30,20 @@ import * as DbMapper from '../database/mapper.database';
 
 config();
 
+function sortByTxIndexAsc(
+  result1: { tx_index: CassandraTypes.Long },
+  result2: { tx_index: CassandraTypes.Long }
+) {
+  return result1.tx_index.compare(result2.tx_index);
+}
+
+function sortByTxIndexDesc(
+  result1: { tx_index: CassandraTypes.Long },
+  result2: { tx_index: CassandraTypes.Long }
+) {
+  return result2.tx_index.compare(result1.tx_index);
+}
+
 const DEFAULT_PAGE_SIZE = parseInt(process.env.DEFAULT_PAGE_SIZE || '10');
 const MAX_PAGE_SIZE = parseInt(process.env.MAX_PAGE_SIZE || '100');
 
@@ -388,7 +402,12 @@ export const resolvers = {
         pageInfo: {
           hasNextPage,
         },
-        edges: result.map((tx, index) => ({
+        edges: R.sort(
+          params.select.sort === 'HEIGHT_ASC'
+            ? (sortByTxIndexAsc as any)
+            : (sortByTxIndexDesc as any),
+          result as any
+        ).map((tx, index) => ({
           cursor: encodeCursor({ timestamp, offset: offset + index + 1 }),
           node: tx,
         })),

@@ -54,34 +54,34 @@ client
          tx_root text,
          tx_tree frozen<list<text>>,
          txs frozen<list<text>>,
+         txs_count int,
          wallet_list text,
          weave_size bigint,
          PRIMARY KEY (indep_hash)
        )`,
-      // bucket at 500k
+
       `CREATE TABLE IF NOT EXISTS block_gql_asc (
           partition_id text,
           bucket_id text,
           height bigint,
           indep_hash text,
           previous text,
-          timestamp timeuuid,
+          timestamp bigint,
           PRIMARY KEY ((partition_id, bucket_id), height, timestamp)
         )
         WITH CLUSTERING ORDER BY (height ASC, timestamp ASC)`,
-      // bucket at 500k
+
       `CREATE TABLE IF NOT EXISTS block_gql_desc (
           partition_id text,
           bucket_id text,
           height bigint,
           indep_hash text,
           previous text,
-          timestamp timeuuid,
+          timestamp bigint,
           PRIMARY KEY ((partition_id, bucket_id), height, timestamp)
         )
       WITH CLUSTERING ORDER BY (height DESC, timestamp DESC)`,
 
-      // bucket at 50000
       `CREATE TABLE IF NOT EXISTS tx_id_gql_asc (
          partition_id text,
          bucket_id text,
@@ -95,7 +95,6 @@ client
        )
        WITH CLUSTERING ORDER BY (tx_index ASC)`,
 
-      // bucket at 50000
       `CREATE TABLE IF NOT EXISTS tx_id_gql_desc (
          partition_id text,
          bucket_id text,
@@ -109,7 +108,6 @@ client
        )
        WITH CLUSTERING ORDER BY (tx_index DESC)`,
 
-      // bucket at 50000
       `CREATE TABLE IF NOT EXISTS tx_tag (
          partition_id text,
          bucket_id text,
@@ -133,7 +131,6 @@ client
       `CREATE INDEX IF NOT EXISTS ON tx_id_gql_asc (bundle_id)`,
       `CREATE INDEX IF NOT EXISTS ON tx_id_gql_desc (bundle_id)`,
 
-      // bucket at 50000
       `CREATE TABLE IF NOT EXISTS tx_tag_gql_by_name_asc (
          partition_id text,
          bucket_id text,
@@ -148,7 +145,7 @@ client
          PRIMARY KEY ((partition_id, bucket_id), tx_index, tag_index)
       )
       WITH CLUSTERING ORDER BY (tx_index ASC, tag_index ASC)`,
-      // bucket at 50000
+
       `CREATE TABLE IF NOT EXISTS tx_tag_gql_by_name_desc (
          partition_id text,
          bucket_id text,
@@ -181,6 +178,7 @@ client
         reward bigint,
         signature text,
         tags list<frozen<tuple<text,text>>>,
+        tag_count int,
         target text,
         PRIMARY KEY (tx_id)
       )`,

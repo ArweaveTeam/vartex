@@ -1,4 +1,3 @@
-import crypto from 'crypto';
 import * as cassandra from 'cassandra-driver';
 import * as R from 'rambda';
 import { types as CassandraTypes } from 'cassandra-driver';
@@ -24,9 +23,6 @@ import {
 } from './constants.database';
 
 config();
-
-const currentSessionId = CassandraTypes.TimeUuid.now();
-const currentSessionRandomId = crypto.randomBytes(16);
 
 const isNumeric = (s: any) => !(isNaN as any)(s);
 
@@ -133,6 +129,7 @@ const transactionKeys = [
   'signature',
   'target',
   'tags',
+  'tag_count',
 ];
 
 const blockKeys = [
@@ -153,6 +150,7 @@ const blockKeys = [
   'tx_root',
   'tx_tree',
   'txs',
+  'txs_count',
   'wallet_list',
   'weave_size',
 ];
@@ -173,6 +171,14 @@ const transformPoaKeys = (obj: any): Poa => {
 // we may store the data differently than we serve it (eg. bigint->string)
 const transformBlockKey = (key: string, obj: any) => {
   switch (key) {
+    case 'txs_count': {
+      if (obj.txs) {
+        return obj.txs.length;
+      } else {
+        return 0;
+      }
+    }
+
     case 'txs':
     case 'tx_tree': {
       const txs = obj[key] && Array.isArray(obj[key]) ? obj[key] : [];
@@ -248,6 +254,13 @@ const transformTxKey = (
       return (txData.tags || []).map(({ name, value }) =>
         CassandraTypes.Tuple.fromArray([name, value])
       );
+    }
+    case 'tag_count': {
+      if (txData.tags) {
+        return txData.tags.length;
+      } else {
+        return 0;
+      }
     }
 
     case 'tx_id': {
@@ -524,11 +537,7 @@ export const makeBlockImportQuery = (input: any) => () => {
     },
     []
   );
-
   const height = toLong(input.height);
-  const blockTimeUuid = CassandraTypes.TimeUuid.fromDate(
-    new Date(input.timestamp * 1000)
-  );
 
   return [
     cassandraClient.execute(poaInsertQuery, transformPoaKeys(input), {
@@ -542,8 +551,8 @@ export const makeBlockImportQuery = (input: any) => () => {
         getGqlBlockHeightAscBucketName(height),
         height,
         input.indep_hash,
-        blockTimeUuid,
-        input.previous,
+        input.timestamp,
+        input.previous_block,
       ],
       { prepare: true, executionProfile: 'full' }
     ),
@@ -554,8 +563,8 @@ export const makeBlockImportQuery = (input: any) => () => {
         getGqlBlockHeightDescBucketName(height),
         height,
         input.indep_hash,
-        blockTimeUuid,
-        input.previous,
+        input.timestamp,
+        input.previous_block,
       ],
       { prepare: true, executionProfile: 'full' }
     ),

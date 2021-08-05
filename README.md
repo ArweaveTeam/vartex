@@ -5,11 +5,40 @@ Please don't attempt to use at this point in time! :pray:
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 
-## Prerequisites
+## Running with Docker Compose
+The easiest way to start with your own gateway is by running the service with docker-compose.
+### Requirements
+- Docker
+- Docker Compose
+
+### Running
+Clone this repo with:
+```bash
+git clone https://github.com/ArweaveTeam/gateway-cassandra.git
+```
+
+Go into this directory:
+```bash
+cd gateway-cassandra
+```
+
+Run the docker-compose command:
+```bash
+docker-compose up -d
+```
+
+Wait a couple of minutes and then you can see your gateway running on:
+```bash
+http://localhost:3000/graphql
+```
+
+## Run without Docker
+You can also run the gateway without using Docker.
+### Requirements
 - NodeJS v16.4.0 or higher
 - Cassandra v3.11.10 or higher
 
-## Environment
+### Environment
 
 By default, there is a default environment you can use located at `.env.example` in the repository.
 
@@ -20,7 +49,7 @@ Make sure you copy this configuration to `.env`.
 cp .env.example .env
 ```
 
-## Compilation
+### Compilation
 
 Start Cassandra and then run the following command to compile the gateway.
 
@@ -41,7 +70,7 @@ down X amount of blocks specified with DEVELOPMENT_SYNC_LENGTH.
 DEVELOPMENT_SYNC_LENGTH=100
 ```
 
-## Endpoints
+### Endpoints
 
 You can test if the server and the GraphQL queries are working properly by navigating to.
 
@@ -54,5 +83,3 @@ This webpage should look similar to.
 ```bash
 https://arweave.dev/graphql
 ```
-
-**Note:** The docker files are still in progress and are unlikely to work at this moment.

@@ -1,21 +1,68 @@
 'use strict';
+const fs = require('fs');
+const net = require('net');
 const cassandra = require('cassandra-driver');
+
+// Let's check if .env exists, if not, let's create it from .env.example
+if (!fs.existsSync('.env')) {
+  try {
+    fs.writeFileSync('.env', fs.readFileSync('.env.example'), 'utf8');
+  } catch (err) {
+    fs.writeFileSync('.env', `ARWEAVE_NODES=["https://arweave.net"]
+    PORT=3000
+    PARALLEL=32
+    DB_TIMEOUT=30
+    HTTP_TIMEOUT_SECONDS=15
+    CASSANDRA_CONTACT_POINTS=["localhost:9042"]
+    KEYSPACE=gateway
+    CASSANDRA_USERNAME=cassandra
+    CASSANDRA_PASSWORD=cassandra`, 'utf8');
+  }
+}
 require('dotenv').config();
+
+// Let's confirm every required env var is set
+if(!process.env.ARWEAVE_NODES || !Array.isArray(process.env.ARWEAVE_NODES) || !process.env.ARWEAVE_NODES.length) {
+  process.env.ARWEAVE_NODES = ["https://arweave.net"];
+} else if(!process.env.PORT || isNaN(process.env.PORT)) {
+  process.env.PORT = 3000;
+} else if(!process.env.PARALLEL || isNaN(process.env.PARALLEL)) {
+  process.env.PARALLEL = 32;
+} else if(!process.env.DB_TIMEOUT || isNaN(process.env.DB_TIMEOUT)) {
+  process.env.DB_TIMEOUT = 30;
+} else if(!process.env.HTTP_TIMEOUT_SECONDS || isNaN(process.env.HTTP_TIMEOUT_SECONDS)) {
+  process.env.HTTP_TIMEOUT_SECONDS = 15;
+} else if(!process.env.CASSANDRA_CONTACT_POINTS || !Array.isArray(process.env.CASSANDRA_CONTACT_POINTS) || !process.env.CASSANDRA_CONTACT_POINTS.length) {
+  process.env.CASSANDRA_CONTACT_POINTS = ["localhost:9042"];
+} else if(!process.env.KEYSPACE || !process.env.KEYSPACE.length) {
+  process.env.KEYSPACE = "gateway";
+} else if(!process.env.CASSANDRA_USERNAME || !process.env.CASSANDRA_USERNAME.length) {
+  process.env.CASSANDRA_USERNAME = "cassandra";
+} else if(!process.env.CASSANDRA_PASSWORD || !process.env.CASSANDRA_PASSWORD.length) {
+  process.env.CASSANDRA_PASSWORD = "cassandra";
+}
+
+
+/**
+ * CASSANDRA INIT
+ */
+const retries = 5;
+let retryCount = 0;
 
 const KEYSPACE = process.env['KEYSPACE'] ? process.env['KEYSPACE'] : 'gateway';
 
 const contactPoints = process.env.CASSANDRA_CONTACT_POINTS
   ? JSON.parse(process.env.CASSANDRA_CONTACT_POINTS)
-  : ['localhost:9042'];
+  : ["localhost:9042"];
 
-const client = new cassandra.Client({
-  contactPoints,
-  localDataCenter: 'datacenter1',
-  credentials: { username: 'cassandra', password: 'cassandra' },
-});
+async function connect() {
+  const client = new cassandra.Client({
+    contactPoints,
+    localDataCenter: 'datacenter1',
+    credentials: { username: process.env.CASSANDRA_USERNAME, password: process.env.CASSANDRA_PASSWORD },
+  });
 
-client
-  .connect()
+  client.connect()
   .then(function () {
     const queries = [
       `CREATE KEYSPACE IF NOT EXISTS ${KEYSPACE}
@@ -211,5 +258,17 @@ client
   })
   .catch((error) => {
     console.error(error);
+
+    console.error("ERRCODE: ", error.code);
+
+    if(error.code == 'ECONNREFUSED' && ++retryCount < retries) {
+      console.log('[cassandra] Retrying connection...');
+      setTimeout(connect, 10000);
+      return;
+    }
+
     process.exit(1);
   });
+
+}
+connect();

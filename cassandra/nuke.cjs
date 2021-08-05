@@ -13,7 +13,7 @@ const contactPoints = process.env.CASSANDRA_CONTACT_POINTS
 const client = new cassandra.Client({
   contactPoints,
   localDataCenter: 'datacenter1',
-  credentials: { username: 'cassandra', password: 'cassandra' },
+  credentials: { username: process.env.CASSANDRA_USERNAME, password: process.env.CASSANDRA_PASSWORD },
 });
 
 client

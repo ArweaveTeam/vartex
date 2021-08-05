@@ -23,6 +23,8 @@ services:
       - CASSANDRA_JMX_PORT_NUMBER=7199
       - CASSANDRA_CQL_PORT_NUMBER=9042
       - CASSANDRA_HOST=cassandra
+      - HEAP_NEWSIZE=600M 
+      - MAX_HEAP_SIZE=1024M
     networks:
       - arlocal
 
@@ -31,6 +33,8 @@ services:
     build: .
     ports:
       - '3000:3000'
+    environment: 
+      - CASSANDRA_CONTACT_POINTS=["cassandra"]
     links:
       - cassandra
     depends_on:

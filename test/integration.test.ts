@@ -5,8 +5,6 @@ import fs from 'fs/promises';
 import { jest } from '@jest/globals';
 import util from 'util';
 import got from 'got';
-import nock from 'nock';
-import net from 'net';
 import express from 'express';
 import * as helpers from './helpers';
 
@@ -73,7 +71,6 @@ describe('integration suite', function () {
   });
   beforeEach(async () => {
     jest.resetModules();
-    nock.disableNetConnect();
     jest.setTimeout(60000);
 
     await helpers.nuke();

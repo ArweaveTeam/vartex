@@ -1,5 +1,13 @@
-# Dear arweaver: this gateway-fork is a work in progress
-Please don't attempt to use at this point in time! :pray:
+* status: beta updated [06/08/2021] *
+
+We are in beta! Please give the this new gateway a spin and let us know what you think on your ArweaveDev Discord.
+If you encounter issue please open a ticket here and we'll try to respond asap!
+If feel this code needs improvement then please open a PR.
+If a feature you'd like to see is missing, then open a feature request ticket and let's discuss it!
+
+
+This project is a re-fork of the current arweave gateway, aimed to enable anyone to (relatively) quickly setup their own gateways
+in order to query, transact and receive data from nodes and miners.
 
 # Arweave Gateway
 

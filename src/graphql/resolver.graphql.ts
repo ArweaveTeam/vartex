@@ -181,10 +181,8 @@ export const resolvers = {
       );
       const fieldsWithSubFields = graphqlFields(info);
 
-      const fetchSize = Math.min(
-        queryParams.first || DEFAULT_PAGE_SIZE,
-        MAX_PAGE_SIZE
-      );
+      const fetchSize =
+        Math.min(queryParams.first || DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE) + 1;
 
       let ids: Array<string> = [];
       let minHeight = toLong(0);
@@ -330,10 +328,8 @@ export const resolvers = {
       );
       const fieldsWithSubFields = graphqlFields(info);
 
-      const fetchSize = Math.min(
-        queryParams.first || DEFAULT_PAGE_SIZE,
-        MAX_PAGE_SIZE
-      );
+      const fetchSize =
+        Math.min(queryParams.first || DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE) + 1;
 
       let ids: Array<string> = [];
       let minHeight = toLong(0);
@@ -349,7 +345,7 @@ export const resolvers = {
 
       const selectsBlock = R.hasPath('edges.node.block', fieldsWithSubFields);
       const params: Partial<Omit<QueryParams, 'after'> & { before: string }> = {
-        limit: fetchSize + 1,
+        limit: fetchSize,
         offset: offset,
         ids: queryParams.ids || undefined,
         to: queryParams.recipients || undefined,
@@ -387,6 +383,13 @@ export const resolvers = {
         txQuery.params,
         { prepare: true, executionProfile: 'gql' }
       );
+
+      let hasNextPage = false;
+
+      if (result.length === fetchSize) {
+        hasNextPage = true;
+        result = R.dropLast(1, result);
+      }
 
       if (selectsBlock) {
         let selectParams = [];
@@ -435,8 +438,6 @@ export const resolvers = {
           }
         }
       }
-
-      let hasNextPage = false;
 
       const selectedDeferedKeysUser = [];
       R.keys(fieldsWithSubFields.edges.node).forEach(
@@ -553,7 +554,7 @@ export const resolvers = {
       if (queryParams.height && queryParams.height.max) {
         maxHeight = toLong(queryParams.height.max);
       }
-      console.log(fieldsWithSubFields);
+
       const select = resolveGqlBlockSelect(fieldsWithSubFields);
 
       // No selection = no search

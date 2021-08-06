@@ -68,8 +68,8 @@ export function start(): void {
   app.get(/\/wallet.*/, proxyGetRoute);
   app.get(/\/[a-z0-9_-]{43}/i, proxyGetRoute);
   app.all('*', (req: Request, res: Response) => {
-    res.status(404).json({
-      status: 404,
+    res.status(400).json({
+      status: 400,
       error: 'Not Found',
     });
   });

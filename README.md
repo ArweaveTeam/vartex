@@ -1,4 +1,4 @@
-* status: beta updated [06/08/2021] *
+## Status: beta (updated [06/08/2021])
 
 We are in beta! Please give the this new gateway a spin and let us know what you think on your ArweaveDev Discord.
 If you encounter issue please open a ticket here and we'll try to respond asap!

@@ -6,8 +6,6 @@ const cassandra = require('cassandra-driver');
 require('dotenv').config();
 checkEnvVars();
 
-console.log(process.env);
-
 /**
  * CASSANDRA INIT
  */

@@ -50,7 +50,7 @@ export function start(): void {
   app.get('/status', statusRoute);
   app.get('/hash_list', hashListRoute);
 
-  app.get(dataRouteRegex, dataRoute);
+  // app.get(dataRouteRegex, dataRoute);
 
   app.get('/tx/:id/offset', txOffsetRoute);
   app.use('/tx/:id/status', proxyGetRoute);

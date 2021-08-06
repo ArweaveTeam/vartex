@@ -5,7 +5,7 @@ import {
   blockHeightToHashMapper,
   poaMapper,
 } from '../database/mapper.database';
-import { topHash } from '../database/sync.database';
+import { topHash, topHeight } from '../database/sync.database';
 
 export async function blockByHeightRoute(
   req: Request,
@@ -81,31 +81,34 @@ export async function blockCurrentRoute(
   res: Response,
   next: (err?: string) => void
 ) {
-  if (!topHash) {
-    res.status(503);
-    return next('Current block hash is unknown');
-  } else {
-    try {
-      // const hash = req.params.hash;
-      const blockResult = await blockMapper.get({
-        indep_hash: topHash,
-      });
-      const poa = await poaMapper.get({
-        block_hash: topHash,
-        block_height: blockResult.height,
-      });
+  try {
+    const { block_hash } = await blockHeightToHashMapper.get({
+      block_height: topHeight.toString(),
+    });
 
-      R.pipe(
-        R.dissoc('txs_count'),
-        R.assoc(
-          'poa',
-          R.pipe(R.dissoc('block_hash'), R.dissoc('block_height'))(poa)
-        ),
-        (ret) => res.json(ret)
-      )(blockResult);
-    } catch (error) {
-      // Passes errors into the error handler
-      return next(error);
+    const blockResult = await blockMapper.get({
+      indep_hash: block_hash,
+    });
+
+    if (!blockResult) {
+      res.status(404);
+      return next('Current block was not found');
     }
+
+    const poa = await poaMapper.get({
+      block_hash,
+      block_height: topHeight.toString(),
+    });
+
+    R.pipe(
+      R.dissoc('txs_count'),
+      R.assoc(
+        'poa',
+        R.pipe(R.dissoc('block_hash'), R.dissoc('block_height'))(poa)
+      ),
+      (ret) => res.json(ret)
+    )(blockResult);
+  } catch (error) {
+    return next(error);
   }
 }

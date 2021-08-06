@@ -205,7 +205,7 @@ partitioner: org.apache.cassandra.dht.Murmur3Partitioner
 # them by partitioning the token ranges.
 # If not set, the default directory is $CASSANDRA_HOME/data/data.
 # data_file_directories:
-#     - /var/lib/cassandra/data
+- /var/lib/cassandra/data
 
 # Directory were Cassandra should store the data of the local system keyspaces.
 # By default Cassandra will store the data of the local system keyspaces in the first of the data directories specified

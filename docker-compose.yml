@@ -25,6 +25,8 @@ services:
       - CASSANDRA_HOST=cassandra
       - HEAP_NEWSIZE=600M 
       - MAX_HEAP_SIZE=1024M
+    volumes: 
+      - ./data/cassandra:/bitnami
     networks:
       - arlocal
 
@@ -32,7 +34,7 @@ services:
     container_name: gateway
     build: .
     ports:
-      - '3000:3000'
+      - '80:3000'
     environment: 
       - CASSANDRA_CONTACT_POINTS=["cassandra"]
     links:

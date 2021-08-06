@@ -1,48 +1,61 @@
-## Status: beta (updated [06/08/2021])
-
-We are in beta! Please give the this new gateway a spin and let us know what you think on your ArweaveDev Discord.
-* :ghost: If you encounter issue please open a ticket here and we'll try to respond asap!
-* :gift: If feel this code needs improvement then please open a PR.
-* :pray: If a feature you'd like to see is missing, then open a feature request ticket and let's discuss it!
-
-
-This project is a re-fork of the current arweave gateway, aimed to enable anyone to (relatively) quickly setup their own gateways
-in order to query, transact and receive data from nodes and miners.
-
-# Arweave Gateway
+# Vartex
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 
+Vartex is a vortex into the permaweb -- the decentralised web on top of the Arweave protocol. Vartex nodes offer services to permaweb users -- serving data and query requests to desktop and mobile browsers.
+
+The service builds upon [Amplify](https://www.amplify.host), a fork of the original [Arweave.net](https://arweave.net/status) gateway service.
+
+### Current Release: BETA-1
+
+We are in beta! Please give Vartex a spin and let us know what you think via the [Arweave Developer Discord](https://discord.gg/BXk8tq7).
+
+* :ghost: If you encounter issues, please open a ticket here and we will try to respond ASAP!
+* :gift: If you feel this code needs improvement, please open a PR.
+* :pray: If a feature you'd like to see is missing, open a feature request ticket and let's discuss it!
+
+
 ## Running with Docker Compose
+
 The easiest way to start with your own gateway is by running the service with docker-compose.
+
 ### Requirements
+
 - Docker
 - Docker Compose
 
 ### Running
+
 Clone this repo with:
+
 ```bash
 git clone https://github.com/ArweaveTeam/gateway-cassandra.git
 ```
 
 Go into this directory:
+
 ```bash
 cd gateway-cassandra
 ```
 
 Run the docker-compose command:
+
 ```bash
 docker-compose up -d
 ```
 
 Wait a couple of minutes and then you can see your gateway running on:
+
 ```bash
 http://localhost:3000/graphql
 ```
 
 ## Run without Docker
+
 You can also run the gateway without using Docker.
+
 ### Requirements
+
 - NodeJS v16.4.0 or higher
 - Cassandra v3.11.10 or higher
 

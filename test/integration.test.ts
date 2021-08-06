@@ -6,6 +6,7 @@ import { jest } from '@jest/globals';
 import util from 'util';
 import got from 'got';
 import express from 'express';
+import killPort from 'kill-port';
 import * as helpers from './helpers';
 
 const PORT = 12345;
@@ -60,12 +61,14 @@ describe('integration suite', function () {
     await new Promise((resolve) => setTimeout(resolve, 1000));
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     // togglePause();
     if (proc) {
       proc.kill('SIGINT');
       proc = undefined;
     }
+
+    await killPort(3000, 'tcp');
   });
   beforeEach(async () => {
     jest.resetModules();

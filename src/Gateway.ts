@@ -51,12 +51,13 @@ export function start(): void {
   app.get('/peers', peerRoute);
   app.get('/logs', koiLogsRoute);
   app.get('/logs/raw', koiLogsRawRoute);
+  app.get('/tx_anchor', proxyGetRoute);
 
   // db endpoints
   app.get(`/block/height/:height`, blockByHeightRoute);
   app.get(`/block/hash/:hash`, blockByHashRoute);
   app.get(`/block/current`, blockCurrentRoute);
-  // app.get('/:id', txGetByIdRoute);
+  app.get('/:id', proxyGetRoute);
 
   app.post(`/tx`, proxyPostRoute);
   app.post('/chunk', proxyPostRoute);

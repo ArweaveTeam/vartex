@@ -8,6 +8,7 @@ import {
   tagsByTxId,
 } from '../database/mapper.database.js';
 import { grabNode } from '../query/node.query.js';
+import Transaction from 'arweave/node/lib/transaction';
 
 export async function txUploadRoute(
   req: Request,
@@ -15,12 +16,26 @@ export async function txUploadRoute(
   next: NextFunction
 ) {
   try {
-    const body = await got.post(`${grabNode()}/tx`, {
+    const tx = req.body as Transaction;
+    console.log(`[new-tx] broadcast tx ${tx.id}`);
+
+    const host = grabNode();
+
+    const result = await got.post(`${host}/tx`, {
       followRedirect: true,
       json: req.body,
     });
 
-    return res.status(200).send(body);
+    if ([400, 410].includes(result.statusCode)) {
+      console.error(`[broadcast-tx] failed`, {
+        id: tx.id,
+        host,
+        code: result.statusCode,
+        error: result.statusMessage,
+      });
+    }
+
+    return res.sendStatus(200).end();
   } catch (error) {
     console.log(error);
     return res.status(500).send(error);

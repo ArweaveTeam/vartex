@@ -58,7 +58,7 @@ export function start(): void {
   app.get(`/block/hash/:hash`, blockByHashRoute);
   app.get(`/block/current`, blockCurrentRoute);
 
-  app.post(`/tx`, proxyPostRoute);
+  app.post(`/tx`, txUploadRoute);
   app.post('/chunk', proxyPostRoute);
   app.post(`/wallet`, proxyPostRoute);
   app.post(`/unsigned_tx`, proxyPostRoute);

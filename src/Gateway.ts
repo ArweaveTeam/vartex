@@ -60,6 +60,7 @@ export function start(): void {
   app.post(`/wallet`, proxyRoute);
   app.post(`/unsigned_tx`, proxyRoute);
   app.post(`/api`, proxyRoute);
+  app.get(/\/price.*/, proxyRoute);
   // app.all('*', proxyRoute);
 
   app.listen(process.env.PORT || 3000, () => {

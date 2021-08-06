@@ -19,7 +19,7 @@ type WeightedNode = { id: string; weight: number };
 
 let nodeTemperatures: WeightedNode[] = [
   { id: 'https://arweave.net', weight: 2 },
-  { id: 'http://lon-1.eu-west-1.arweave.net:1984', weight: 2 },
+  { id: 'http://lon-2.eu-west-1.arweave.net:1984', weight: 2 },
 ];
 
 const syncNodeTemperatures = () => {

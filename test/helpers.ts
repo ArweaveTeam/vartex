@@ -15,7 +15,7 @@ export function waitForCassandra(): Promise<void> {
         .on('error', function (error: string) {
           rtry += 1;
           if (rtry < maxRetry) {
-            new Promise((resolveRetry) => setTimeout(resolveRetry, 100)).then(
+            new Promise((resolveRetry) => setTimeout(resolveRetry, 300)).then(
               retry
             );
           } else {

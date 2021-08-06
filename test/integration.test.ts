@@ -70,15 +70,15 @@ describe('integration suite', function () {
   beforeEach(async () => {
     jest.resetModules();
     jest.setTimeout(60000);
+  });
 
+  test('it writes 100 blocks into cassandra', async () => {
     await helpers.nuke();
     await helpers.initDb();
     if (await exists('./cache/hash_list_test.json')) {
       await fs.unlink('./cache/hash_list_test.json');
     }
-  });
 
-  test('it writes 100 blocks into cassandra', async () => {
     let logs = '';
     let fullySyncPromiseResolve: any;
     proc = helpers.startGateway();
@@ -104,5 +104,47 @@ describe('integration suite', function () {
     );
 
     expect(queryResponse.rows[0].count.toString()).toEqual('100');
+  });
+
+  test('it detects correctly fully synced db on startup', async () => {
+    const seemsEmptyLog = jest.fn();
+    const seemsFullLog = jest.fn();
+    const missingBlockLog = jest.fn();
+
+    let logs = '';
+    let fullySyncPromiseResolve: any;
+    proc = proc || helpers.startGateway();
+    proc.stderr.on('data', process.stderr.write); //  (data) => console.error(data.toString())
+    proc.stdout.on('data', (log: string) => {
+      if (/fully synced db/g.test(log.toString()) && fullySyncPromiseResolve) {
+        fullySyncPromiseResolve();
+        seemsFullLog();
+        fullySyncPromiseResolve = undefined;
+      }
+
+      if (/database seems to be empty/.test(log)) {
+        seemsEmptyLog();
+      }
+
+      if (/Found missing block.*/.test(log)) {
+        missingBlockLog();
+      }
+      process.stderr.write(log);
+      logs += log.toString();
+    });
+    await new Promise((resolve, reject) => {
+      fullySyncPromiseResolve = resolve;
+    });
+
+    // from last http to last written row needs some time to get the queue empty
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+
+    const queryResponse = await client.execute(
+      'SELECT COUNT(*) FROM testway.block ALLOW FILTERING'
+    );
+
+    expect(missingBlockLog).not.toHaveBeenCalled();
+    expect(seemsEmptyLog).not.toHaveBeenCalled();
+    expect(seemsFullLog).toHaveBeenCalledTimes(1);
   });
 });

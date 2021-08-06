@@ -89,8 +89,8 @@ const txQueue = new PriorityQueue(function (
   a: { txIndex: CassandraTypes.Long },
   b: { txIndex: CassandraTypes.Long }
 ) {
-  if (a.txIndex.equals(0)) {
-    return 1;
+  if (a.txIndex.equals(0) || b.txIndex.equals(0)) {
+    return -1;
   } else {
     return a.txIndex.compare(b.txIndex);
   }
@@ -344,7 +344,7 @@ export async function startSync({ isTesting = false }) {
     if (isMaybeMissingBlocks) {
       const blockGap = await Dr.findBlockGaps();
       if (!R.isEmpty(blockGap)) {
-        console.error("Somewhere there's a missing block(s):", blockGap);
+        console.error('Found missing block(s):', blockGap);
       }
       // process.exit(1);
     }
@@ -382,7 +382,9 @@ export async function startSync({ isTesting = false }) {
     ? hashList.map((hash, height) => ({ hash, height }))
     : await findMissingBlocks(hashList, gauge);
 
-  let initialLastBlock = toLong(unsyncedBlocks[0].height).add(-1);
+  let initialLastBlock = toLong(
+    unsyncedBlocks[0] ? unsyncedBlocks[0].height : 0
+  ).add(-1);
 
   if (developmentSyncLength) {
     unsyncedBlocks = R.slice(

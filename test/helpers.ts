@@ -133,7 +133,7 @@ export function startGateway(): any {
     {
       env: testEnvVars,
       shell: true,
-      stdio: 'inherit',
+      // stdio: 'inherit',
     }
   );
 }

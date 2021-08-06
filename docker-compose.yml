@@ -26,7 +26,7 @@ services:
       - HEAP_NEWSIZE=600M 
       - MAX_HEAP_SIZE=1024M
     volumes: 
-      - ./data/cassandra:/var/lib/cassandra
+      - ./data/cassandra:/bitnami
     networks:
       - arlocal
 

@@ -8,6 +8,7 @@ cache/*.json
 .rescan
 .postgres
 logs
+/data
 
 snapshot
 .snapshot

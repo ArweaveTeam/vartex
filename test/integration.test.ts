@@ -12,6 +12,8 @@ const exists = util.promisify(existsOrig);
 
 const mockBlocks = helpers.generateMockBlocks({ totalBlocks: 100 });
 
+let proc: any;
+
 describe('integration suite', function () {
   jest.setTimeout(60000);
   beforeAll(async function () {
@@ -26,11 +28,16 @@ describe('integration suite', function () {
 
   afterEach(() => {
     // togglePause();
+    if (proc) {
+      proc.kill('SIGINT');
+      proc = undefined;
+    }
   });
   beforeEach(async () => {
     jest.resetModules();
     nock.disableNetConnect();
     jest.setTimeout(60000);
+
     await helpers.nuke();
     await helpers.initDb();
     if (await exists('./cache/hash_list_test.json')) {
@@ -62,7 +69,7 @@ describe('integration suite', function () {
 
   test('it writes blocks into cassandra', async () => {
     // await startSync({ isTesting: true });
-    helpers.startGateway();
+    proc = helpers.startGateway();
     await new Promise((resolve) => setTimeout(resolve, 10000));
     // const hashListScope =
 

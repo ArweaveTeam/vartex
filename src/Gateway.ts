@@ -40,6 +40,7 @@ export function start(): void {
 
   app.get('/', statusRoute);
   app.get('/status', statusRoute);
+  app.get('/info', proxyGetRoute);
   app.get('/hash_list', hashListRoute);
 
   // app.get(dataRouteRegex, dataRoute);
@@ -66,7 +67,12 @@ export function start(): void {
   app.get(/\/price.*/, proxyGetRoute);
   app.get(/\/wallet.*/, proxyGetRoute);
   app.get(/\/[a-z0-9_-]{43}/i, proxyGetRoute);
-  // app.all('*', proxyRoute);
+  app.all('*', (req: Request, res: Response) => {
+    res.status(404).json({
+      status: 404,
+      error: 'Not Found',
+    });
+  });
 
   app.listen(process.env.PORT || 3000, () => {
     log.info(`[app] started on http://localhost:${process.env.PORT || 3000}`);

@@ -4,7 +4,12 @@ import got from 'got';
 
 export function proxyGetRoute(req: Request, res: Response) {
   const stream = got.stream.get(`${grabNode()}${req.originalUrl}`);
-
+  stream.on('error', (err) => {
+    res.status(404).json({
+      status: 404,
+      error: 'Not Found',
+    });
+  });
   stream.on('end', () => res.end());
   stream.pipe(res);
 }

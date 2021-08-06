@@ -56,6 +56,14 @@ export async function blockByHashRoute(
       const blockResult = await blockMapper.get({
         indep_hash: hash,
       });
+
+      if(!blockResult ||  !blockResult.height) {
+        return res.status(404).json({
+          status: 404,
+          error: 'Not Found'
+        });
+      }
+
       const poa = await poaMapper.get({
         block_hash: hash,
         block_height: blockResult.height,

@@ -25,6 +25,8 @@ services:
       - CASSANDRA_HOST=cassandra
       - HEAP_NEWSIZE=600M 
       - MAX_HEAP_SIZE=1024M
+    volumes: 
+      - 'cassandra_data:/bitnami'
     restart: unless-stopped
     networks:
       - arlocal
@@ -44,3 +46,7 @@ services:
     restart: unless-stopped
     networks:
       - arlocal
+
+volumes:
+  cassandra_data:
+    driver: local

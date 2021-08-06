@@ -65,7 +65,7 @@ export function start(): void {
   app.post(`/api`, proxyPostRoute);
   app.get(/\/price.*/, proxyGetRoute);
   app.get(/\/wallet.*/, proxyGetRoute);
-  app.get(/\/id\/[a-z0-9_-]{43}/i, proxyGetRoute);
+  app.get(/\/[a-z0-9_-]{43}/i, proxyGetRoute);
   // app.all('*', proxyRoute);
 
   app.listen(process.env.PORT || 3000, () => {

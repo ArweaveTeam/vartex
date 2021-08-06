@@ -181,10 +181,8 @@ export const resolvers = {
       );
       const fieldsWithSubFields = graphqlFields(info);
 
-      const fetchSize = Math.min(
-        queryParams.first || DEFAULT_PAGE_SIZE,
-        MAX_PAGE_SIZE
-      );
+      const fetchSize =
+        Math.min(queryParams.first || DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE) + 1;
 
       let ids: Array<string> = [];
       let minHeight = toLong(0);
@@ -307,13 +305,13 @@ export const resolvers = {
           }
         );
         if (deferedTxResult[0].last_tx) {
-          result.anchor = deferedTxResult[0].last_tx;
+          result.anchor = deferedTxResult[0].last_tx || '';
         }
         if (deferedTxResult[0].reward) {
-          result.fee = deferedTxResult[0].reward;
+          result.fee = deferedTxResult[0].reward || '';
         }
         if (deferedTxResult[0].signature) {
-          result.signature = deferedTxResult[0].signature;
+          result.signature = deferedTxResult[0].signature || '';
         }
       }
 
@@ -330,10 +328,8 @@ export const resolvers = {
       );
       const fieldsWithSubFields = graphqlFields(info);
 
-      const fetchSize = Math.min(
-        queryParams.first || DEFAULT_PAGE_SIZE,
-        MAX_PAGE_SIZE
-      );
+      const fetchSize =
+        Math.min(queryParams.first || DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE) + 1;
 
       let ids: Array<string> = [];
       let minHeight = toLong(0);
@@ -349,7 +345,7 @@ export const resolvers = {
 
       const selectsBlock = R.hasPath('edges.node.block', fieldsWithSubFields);
       const params: Partial<Omit<QueryParams, 'after'> & { before: string }> = {
-        limit: fetchSize + 1,
+        limit: fetchSize,
         offset: offset,
         ids: queryParams.ids || undefined,
         to: queryParams.recipients || undefined,
@@ -387,6 +383,13 @@ export const resolvers = {
         txQuery.params,
         { prepare: true, executionProfile: 'gql' }
       );
+
+      let hasNextPage = false;
+
+      if (result.length === fetchSize) {
+        hasNextPage = true;
+        result = R.dropLast(1, result);
+      }
 
       if (selectsBlock) {
         let selectParams = [];
@@ -436,8 +439,6 @@ export const resolvers = {
         }
       }
 
-      let hasNextPage = false;
-
       const selectedDeferedKeysUser = [];
       R.keys(fieldsWithSubFields.edges.node).forEach(
         (k: any) =>
@@ -478,14 +479,15 @@ export const resolvers = {
               executionProfile: 'gql',
             }
           );
+
           if (deferedTxResult[0].last_tx) {
-            tx.anchor = deferedTxResult[0].last_tx;
+            tx.anchor = deferedTxResult[0].last_tx || '';
           }
           if (deferedTxResult[0].reward) {
-            tx.fee = deferedTxResult[0].reward;
+            tx.fee = deferedTxResult[0].reward || '';
           }
           if (deferedTxResult[0].signature) {
-            tx.signature = deferedTxResult[0].signature;
+            tx.signature = deferedTxResult[0].signature || '';
           }
         }
       }
@@ -534,10 +536,8 @@ export const resolvers = {
       const { timestamp, offset } = parseCursor(
         queryParams.after || newCursor()
       );
-      const fetchSize = Math.min(
-        queryParams.first || DEFAULT_PAGE_SIZE,
-        MAX_PAGE_SIZE
-      );
+      const fetchSize =
+        Math.min(queryParams.first || DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE) + 1;
 
       let ids: Array<string> = [];
       let minHeight = toLong(0);
@@ -554,6 +554,7 @@ export const resolvers = {
       if (queryParams.height && queryParams.height.max) {
         maxHeight = toLong(queryParams.height.max);
       }
+
       const select = resolveGqlBlockSelect(fieldsWithSubFields);
 
       // No selection = no search
@@ -577,13 +578,18 @@ export const resolvers = {
         sortOrder: queryParams.sort || undefined,
       });
 
-      const hasNextPage = false;
+      let hasNextPage = false;
 
       let { rows: result } = await cassandraClient.execute(
         blockQuery.query,
         blockQuery.params,
         { prepare: true, executionProfile: 'gql' }
       );
+
+      if (result.length === fetchSize) {
+        hasNextPage = true;
+        result = R.dropLast(1, result);
+      }
 
       return {
         pageInfo: {
@@ -600,11 +606,17 @@ export const resolvers = {
     id: (parent: FieldMap) => {
       return parent.tx_id;
     },
+    anchor: (parent: any) => {
+      return parent.anchor || '';
+    },
+    signature: (parent: any) => {
+      return parent.signature || '';
+    },
     tags: (parent: FieldMap) => {
       return parent.tags.map(utf8DecodeTag);
     },
     recipient: (parent: FieldMap) => {
-      return parent.recipient.trim();
+      return parent.recipient.trim() || '';
     },
     data: (parent: FieldMap) => {
       return {

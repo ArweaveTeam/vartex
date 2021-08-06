@@ -51,8 +51,6 @@ describe('integration suite', function () {
   });
 
   afterAll(async () => {
-    nock.abortPendingRequests();
-    nock.cleanAll();
     srv && srv.close();
     if (proc) {
       proc.kill('SIGINT');

@@ -57,7 +57,6 @@ export function start(): void {
   app.get(`/block/height/:height`, blockByHeightRoute);
   app.get(`/block/hash/:hash`, blockByHashRoute);
   app.get(`/block/current`, blockCurrentRoute);
-  app.get('/:id', proxyGetRoute);
 
   app.post(`/tx`, proxyPostRoute);
   app.post('/chunk', proxyPostRoute);
@@ -66,6 +65,7 @@ export function start(): void {
   app.post(`/api`, proxyPostRoute);
   app.get(/\/price.*/, proxyGetRoute);
   app.get(/\/wallet.*/, proxyGetRoute);
+  app.get(/\/id\/[a-z0-9_-]{43}/i, proxyGetRoute);
   // app.all('*', proxyRoute);
 
   app.listen(process.env.PORT || 3000, () => {

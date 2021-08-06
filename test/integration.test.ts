@@ -69,6 +69,7 @@ describe('integration suite', function () {
     }
 
     await killPort(3000, 'tcp');
+    await new Promise((resolve) => setTimeout(resolve, 1000));
   });
   beforeEach(async () => {
     jest.resetModules();

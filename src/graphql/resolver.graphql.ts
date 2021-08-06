@@ -34,14 +34,14 @@ function sortByTxIndexAsc(
   result1: { tx_index: CassandraTypes.Long },
   result2: { tx_index: CassandraTypes.Long }
 ) {
-  return result1.tx_index.compare(result2.tx_index);
+  return result2.tx_index.compare(result1.tx_index);
 }
 
 function sortByTxIndexDesc(
   result1: { tx_index: CassandraTypes.Long },
   result2: { tx_index: CassandraTypes.Long }
 ) {
-  return result2.tx_index.compare(result1.tx_index);
+  return result1.tx_index.compare(result2.tx_index);
 }
 
 const DEFAULT_PAGE_SIZE = parseInt(process.env.DEFAULT_PAGE_SIZE || '10');
@@ -63,7 +63,7 @@ interface FieldMap {
   owner: string;
   owner_address: string;
   signature: string;
-  timestamp: number | CassandraTypes.TimeUuid;
+  timestamp: CassandraTypes.Long;
   previous: string;
   block: any;
   block_id: string;
@@ -220,7 +220,7 @@ export const resolvers = {
       );
 
       if (R.isEmpty(resultArray)) {
-        return { data: { transaction: null } };
+        return null;
       }
 
       const result = resultArray[0];
@@ -580,9 +580,7 @@ export const resolvers = {
       return parent.previous;
     },
     timestamp: (parent: FieldMap) => {
-      return moment(
-        (parent?.timestamp as CassandraTypes.TimeUuid).getDate()
-      ).unix();
+      return parent.timestamp.toString();
     },
   },
 };

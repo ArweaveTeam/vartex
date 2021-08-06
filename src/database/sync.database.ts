@@ -337,10 +337,12 @@ export async function startSync({ isTesting = false }) {
   let lastTx: CassandraTypes.Long = toLong(-1);
 
   if (!firstRun) {
-    const isMissingBlocks = await Dr.checkForBlockGaps();
-    if (isMissingBlocks) {
-      console.error("Somewhere there's a missing block, plz fix!!");
-      await Dr.findBlockGaps();
+    const isMaybeMissingBlocks = await Dr.checkForBlockGaps();
+    if (isMaybeMissingBlocks) {
+      const blockGap = await Dr.findBlockGaps();
+      if (!R.isEmpty(blockGap)) {
+        console.error("Somewhere there's a missing block(s):", blockGap);
+      }
       // process.exit(1);
     }
 

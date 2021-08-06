@@ -1,5 +1,14 @@
-import {Request, Response} from 'express';
+import { Request, Response } from 'express';
+import proxy from 'express-http-proxy';
 
-export async function proxyRoute(req: Request, res: Response) {
-  return res.redirect(`${req.session.node}${req.path}`);
+export function proxyRoute(req: Request, res: Response) {
+  console.log(req, `${req.session.node}${req.originalUrl}`, {
+    https: true,
+    preserveHostHdr: true,
+  });
+  return proxy(`${req.session.node}${req.originalUrl}`, {
+    // https: true,
+    // preserveHostHdr: true,
+    reqAsBuffer: true,
+  });
 }

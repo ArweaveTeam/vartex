@@ -35,14 +35,9 @@ export async function txGetByIdRoute(
     // const txBlockMeta = await txIdToBlockMapper.get({ tx_id: txId });
 
     const rawTx = await transactionMapper.get({
-      id: txId,
+      tx_id: txId,
     });
-
-    const transaction = R.pipe(
-      R.assoc('tags', await tagsByTxId(txId)),
-      R.dissoc('tag_count')
-    )(rawTx);
-    res.json(transaction);
+    res.json(R.pipe(R.dissoc('tag_count'), R.dissoc('tx_index'))(rawTx));
   } catch (error) {
     // Passes errors into the error handler
     return next(error);

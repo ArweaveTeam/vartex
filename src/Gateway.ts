@@ -11,7 +11,7 @@ import {
   sessionPinningMiddleware,
 } from './utility/session.utility.js';
 import { graphServer } from './graphql/server.graphql.js';
-import { blockByHeightRoute } from './route/block.route.js';
+import { blockByHashRoute, blockByHeightRoute } from './route/block.route.js';
 import { statusRoute } from './route/status.route.js';
 import { txUploadRoute, txGetByIdRoute } from './route/transaction.route.js';
 import { proxyRoute } from './route/proxy.route.js';
@@ -44,8 +44,9 @@ export function start(): void {
 
   app.get(dataRouteRegex, dataRoute);
 
-  app.post('/tx', txUploadRoute);
+  app.use('/tx/:id/status', proxyRoute);
   app.get('/tx/:id', txGetByIdRoute);
+  app.post('/tx', txUploadRoute);
 
   app.get('/peers', peerRoute);
   app.get('/logs', koiLogsRoute);
@@ -53,7 +54,12 @@ export function start(): void {
 
   // db endpoints
   app.get(`/block/height/:height`, blockByHeightRoute);
+  app.get(`/block/hash/:hash`, blockByHashRoute);
 
+  app.post(`/tx`, proxyRoute);
+  app.post(`/wallet`, proxyRoute);
+  app.post(`/unsigned_tx`, proxyRoute);
+  app.post(`/api`, proxyRoute);
   // app.all('*', proxyRoute);
 
   app.listen(process.env.PORT || 3000, () => {

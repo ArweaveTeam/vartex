@@ -27,6 +27,41 @@ export async function blockByHeightRoute(
       });
 
       R.pipe(
+        R.dissoc('txs_count'),
+        R.assoc(
+          'poa',
+          R.pipe(R.dissoc('block_hash'), R.dissoc('block_height'))(poa)
+        ),
+        (ret) => res.json(ret)
+      )(blockResult);
+    } catch (error) {
+      // Passes errors into the error handler
+      return next(error);
+    }
+  }
+}
+
+export async function blockByHashRoute(
+  req: Request,
+  res: Response,
+  next: (err?: string) => void
+) {
+  if (!req.params.hash) {
+    res.status(503);
+    return next('Height value was not specified');
+  } else {
+    try {
+      const hash = req.params.hash;
+      const blockResult = await blockMapper.get({
+        indep_hash: hash,
+      });
+      const poa = await poaMapper.get({
+        block_hash: hash,
+        block_height: blockResult.height,
+      });
+
+      R.pipe(
+        R.dissoc('txs_count'),
         R.assoc(
           'poa',
           R.pipe(R.dissoc('block_hash'), R.dissoc('block_height'))(poa)

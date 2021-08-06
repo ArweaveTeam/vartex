@@ -47,6 +47,7 @@
     "event-stream": "^4.0.1",
     "exit-hook": "^2.2.1",
     "express": "^5.0.0-alpha.8",
+    "express-http-proxy": "^1.6.2",
     "express-pg-session": "^1.1.0",
     "express-session": "^1.17.2",
     "fluture": "^14.0.0",

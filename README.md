@@ -1,9 +1,9 @@
 ## Status: beta (updated [06/08/2021])
 
-We are in beta! Please give the this new gateway a spin and let us know what you think on your ArweaveDev Discord.
-* :ghost: If you encounter issue please open a ticket here and we'll try to respond asap!
-* :gift: If feel this code needs improvement then please open a PR.
-* :pray: If a feature you'd like to see is missing, then open a feature request ticket and let's discuss it!
+We are in beta! Please give the new gateway a spin and let us know what you think on your ArweaveDev Discord.
+* :ghost: If you encounter issues, please open a ticket here and we'll try to respond asap!
+* :gift: If you feel this code needs improvement, please open a PR.
+* :pray: If a feature you'd like to see is missing, Open a feature request ticket and let's discuss it!
 
 
 This project is a re-fork of the current arweave gateway, aimed to enable anyone to (relatively) quickly setup their own gateways

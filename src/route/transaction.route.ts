@@ -3,6 +3,7 @@ import { Request, Response, NextFunction } from 'express';
 import got from 'got';
 import {
   transactionMapper,
+  txOffsetMapper,
   txIdToBlockMapper,
   tagsByTxId,
 } from '../database/mapper.database.js';
@@ -32,14 +33,27 @@ export async function txGetByIdRoute(
 ) {
   try {
     const txId = req.params.id;
-    // const txBlockMeta = await txIdToBlockMapper.get({ tx_id: txId });
-
     const rawTx = await transactionMapper.get({
       tx_id: txId,
     });
     res.json(R.pipe(R.dissoc('tag_count'), R.dissoc('tx_index'))(rawTx));
   } catch (error) {
-    // Passes errors into the error handler
+    return next(error);
+  }
+}
+
+export async function txOffsetRoute(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const txId = req.params.id;
+    const rawTx = await txOffsetMapper.get({
+      tx_id: txId,
+    });
+    res.json(R.dissoc('tx_id')(rawTx || { size: 0, offset: -1 }));
+  } catch (error) {
     return next(error);
   }
 }

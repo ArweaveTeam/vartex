@@ -11,9 +11,17 @@ import {
   sessionPinningMiddleware,
 } from './utility/session.utility.js';
 import { graphServer } from './graphql/server.graphql.js';
-import { blockByHashRoute, blockByHeightRoute } from './route/block.route.js';
+import {
+  blockCurrentRoute,
+  blockByHashRoute,
+  blockByHeightRoute,
+} from './route/block.route.js';
 import { statusRoute } from './route/status.route.js';
-import { txUploadRoute, txGetByIdRoute } from './route/transaction.route.js';
+import {
+  txOffsetRoute,
+  txUploadRoute,
+  txGetByIdRoute,
+} from './route/transaction.route.js';
 import { proxyRoute } from './route/proxy.route.js';
 import { dataRouteRegex, dataRoute } from './route/data.route.js';
 import { peerRoute } from './route/peer.route.js';
@@ -44,6 +52,7 @@ export function start(): void {
 
   app.get(dataRouteRegex, dataRoute);
 
+  app.get('/tx/:id/offset', txOffsetRoute);
   app.use('/tx/:id/status', proxyRoute);
   app.get('/tx/:id', txGetByIdRoute);
   app.post('/tx', txUploadRoute);
@@ -55,12 +64,14 @@ export function start(): void {
   // db endpoints
   app.get(`/block/height/:height`, blockByHeightRoute);
   app.get(`/block/hash/:hash`, blockByHashRoute);
+  app.get(`/block/current`, blockCurrentRoute);
 
   app.post(`/tx`, proxyRoute);
   app.post(`/wallet`, proxyRoute);
   app.post(`/unsigned_tx`, proxyRoute);
   app.post(`/api`, proxyRoute);
   app.get(/\/price.*/, proxyRoute);
+  app.get(/\/wallet.*/, proxyRoute);
   // app.all('*', proxyRoute);
 
   app.listen(process.env.PORT || 3000, () => {

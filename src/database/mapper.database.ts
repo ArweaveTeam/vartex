@@ -60,6 +60,10 @@ const mapper = new Mapper(cassandraClient, {
       keyspace: 'gateway',
       tables: ['tx_tag'],
     },
+    TxOffset: {
+      keyspace: 'gateway',
+      tables: ['tx_offset'],
+    },
   },
 });
 
@@ -78,6 +82,8 @@ export const transactionMapper = mapper.forModel('Transaction');
 export const txIdToBlockMapper = mapper.forModel('BlockByTxId');
 
 export const txTagMapper = mapper.forModel('TxTag');
+
+export const txOffsetMapper = mapper.forModel('TxOffset');
 
 export const tagsByTxId = async (txId: string) => {
   let lastRes = await txTagMapper.get({ tx_id: txId, tag_index: 0 });

@@ -2,7 +2,7 @@
 // IN CASSANDRA, BE CAREFUL!
 'use strict';
 const cassandra = require('cassandra-driver');
-require('dotenv').config();
+process.env.NODE_ENV !== 'test' && require('dotenv').config();
 
 const KEYSPACE = process.env['KEYSPACE'] ? process.env['KEYSPACE'] : 'gateway';
 
@@ -15,6 +15,7 @@ const client = new cassandra.Client({
   localDataCenter: 'datacenter1',
   credentials: { username: process.env.CASSANDRA_USERNAME, password: process.env.CASSANDRA_PASSWORD },
 });
+
 
 client
   .connect()

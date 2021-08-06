@@ -1,5 +1,6 @@
 import { config } from 'dotenv';
-config();
+
+process.env.NODE_ENV !== 'test' && config();
 
 export const indices = JSON.parse(process.env.INDICES || '[]') as Array<string>;
 export const blockOrder = [

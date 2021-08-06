@@ -13,7 +13,7 @@ const { Insert, Select, Update, Delete, CqlBuilderError } = cqlBuilder;
 
 export type TxSortOrder = 'HEIGHT_ASC' | 'HEIGHT_DESC';
 
-config();
+process.env.NODE_ENV !== 'test' && config();
 
 export interface QueryParams {
   to?: string[];

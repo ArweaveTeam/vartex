@@ -39,7 +39,7 @@ import { blockMapper, blockHeightToHashMapper } from './mapper.database';
 import * as Dr from './doctor.database';
 import { cacheANSEntries } from '../caching/ans.entry.caching';
 
-config();
+process.env.NODE_ENV !== 'test' && config();
 mkdir('cache');
 
 const trackerTheme = GaugeThemes.newTheme(
@@ -73,7 +73,10 @@ if (developmentSyncLength === NaN) {
 let isQueueProcessorStarted = false;
 let isPollingStarted = false;
 let isSyncing: boolean = true;
-let isRepairing: boolean = false;
+let isPaused: boolean = false;
+export const togglePause = (): void => {
+  isPaused = !isPaused;
+};
 
 const blockQueue = new PriorityQueue(function (
   a: { height: CassandraTypes.Long },
@@ -137,13 +140,13 @@ const processBlockQueue = (queueSource: any, queueState: QueueState): void => {
   // console.log(
   //   !txQueue.hasNoneLt(queueState.lastPrio ? toLong(0) : queueState.lastPrio),
   //   queueSource.isEmpty(),
-  //   isRepairing,
+  //   isPaused,
   //   queueState.isProcessing
   // );
   if (
     !txQueue.hasNoneLt(queueState.lastPrio ? toLong(0) : queueState.lastPrio) ||
     queueSource.isEmpty() ||
-    isRepairing ||
+    isPaused ||
     queueState.isProcessing
   ) {
     return;
@@ -177,7 +180,7 @@ const processBlockQueue = (queueSource: any, queueState: QueueState): void => {
 };
 
 const processTxQueue = (queueSource: any, queueState: QueueState): void => {
-  if (queueSource.isEmpty() || isRepairing || queueState.isProcessing) {
+  if (queueSource.isEmpty() || isPaused || queueState.isProcessing) {
     return;
   }
   queueSource.sortQueue();
@@ -364,7 +367,7 @@ export async function startSync({ isTesting = false }) {
     }
   }
 
-  const gauge = new Gauge(process.stdout, {
+  const gauge = new Gauge(process.stderr, {
     // tty: 79,
     template: [
       { type: 'progressbar', length: 0 },
@@ -431,11 +434,13 @@ export async function startSync({ isTesting = false }) {
     !isPollingStarted && startPolling();
   })(
     parallel(PARALLEL)(
-      unsyncedBlocks.map(({ height, hash }) => {
-        const getProgress = () =>
-          `${height}/${hashList.length}/${blockQueue.getSize()}`;
-        return storeBlock(height, hash, getProgress, gauge);
-      })
+      (unsyncedBlocks as any).map(
+        ({ height, hash }: { height: any; hash: string }): any => {
+          const getProgress = () =>
+            `${height}/${hashList.length}/${blockQueue.getSize()}`;
+          return storeBlock(height, hash, getProgress, gauge);
+        }
+      )
     )
   );
 }
@@ -447,69 +452,63 @@ export function storeBlock(
   gauge: any
 ): unknown {
   let isCancelled = false;
-  return Fluture(
-    (reject: (reason: string | void) => void, resolve: () => void) => {
-      async function getBlock(retry = 0) {
-        if (isRepairing || isCancelled) {
-          return;
-        }
-        const newSyncBlock = await queryGetBlock({
-          hash,
-          height,
-          gauge,
-          getProgress,
-        });
+  return Fluture((reject: any, resolve: any) => {
+    async function getBlock(retry = 0) {
+      if (isPaused || isCancelled) {
+        return;
+      }
+      const newSyncBlock = await queryGetBlock({
+        hash,
+        height,
+        gauge,
+        getProgress,
+      });
 
-        if (newSyncBlock && newSyncBlock.height === height) {
-          const newSyncBlockHeight = toLong(newSyncBlock.height);
-          blockQueue.enqueue({
-            callback: makeBlockImportQuery(newSyncBlock),
-            height: newSyncBlockHeight,
-            txCount: newSyncBlock.txs ? newSyncBlock.txs.length : 0,
-            type: 'block',
-          });
-          await Promise.all(
-            (newSyncBlock.txs || []).map(
-              async (txId: string, index: number) => {
-                const txIndex = newSyncBlockHeight
-                  .mul(MAX_TX_PER_BLOCK)
-                  .add(index);
-                await storeTransaction(
-                  txId,
-                  txIndex,
-                  newSyncBlockHeight,
-                  newSyncBlock
-                );
-              }
-            )
-          );
-          return;
+      if (newSyncBlock && newSyncBlock.height === height) {
+        const newSyncBlockHeight = toLong(newSyncBlock.height);
+        blockQueue.enqueue({
+          callback: makeBlockImportQuery(newSyncBlock),
+          height: newSyncBlockHeight,
+          txCount: newSyncBlock.txs ? newSyncBlock.txs.length : 0,
+          type: 'block',
+        });
+        await Promise.all(
+          (newSyncBlock.txs || []).map(async (txId: string, index: number) => {
+            const txIndex = newSyncBlockHeight.mul(MAX_TX_PER_BLOCK).add(index);
+            await storeTransaction(
+              txId,
+              txIndex,
+              newSyncBlockHeight,
+              newSyncBlock
+            );
+          })
+        );
+        return;
+      } else {
+        await new Promise((res) => setTimeout(res, 100));
+        if (retry >= 250) {
+          log.info(`Could not retrieve block at height ${height}`);
+          reject('Failed to fetch block after 250 retries');
         } else {
-          await new Promise((res) => setTimeout(res, 100));
-          if (retry >= 250) {
-            log.info(`Could not retrieve block at height ${height}`);
-            reject('Failed to fetch block after 250 retries');
-          } else {
-            return await getBlock(retry + 1);
-          }
+          return await getBlock(retry + 1);
         }
       }
-
-      blockQueue.sortQueue();
-      pWaitFor(
-        () =>
-          blockQueue.isEmpty() ||
-          blockQueue.peek().height.gt(height) ||
-          blockQueue.getSize() < PARALLEL + 1
-      )
-        .then(() => getBlock())
-        .then(resolve);
-
-      return () => {
-        isCancelled = true;
-      };
     }
-  );
+
+    blockQueue.sortQueue();
+    pWaitFor(
+      () =>
+        blockQueue.isEmpty() ||
+        blockQueue.peek().height.gt(height) ||
+        blockQueue.getSize() < PARALLEL + 1
+    )
+      .then(() => getBlock())
+      .then(resolve);
+
+    return () => {
+      isCancelled = true;
+    };
+  });
 }
 
 export async function storeTransaction(

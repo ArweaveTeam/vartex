@@ -7,6 +7,7 @@ import {
   txIdToBlockMapper,
   tagsByTxId,
 } from '../database/mapper.database.js';
+import { grabNode } from '../query/node.query.js';
 
 export async function txUploadRoute(
   req: Request,
@@ -14,7 +15,7 @@ export async function txUploadRoute(
   next: NextFunction
 ) {
   try {
-    const body = await got.post(`${req.session.node}/tx`, {
+    const body = await got.post(`${grabNode()}/tx`, {
       followRedirect: true,
       json: req.body,
     });

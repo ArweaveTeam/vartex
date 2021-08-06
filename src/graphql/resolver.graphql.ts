@@ -29,7 +29,7 @@ import {
 } from './query.graphql';
 import * as DbMapper from '../database/mapper.database';
 
-config();
+process.env.NODE_ENV !== 'test' && config();
 
 function sortByTxIndexAsc(
   result1: { tx_index: CassandraTypes.Long },

@@ -22,7 +22,7 @@ import {
   getTxTagBucketName,
 } from './constants.database';
 
-config();
+process.env.NODE_ENV !== 'test' && config();
 
 const isNumeric = (s: any) => !(isNaN as any)(s);
 

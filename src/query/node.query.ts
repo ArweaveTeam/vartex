@@ -2,25 +2,25 @@ import { existsSync } from 'fs';
 import fs from 'fs/promises';
 import { types as CassandraTypes } from 'cassandra-driver';
 import * as R from 'rambda';
-import { config } from 'dotenv';
 import rwc from 'random-weighted-choice';
 import got from 'got';
 import { log } from '../utility/log.utility';
 import { getChunk } from './chunk.query';
 import { HTTP_TIMEOUT_SECONDS } from '../constants';
 
-config();
-
 export const NODES = process.env.ARWEAVE_NODES
   ? JSON.parse(process.env.ARWEAVE_NODES)
-  : ['http://lon-1.eu-west-1.arweave.net:1984'];
+  : ['http://lon-2.eu-west-1.arweave.net:1984'];
 
 type WeightedNode = { id: string; weight: number };
 
-let nodeTemperatures: WeightedNode[] = [
-  { id: 'https://arweave.net', weight: 2 },
-  { id: 'http://lon-2.eu-west-1.arweave.net:1984', weight: 2 },
-];
+let nodeTemperatures: WeightedNode[] =
+  process.env.NODE_ENV === 'test'
+    ? []
+    : [
+        { id: 'https://arweave.net', weight: 2 },
+        { id: 'http://lon-2.eu-west-1.arweave.net:1984', weight: 2 },
+      ];
 
 const syncNodeTemperatures = () => {
   nodeTemperatures = NODES.map((url: string) => {
@@ -49,7 +49,14 @@ export const findPeers = async () => {
 };
 
 export function grabNode() {
-  const randomWeightedNode = rwc(nodeTemperatures) || 'https://www.arweave.net';
+  R.isEmpty(nodeTemperatures) && syncNodeTemperatures();
+  const randomWeightedNode = rwc(nodeTemperatures);
+  if (!randomWeightedNode) {
+    if (process.env.NODE_ENV === 'test') {
+      return nodeTemperatures[0].id;
+    }
+    throw new Error('No more peers were found');
+  }
   return randomWeightedNode.startsWith('http')
     ? randomWeightedNode
     : `http://${randomWeightedNode}`;
@@ -162,13 +169,16 @@ export async function getHashList({
     });
   } else {
     const tryNode = grabNode();
+    const url = `${tryNode}/hash_list`;
     log.info(`[database] fetching the hash_list, this may take a while...`);
+
     try {
-      const body = await got.get(`${tryNode}/hash_list`, {
+      const body = await got.get(url, {
         responseType: 'json',
         resolveBodyOnly: true,
         followRedirect: true,
       });
+
       const linearHashList = R.reverse(body as any);
       return fs
         .writeFile(
@@ -177,6 +187,7 @@ export async function getHashList({
         )
         .then(() => linearHashList as string[]);
     } catch (error) {
+      process.env.NODE_ENV === 'test' && console.error(error);
       coolNode(tryNode);
       return new Promise((res) => setTimeout(res, 10 + 2 * retry)).then(
         async () => {

@@ -3,7 +3,7 @@ import fs from 'fs-jetpack';
 import { streamAndCacheTx } from './stream.caching';
 import { streamAndCacheAns } from './ans.caching';
 
-config();
+process.env.NODE_ENV !== 'test' && config();
 
 export const cacheFolder = process.env.CACHE_FOLDER;
 

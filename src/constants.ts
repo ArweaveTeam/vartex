@@ -1,6 +1,6 @@
 import { config } from 'dotenv';
 
-config();
+process.env.NODE_ENV !== 'test' && config();
 
 export const HTTP_TIMEOUT_SECONDS: number = process.env['HTTP_TIMEOUT_SECONDS']
   ? parseInt(process.env['HTTP_TIMEOUT_SECONDS'] || '15')

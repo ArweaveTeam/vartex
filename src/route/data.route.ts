@@ -7,4 +7,4 @@ import { log } from '../utility/log.utility';
 import { getTransaction, tagValue } from '../query/transaction.query';
 // import { cacheFolder, cacheFile, cacheAnsFile } from '../caching/file.caching';
 
-config();
+process.env.NODE_ENV !== 'test' && config();

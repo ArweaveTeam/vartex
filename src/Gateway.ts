@@ -5,10 +5,6 @@ import { config } from 'dotenv';
 import cors from 'cors';
 import { jsonMiddleware } from './middleware/json.middleware.js';
 import { log } from './utility/log.utility.js';
-import {
-  sessionMiddleware,
-  sessionPinningMiddleware,
-} from './utility/session.utility.js';
 import { graphServer } from './graphql/server.graphql.js';
 import {
   blockCurrentRoute,
@@ -40,8 +36,6 @@ export function start(): void {
 
   app.use(cors());
   app.use(jsonMiddleware);
-  app.use(sessionMiddleware);
-  app.use(sessionPinningMiddleware);
   app.use(koiLogger.logger);
 
   app.get('/', statusRoute);
@@ -84,7 +78,7 @@ export function start(): void {
         disableHealthCheck: true,
         schemaPolling: false,
       });
-      startSync({});
+      startSync({ isTesting: process.env.NODE_ENV === 'test' });
     });
     app.get(
       '/graphql',

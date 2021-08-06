@@ -4,7 +4,6 @@ import gpmeImport from 'graphql-playground-middleware-express';
 import { config } from 'dotenv';
 import cors from 'cors';
 import { jsonMiddleware } from './middleware/json.middleware.js';
-import { manifestMiddleware } from './middleware/manifest.middleware.js';
 import { log } from './utility/log.utility.js';
 import {
   sessionMiddleware,
@@ -23,7 +22,7 @@ import {
   txGetByIdRoute,
 } from './route/transaction.route.js';
 import { proxyGetRoute, proxyPostRoute } from './route/proxy.route.js';
-import { dataRouteRegex, dataRoute } from './route/data.route.js';
+// import { dataRouteRegex, dataRoute } from './route/data.route.js';
 import { peerRoute } from './route/peer.route.js';
 import { hashListRoute } from './route/hash-list.route.js';
 import { koiLogger, koiLogsRoute, koiLogsRawRoute } from './route/koi.route.js';
@@ -44,7 +43,6 @@ export function start(): void {
   app.use(sessionMiddleware);
   app.use(sessionPinningMiddleware);
   app.use(koiLogger.logger);
-  app.use(manifestMiddleware);
 
   app.get('/', statusRoute);
   app.get('/status', statusRoute);
@@ -64,8 +62,8 @@ export function start(): void {
   app.get(`/block/height/:height`, blockByHeightRoute);
   app.get(`/block/hash/:hash`, blockByHashRoute);
   app.get(`/block/current`, blockCurrentRoute);
-  app.get('/:id', txGetByIdRoute);
-  
+  // app.get('/:id', txGetByIdRoute);
+
   app.post(`/tx`, proxyPostRoute);
   app.post('/chunk', proxyPostRoute);
   app.post(`/wallet`, proxyPostRoute);

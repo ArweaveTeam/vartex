@@ -211,6 +211,14 @@ export function generateDeferedBlockQuery(
     .build();
 }
 
+export function generateDeferedTxQuery(params: any): any {
+  return Select()
+    .table('transaction', KEYSPACE)
+    .where('tx_id = ?', params.tx_id)
+    .field(params.deferedSelect)
+    .build();
+}
+
 export function generateDeferedTxBlockQuery(
   height: CassandraTypes.Long,
   fieldSelect: any

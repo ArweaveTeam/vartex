@@ -22,6 +22,7 @@ import {
   QueryParams,
   generateTransactionQuery,
   generateBlockQuery,
+  generateDeferedTxQuery,
   generateDeferedTxBlockQuery,
   generateDeferedBlockQuery,
   generateTagQuery,
@@ -96,13 +97,13 @@ const edgeFieldMapTx = {
   'edges.node.last_tx': 'anchor',
   'edges.node.target': 'recipient',
   'edges.node.tags': 'tags',
-  'edges.node.reward': 'fee',
+  // 'edges.node.reward': 'fee',
   'edges.node.quantity': 'quantity',
   'edges.node.data_size': 'data_size',
   'edges.node.content_type': 'data_type',
   'edges.node.parent': 'parent',
   'edges.node.owner': 'owner',
-  'edges.node.owner_address': 'owner_address',
+  // 'edges.node.owner_address': 'owner_address',
 };
 
 const edgeFieldMapBlock = {
@@ -225,18 +226,6 @@ export const resolvers = {
 
       const result = resultArray[0];
 
-      if (fieldsWithSubFields.signature !== undefined) {
-        let {
-          rows: resultTxArray,
-        } = await cassandraClient.execute(
-          `SELECT signature FROM ${KEYSPACE}.transaction WHERE tx_id = ?`,
-          [result.tx_id],
-          { prepare: true, executionProfile: 'gql' }
-        );
-
-        result.signature = resultTxArray[0].signature;
-      }
-
       if (fieldsWithSubFields.block !== undefined) {
         let selectParams = [];
         const userSelectKeys = R.keys(fieldsWithSubFields.block);
@@ -277,6 +266,57 @@ export const resolvers = {
           result.block = blockResult[0];
         }
       }
+
+      const selectedDeferedKeysUser = [];
+      R.keys(fieldsWithSubFields).forEach(
+        (k: any) =>
+          ['anchor', 'fee', 'signature'].includes(k) &&
+          selectedDeferedKeysUser.push(
+            R.find(R.equals(k))(['anchor', 'fee', 'signature'])
+          )
+      );
+      if (!R.isEmpty(selectedDeferedKeysUser)) {
+        const selectedDeferedKeysDb = [];
+        selectedDeferedKeysUser.forEach((k) => {
+          switch (k) {
+            case 'anchor': {
+              selectedDeferedKeysDb.push('last_tx');
+              break;
+            }
+            case 'fee': {
+              selectedDeferedKeysDb.push('reward');
+              break;
+            }
+            default: {
+              selectedDeferedKeysDb.push(k);
+            }
+          }
+        });
+
+        const deferedTxQ = generateDeferedTxQuery({
+          deferedSelect: selectedDeferedKeysDb,
+          tx_id: result.tx_id,
+        });
+
+        let { rows: deferedTxResult } = await cassandraClient.execute(
+          deferedTxQ.query,
+          deferedTxQ.params,
+          {
+            prepare: true,
+            executionProfile: 'gql',
+          }
+        );
+        if (deferedTxResult[0].last_tx) {
+          result.anchor = deferedTxResult[0].last_tx;
+        }
+        if (deferedTxResult[0].reward) {
+          result.fee = deferedTxResult[0].reward;
+        }
+        if (deferedTxResult[0].signature) {
+          result.signature = deferedTxResult[0].signature;
+        }
+      }
+
       return result as any;
     },
     transactions: async (
@@ -397,6 +437,58 @@ export const resolvers = {
       }
 
       let hasNextPage = false;
+
+      const selectedDeferedKeysUser = [];
+      R.keys(fieldsWithSubFields.edges.node).forEach(
+        (k: any) =>
+          ['anchor', 'fee', 'signature'].includes(k) &&
+          selectedDeferedKeysUser.push(
+            R.find(R.equals(k))(['anchor', 'fee', 'signature'])
+          )
+      );
+      if (!R.isEmpty(selectedDeferedKeysUser)) {
+        const selectedDeferedKeysDb = [];
+        selectedDeferedKeysUser.forEach((k) => {
+          switch (k) {
+            case 'anchor': {
+              selectedDeferedKeysDb.push('last_tx');
+              break;
+            }
+            case 'fee': {
+              selectedDeferedKeysDb.push('reward');
+              break;
+            }
+            default: {
+              selectedDeferedKeysDb.push(k);
+            }
+          }
+        });
+
+        for (const tx of result) {
+          const deferedTxQ = generateDeferedTxQuery({
+            deferedSelect: selectedDeferedKeysDb,
+            tx_id: tx.tx_id,
+          });
+
+          let { rows: deferedTxResult } = await cassandraClient.execute(
+            deferedTxQ.query,
+            deferedTxQ.params,
+            {
+              prepare: true,
+              executionProfile: 'gql',
+            }
+          );
+          if (deferedTxResult[0].last_tx) {
+            tx.anchor = deferedTxResult[0].last_tx;
+          }
+          if (deferedTxResult[0].reward) {
+            tx.fee = deferedTxResult[0].reward;
+          }
+          if (deferedTxResult[0].signature) {
+            tx.signature = deferedTxResult[0].signature;
+          }
+        }
+      }
 
       return {
         pageInfo: {

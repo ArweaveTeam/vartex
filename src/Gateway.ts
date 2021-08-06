@@ -22,7 +22,7 @@ import {
   txUploadRoute,
   txGetByIdRoute,
 } from './route/transaction.route.js';
-import { proxyRoute } from './route/proxy.route.js';
+import { proxyGetRoute, proxyPostRoute } from './route/proxy.route.js';
 import { dataRouteRegex, dataRoute } from './route/data.route.js';
 import { peerRoute } from './route/peer.route.js';
 import { hashListRoute } from './route/hash-list.route.js';
@@ -53,9 +53,8 @@ export function start(): void {
   app.get(dataRouteRegex, dataRoute);
 
   app.get('/tx/:id/offset', txOffsetRoute);
-  app.use('/tx/:id/status', proxyRoute);
+  app.use('/tx/:id/status', proxyGetRoute);
   app.get('/tx/:id', txGetByIdRoute);
-  app.post('/tx', txUploadRoute);
 
   app.get('/peers', peerRoute);
   app.get('/logs', koiLogsRoute);
@@ -65,13 +64,15 @@ export function start(): void {
   app.get(`/block/height/:height`, blockByHeightRoute);
   app.get(`/block/hash/:hash`, blockByHashRoute);
   app.get(`/block/current`, blockCurrentRoute);
-
-  app.post(`/tx`, proxyRoute);
-  app.post(`/wallet`, proxyRoute);
-  app.post(`/unsigned_tx`, proxyRoute);
-  app.post(`/api`, proxyRoute);
-  app.get(/\/price.*/, proxyRoute);
-  app.get(/\/wallet.*/, proxyRoute);
+  app.get('/:id', txGetByIdRoute);
+  
+  app.post(`/tx`, proxyPostRoute);
+  app.post('/chunk', proxyPostRoute);
+  app.post(`/wallet`, proxyPostRoute);
+  app.post(`/unsigned_tx`, proxyPostRoute);
+  app.post(`/api`, proxyPostRoute);
+  app.get(/\/price.*/, proxyGetRoute);
+  app.get(/\/wallet.*/, proxyGetRoute);
   // app.all('*', proxyRoute);
 
   app.listen(process.env.PORT || 3000, () => {

@@ -18,8 +18,6 @@ import {
   txGetByIdRoute,
 } from './route/transaction.route.js';
 import { proxyGetRoute, proxyPostRoute } from './route/proxy.route.js';
-// import { dataRouteRegex, dataRoute } from './route/data.route.js';
-import { peerRoute } from './route/peer.route.js';
 import { hashListRoute } from './route/hash-list.route.js';
 import { koiLogger, koiLogsRoute, koiLogsRawRoute } from './route/koi.route.js';
 import { findPeers } from './query/node.query.js';
@@ -43,13 +41,11 @@ export function start(): void {
   app.get('/info', proxyGetRoute);
   app.get('/hash_list', hashListRoute);
 
-  // app.get(dataRouteRegex, dataRoute);
-
   app.get('/tx/:id/offset', txOffsetRoute);
   app.use('/tx/:id/status', proxyGetRoute);
   app.get('/tx/:id', txGetByIdRoute);
 
-  app.get('/peers', peerRoute);
+  app.get('/peers', proxyGetRoute);
   app.get('/logs', koiLogsRoute);
   app.get('/logs/raw', koiLogsRawRoute);
   app.get('/tx_anchor', proxyGetRoute);
@@ -67,6 +63,7 @@ export function start(): void {
   app.get(/\/price.*/, proxyGetRoute);
   app.get(/\/wallet.*/, proxyGetRoute);
   app.get(/\/[a-z0-9_-]{43}/i, proxyGetRoute);
+  
   app.all('*', (req: Request, res: Response) => {
     res.status(400).json({
       status: 400,

@@ -9,6 +9,7 @@
 !/tsconfig.json
 !/src/**
 !/cassandra/**
+!/.env
 
 # Ignore Unnecessary Files
 **/*.log

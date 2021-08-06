@@ -3,65 +3,10 @@ const fs = require('fs');
 const net = require('net');
 const cassandra = require('cassandra-driver');
 
-// Let's check if .env exists, if not, let's create it from .env.example
-if (!fs.existsSync('.env')) {
-  try {
-    fs.writeFileSync('.env', fs.readFileSync('.env.example'), 'utf8');
-  } catch (err) {
-    fs.writeFileSync(
-      '.env',
-      `ARWEAVE_NODES=["https://arweave.net"]
-    PORT=3000
-    PARALLEL=32
-    DB_TIMEOUT=30
-    HTTP_TIMEOUT_SECONDS=15
-    CASSANDRA_CONTACT_POINTS=["localhost:9042"]
-    KEYSPACE=gateway
-    CASSANDRA_USERNAME=cassandra
-    CASSANDRA_PASSWORD=cassandra`,
-      'utf8'
-    );
-  }
-}
-process.env.NODE_ENV !== 'test' && require('dotenv').config();
+require('dotenv').config();
+checkEnvVars();
 
-// Let's confirm every required env var is set
-if (
-  !process.env.ARWEAVE_NODES ||
-  !Array.isArray(process.env.ARWEAVE_NODES) ||
-  !process.env.ARWEAVE_NODES.length
-) {
-  process.env.ARWEAVE_NODES = ['https://arweave.net'];
-} else if (!process.env.PORT || isNaN(process.env.PORT)) {
-  process.env.PORT = 3000;
-} else if (!process.env.PARALLEL || isNaN(process.env.PARALLEL)) {
-  process.env.PARALLEL = 32;
-} else if (!process.env.DB_TIMEOUT || isNaN(process.env.DB_TIMEOUT)) {
-  process.env.DB_TIMEOUT = 30;
-} else if (
-  !process.env.HTTP_TIMEOUT_SECONDS ||
-  isNaN(process.env.HTTP_TIMEOUT_SECONDS)
-) {
-  process.env.HTTP_TIMEOUT_SECONDS = 15;
-} else if (
-  !process.env.CASSANDRA_CONTACT_POINTS ||
-  !Array.isArray(process.env.CASSANDRA_CONTACT_POINTS) ||
-  !process.env.CASSANDRA_CONTACT_POINTS.length
-) {
-  process.env.CASSANDRA_CONTACT_POINTS = ['localhost:9042'];
-} else if (!process.env.KEYSPACE || !process.env.KEYSPACE.length) {
-  process.env.KEYSPACE = 'gateway';
-} else if (
-  !process.env.CASSANDRA_USERNAME ||
-  !process.env.CASSANDRA_USERNAME.length
-) {
-  process.env.CASSANDRA_USERNAME = 'cassandra';
-} else if (
-  !process.env.CASSANDRA_PASSWORD ||
-  !process.env.CASSANDRA_PASSWORD.length
-) {
-  process.env.CASSANDRA_PASSWORD = 'cassandra';
-}
+console.log(process.env);
 
 /**
  * CASSANDRA INIT
@@ -294,3 +239,71 @@ async function connect() {
     });
 }
 connect();
+
+
+// -------------------------
+// Let's confirm every required env var is set, if not, we assume it's running on Docker
+function checkEnvVars() {
+  if (
+    !process.env.ARWEAVE_NODES ||
+    !process.env.ARWEAVE_NODES.length
+  ) {
+    process.env.ARWEAVE_NODES = JSON.stringify(["http://lon-2.eu-west-1.arweave.net:1984"]);
+  } 
+
+  if (!process.env.PORT || isNaN(process.env.PORT)) {
+    process.env.PORT = 3000;
+  } 
+
+  if (!process.env.PARALLEL || isNaN(process.env.PARALLEL)) {
+    process.env.PARALLEL = 32;
+  }
+
+  if (!process.env.DB_TIMEOUT || isNaN(process.env.DB_TIMEOUT)) {
+    process.env.DB_TIMEOUT = 30;
+  } 
+
+  if (
+    !process.env.HTTP_TIMEOUT_SECONDS ||
+    isNaN(process.env.HTTP_TIMEOUT_SECONDS)
+  ) {
+    process.env.HTTP_TIMEOUT_SECONDS = 15;
+  } 
+
+  if (
+    !process.env.CASSANDRA_CONTACT_POINTS ||
+    !process.env.CASSANDRA_CONTACT_POINTS.length
+  ) {
+    process.env.CASSANDRA_CONTACT_POINTS = JSON.stringify(['cassandra']);
+  }
+
+  if (!process.env.KEYSPACE || !process.env.KEYSPACE.length) {
+    process.env.KEYSPACE = 'gateway';
+  } 
+
+  if (
+    !process.env.CASSANDRA_USERNAME ||
+    !process.env.CASSANDRA_USERNAME.length
+  ) {
+    process.env.CASSANDRA_USERNAME = 'cassandra';
+  } 
+
+  if (
+    !process.env.CASSANDRA_PASSWORD ||
+    !process.env.CASSANDRA_PASSWORD.length
+  ) {
+    process.env.CASSANDRA_PASSWORD = 'cassandra';
+  }
+
+  fs.writeFileSync('.env',
+  `ARWEAVE_NODES=${process.env.ARWEAVE_NODES}
+  PORT=${process.env.PORT}
+  PARALLEL=${process.env.PARALLEL}
+  DB_TIMEOUT=${process.env.DB_TIMEOUT}
+  HTTP_TIMEOUT_SECONDS=${process.env.HTTP_TIMEOUT_SECONDS}
+  CASSANDRA_CONTACT_POINTS=${process.env.CASSANDRA_CONTACT_POINTS}
+  KEYSPACE=${process.env.KEYSPACE}
+  CASSANDRA_USERNAME=${process.env.CASSANDRA_USERNAME}
+  CASSANDRA_PASSWORD=${process.env.CASSANDRA_PASSWORD}`,
+  'utf8');
+}

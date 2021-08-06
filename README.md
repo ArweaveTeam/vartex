@@ -32,10 +32,15 @@ Clone this repo with:
 git clone https://github.com/ArweaveTeam/gateway-cassandra.git
 ```
 
-Go into this directory:
+Go into the directory:
 
 ```bash
 cd gateway-cassandra
+```
+
+Copy the .env.example to .env, and change the `ARWEAVE_NODES` variable to the IP addresses of your Arweave [node](https://docs.arweave.org/info/mining/mining-guide).
+```bash
+cp .env.example .env
 ```
 
 Run the docker-compose command:

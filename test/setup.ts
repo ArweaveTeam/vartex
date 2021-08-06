@@ -1,6 +1,6 @@
 export const testEnvVars = {
   ...process.env,
-  ARWEAVE_NODES: '["https://mockweave.net"]',
+  ARWEAVE_NODES: '["http://localhost:12345"]',
   CASSANDRA_CONTACT_POINTS:
     process.env.CASSANDRA_CONTACT_POINTS || '["localhost:9042"]',
   CASSANDRA_USERNAME: 'cassandra',

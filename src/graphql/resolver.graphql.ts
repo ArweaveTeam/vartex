@@ -161,7 +161,7 @@ const resolveGqlBlockSelect = (userFields: any): string[] => {
 
   R.keys(edgeFieldMapBlock).forEach((keyPath) => {
     if (R.hasPath(keyPath as string, userFields)) {
-      select.push(fieldMap[keyPath]);
+      select.push(edgeFieldMapBlock[keyPath]);
     }
   });
 
@@ -576,6 +576,7 @@ export const resolvers = {
         fetchSize,
         sortOrder: queryParams.sort || undefined,
       });
+
       const hasNextPage = false;
 
       let { rows: result } = await cassandraClient.execute(
@@ -684,7 +685,7 @@ export interface Cursor {
 
 export function newCursor(): string {
   return encodeCursor({
-    timestamp: CassandraTypes.TimeUuid.now().toString(),
+    timestamp: moment(new Date()).unix().toString(),
     offset: 0,
   });
 }

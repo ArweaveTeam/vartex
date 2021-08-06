@@ -19,7 +19,7 @@
     ".": "./src"
   },
   "scripts": {
-    "test": "yarn run gql && node --experimental-vm-modules node_modules/jest/bin/jest.js --verbose false --ci test/*",
+    "test": "yarn run gql && node --experimental-vm-modules node_modules/jest/bin/jest.js --verbose false --ci --forceExit test/*",
     "lint": "eslint \"test/*.ts\" \"test/**/*.ts\" \"src/*.ts\" \"src/**/*.ts\" \"migrations/*.ts\" \"knexfile.ts\"",
     "gql": "node_modules/@graphql-codegen/cli/bin.js --config codegen.yml",
     "prestart": "yarn run gql && yarn run migrate:init",

@@ -35,10 +35,10 @@ services:
     container_name: gateway
     build: .
     ports:
-      - '80:80'
+      - $PORT:$PORT
     environment: 
       - CASSANDRA_CONTACT_POINTS=["cassandra"]
-      - PORT=80
+      - PORT=$PORT
     links:
       - cassandra
     depends_on:

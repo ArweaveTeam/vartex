@@ -1,15 +1,15 @@
-import * as R from 'rambda';
-import {types as CassandraTypes} from 'cassandra-driver';
-import {KEYSPACE} from '../constants';
-import {getBlock as queryGetBlock} from '../query/block.query';
+import * as R from "rambda";
+import { types as CassandraTypes } from "cassandra-driver";
+import { KEYSPACE } from "../constants";
+import { getBlock as queryGetBlock } from "../query/block.query";
 import {
   cassandraClient,
   getMaxHeightBlock,
   makeBlockImportQuery,
   makeTxImportQuery,
   toLong,
-} from './cassandra.database';
-import * as C from './constants.database';
+} from "./cassandra.database";
+import * as C from "./constants.database";
 
 export const checkForBlockGaps = async (): Promise<boolean> => {
   const expectedBlockHeightResult = await cassandraClient.execute(
@@ -97,7 +97,7 @@ export const findTxGaps = async (): Promise<void> => {
         (row) => row.txs_count && row.txs_count !== 0,
     );
 
-    for (const {txs_count, height, txs} of txCounts) {
+    for (const { txs_count, height, txs } of txCounts) {
       const txCntQ = await cassandraClient.execute(
           `SELECT COUNT(*) FROM gateway.transaction WHERE block_height>=${height.divide(
               C.MAX_TX_PER_BLOCK,
@@ -114,7 +114,7 @@ export const findTxGaps = async (): Promise<void> => {
                 .add(1)
                 .divide(C.MAX_TX_PER_BLOCK)} ALLOW FILTERING`,
         );
-        for (const {tx_id} of txDataQ.rows) {
+        for (const { tx_id } of txDataQ.rows) {
           if (!txs.includes(tx_id)) {
             missingTxs.push(tx_id);
           }
@@ -125,7 +125,7 @@ export const findTxGaps = async (): Promise<void> => {
 
   if (!R.isEmpty(missingTxs)) {
     console.error(
-        'Very bad situation it seems these txs are missing',
+        "Very bad situation it seems these txs are missing",
         missingTxs,
     );
   }

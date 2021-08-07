@@ -1,4 +1,4 @@
-import {types as CassandraTypes} from 'cassandra-driver';
+import { types as CassandraTypes } from "cassandra-driver";
 
 export const MAX_TX_PER_BLOCK = 1000;
 

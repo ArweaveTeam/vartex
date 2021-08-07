@@ -1,12 +1,12 @@
-import got from 'got';
-import {TagFilter} from '../graphql/types';
+import got from "got";
+import { TagFilter } from "../graphql/types";
 import {
   Base64UrlEncodedString,
   WinstonString,
   fromB64Url,
-} from '../utility/encoding.utility';
-import {grabNode, coolNode, warmNode} from './node.query';
-import {HTTP_TIMEOUT_SECONDS} from '../constants';
+} from "../utility/encoding.utility";
+import { grabNode, coolNode, warmNode } from "./node.query";
+import { HTTP_TIMEOUT_SECONDS } from "../constants";
 
 export interface Tag {
   name: Base64UrlEncodedString;
@@ -41,17 +41,17 @@ export async function getTransaction({
   let jsonPayload;
   try {
     jsonPayload = await got.get(`${tryNode}/tx/${txId}`, {
-      responseType: 'json',
+      responseType: "json",
       resolveBodyOnly: true,
     });
   } catch (error) {
     coolNode(tryNode);
     return new Promise((res) => setTimeout(res, 10 + 2 * retry)).then(() => {
       if (retry < 100) {
-        return getTransaction({txId, retry: retry + 1});
+        return getTransaction({ txId, retry: retry + 1 });
       } else {
         console.error(
-            'Failed to establish connection to any specified node after 100 retries',
+            "Failed to establish connection to any specified node after 100 retries",
         );
         process.exit(1);
       }
@@ -72,17 +72,17 @@ export async function getTxOffset({
   let jsonPayload;
   try {
     jsonPayload = await got.get(`${tryNode}/tx/${txId}/offset`, {
-      responseType: 'json',
+      responseType: "json",
       resolveBodyOnly: true,
     });
   } catch (error) {
     coolNode(tryNode);
     return new Promise((res) => setTimeout(res, 10 + 2 * retry)).then(() => {
       if (retry < 100) {
-        return getTransaction({txId, retry: retry + 1});
+        return getTransaction({ txId, retry: retry + 1 });
       } else {
         console.error(
-            'Failed to establish connection to any specified node after 100 retries',
+            "Failed to establish connection to any specified node after 100 retries",
         );
         process.exit(1);
       }
@@ -94,10 +94,10 @@ export async function getTxOffset({
 
 export function toB64url(input: string): Base64UrlEncodedString {
   return Buffer.from(input)
-      .toString('base64')
-      .replace(/\+/g, '-')
-      .replace(/\//g, '_')
-      .replace(/=/g, '');
+      .toString("base64")
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=/g, "");
 }
 
 export function tagValue(tags: Array<Tag>, name: string): string {
@@ -108,7 +108,7 @@ export function tagValue(tags: Array<Tag>, name: string): string {
     }
   }
 
-  return '';
+  return "";
 }
 
 export function tagToUTF8(tags: Array<Tag>): Array<Tag> {

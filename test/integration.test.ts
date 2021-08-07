@@ -1,54 +1,54 @@
-import * as R from 'rambda';
-import cassandra, {types as CassandraTypes} from 'cassandra-driver';
-import {exists as existsOrig} from 'fs';
-import fs from 'fs/promises';
-import {jest} from '@jest/globals';
-import util from 'util';
-import got from 'got';
-import express from 'express';
-import killPort from 'kill-port';
-import * as helpers from './helpers';
+import * as R from "rambda";
+import cassandra, { types as CassandraTypes } from "cassandra-driver";
+import { exists as existsOrig } from "fs";
+import fs from "fs/promises";
+import { jest } from "@jest/globals";
+import util from "util";
+import got from "got";
+import express from "express";
+import killPort from "kill-port";
+import * as helpers from "./helpers";
 
 const PORT = 12345;
 
 const exists = util.promisify(existsOrig);
 
-let mockBlocks: any[] = helpers.generateMockBlocks({totalBlocks: 100});
+let mockBlocks: any[] = helpers.generateMockBlocks({ totalBlocks: 100 });
 
 const lastBlock: any = {
-  current: '',
+  current: "",
   height: -1,
 };
 
 const tmpNextBlock: any = R.last(mockBlocks);
 
-lastBlock['height'] = tmpNextBlock.height;
-lastBlock['current'] = tmpNextBlock.indep_hash;
+lastBlock["height"] = tmpNextBlock.height;
+lastBlock["current"] = tmpNextBlock.indep_hash;
 
 let app: any;
 let srv: any;
 let proc: any;
 let client: any;
 
-describe('integration suite', function() {
+describe("integration suite", function() {
   jest.setTimeout(60000);
   beforeAll(async function() {
     await helpers.waitForCassandra();
     client = new cassandra.Client({
-      contactPoints: ['localhost:9042'],
-      localDataCenter: 'datacenter1',
+      contactPoints: ["localhost:9042"],
+      localDataCenter: "datacenter1",
     });
     app = express();
-    app.get('/hash_list', function(req, res) {
-      res.status(200).json(R.reverse(R.pluck('indep_hash', mockBlocks)));
+    app.get("/hash_list", function(req, res) {
+      res.status(200).json(R.reverse(R.pluck("indep_hash", mockBlocks)));
     });
 
-    app.get('/info', function(req, res) {
+    app.get("/info", function(req, res) {
       res.status(200).json(lastBlock);
     });
 
-    app.get('/block/height/:id', function(req, res) {
-      const match = R.find(R.propEq('height', parseInt(req.params.id)))(
+    app.get("/block/height/:id", function(req, res) {
+      const match = R.find(R.propEq("height", parseInt(req.params.id)))(
           mockBlocks,
       );
       if (match) {
@@ -58,8 +58,8 @@ describe('integration suite', function() {
       }
     });
 
-    app.get('/block/hash/:id', function(req, res) {
-      const match = R.find(R.propEq('indep_hash', req.params.id))(mockBlocks);
+    app.get("/block/hash/:id", function(req, res) {
+      const match = R.find(R.propEq("indep_hash", req.params.id))(mockBlocks);
       // console.error(req.params.id, req.params.id, match);
       if (match) {
         res.status(200).json(match);
@@ -68,7 +68,7 @@ describe('integration suite', function() {
       }
     });
 
-    app.get('*', function(req, res) {
+    app.get("*", function(req, res) {
       console.error(req);
       res.status(404);
       // res.status(200).json(R.pluck('indep_hash', mockBlocks));
@@ -80,7 +80,7 @@ describe('integration suite', function() {
   afterAll(async () => {
     srv && srv.close();
     if (proc) {
-      proc.kill('SIGINT');
+      proc.kill("SIGINT");
       proc = undefined;
     }
     // wait a second for handlers to close
@@ -90,11 +90,11 @@ describe('integration suite', function() {
   afterEach(async () => {
     // togglePause();
     if (proc) {
-      proc.kill('SIGINT');
+      proc.kill("SIGINT");
       proc = undefined;
     }
 
-    await killPort(3000, 'tcp');
+    await killPort(3000, "tcp");
     await new Promise((resolve) => setTimeout(resolve, 1000));
   });
   beforeEach(async () => {
@@ -102,17 +102,17 @@ describe('integration suite', function() {
     jest.setTimeout(60000);
   });
 
-  test('it writes 100 blocks into cassandra', async () => {
+  test("it writes 100 blocks into cassandra", async () => {
     await helpers.nuke();
     await helpers.initDb();
-    if (await exists('./cache/hash_list_test.json')) {
-      await fs.unlink('./cache/hash_list_test.json');
+    if (await exists("./cache/hash_list_test.json")) {
+      await fs.unlink("./cache/hash_list_test.json");
     }
 
-    let logs = '';
+    let logs = "";
     let fullySyncPromiseResolve: any;
     proc = helpers.startGateway();
-    proc.stdout.on('data', (log: string) => {
+    proc.stdout.on("data", (log: string) => {
       if (
         /Database fully in sync/g.test(log.toString()) &&
         fullySyncPromiseResolve
@@ -130,22 +130,22 @@ describe('integration suite', function() {
     await new Promise((resolve) => setTimeout(resolve, 5000));
 
     const queryResponse = await client.execute(
-        'SELECT COUNT(*) FROM testway.block ALLOW FILTERING',
+        "SELECT COUNT(*) FROM testway.block ALLOW FILTERING",
     );
 
-    expect(queryResponse.rows[0].count.toString()).toEqual('100');
+    expect(queryResponse.rows[0].count.toString()).toEqual("100");
   });
 
-  test('it detects correctly fully synced db on startup', async () => {
+  test("it detects correctly fully synced db on startup", async () => {
     const seemsEmptyLog = jest.fn();
     const seemsFullLog = jest.fn();
     const missingBlockLog = jest.fn();
 
-    let logs = '';
+    let logs = "";
     let fullySyncPromiseResolve: any;
     proc = proc || helpers.startGateway();
-    proc.stderr.on('data', process.stderr.write); //  (data) => console.error(data.toString())
-    proc.stdout.on('data', (log: string) => {
+    proc.stderr.on("data", process.stderr.write); //  (data) => console.error(data.toString())
+    proc.stdout.on("data", (log: string) => {
       if (/fully synced db/g.test(log.toString()) && fullySyncPromiseResolve) {
         fullySyncPromiseResolve();
         seemsFullLog();
@@ -170,7 +170,7 @@ describe('integration suite', function() {
     await new Promise((resolve) => setTimeout(resolve, 5000));
 
     const queryResponse = await client.execute(
-        'SELECT COUNT(*) FROM testway.block ALLOW FILTERING',
+        "SELECT COUNT(*) FROM testway.block ALLOW FILTERING",
     );
 
     expect(missingBlockLog).not.toHaveBeenCalled();
@@ -178,12 +178,12 @@ describe('integration suite', function() {
     expect(seemsFullLog).toHaveBeenCalledTimes(1);
   });
 
-  test('it starts polling and receives new blocks', async () => {
-    let logs = '';
+  test("it starts polling and receives new blocks", async () => {
+    let logs = "";
     let fullySyncPromiseResolve: any;
     proc = proc || helpers.startGateway();
-    proc.stderr.on('data', process.stderr.write); //  (data) => console.error(data.toString())
-    proc.stdout.on('data', (log: string) => {
+    proc.stderr.on("data", process.stderr.write); //  (data) => console.error(data.toString())
+    proc.stdout.on("data", (log: string) => {
       if (/fully synced db/g.test(log.toString()) && fullySyncPromiseResolve) {
         fullySyncPromiseResolve();
         fullySyncPromiseResolve = undefined;
@@ -204,24 +204,24 @@ describe('integration suite', function() {
 
     mockBlocks.push(nextBlock);
 
-    lastBlock['height'] = nextBlock.height;
-    lastBlock['current'] = nextBlock.indep_hash;
+    lastBlock["height"] = nextBlock.height;
+    lastBlock["current"] = nextBlock.indep_hash;
 
     await new Promise((resolve) => setTimeout(resolve, 12000));
 
     const queryResponse = await client.execute(
-        'SELECT COUNT(*) FROM testway.block ALLOW FILTERING',
+        "SELECT COUNT(*) FROM testway.block ALLOW FILTERING",
     );
 
-    expect(queryResponse.rows[0].count.toString()).toEqual('101');
+    expect(queryResponse.rows[0].count.toString()).toEqual("101");
   });
 
-  test('it recovers when fork changes', async () => {
-    let logs = '';
+  test("it recovers when fork changes", async () => {
+    let logs = "";
     let fullySyncPromiseResolve: any;
     proc = proc || helpers.startGateway();
-    proc.stderr.on('data', process.stderr.write); //  (data) => console.error(data.toString())
-    proc.stdout.on('data', (log: string) => {
+    proc.stderr.on("data", process.stderr.write); //  (data) => console.error(data.toString())
+    proc.stdout.on("data", (log: string) => {
       if (/fully synced db/g.test(log.toString()) && fullySyncPromiseResolve) {
         fullySyncPromiseResolve();
         fullySyncPromiseResolve = undefined;
@@ -238,14 +238,14 @@ describe('integration suite', function() {
     let nextFork: any[] = helpers.generateMockBlocks({
       totalBlocks: 15,
       offset: 89,
-      hashPrefix: 'y',
+      hashPrefix: "y",
     });
 
-    mockBlocks = R.splitWhen(R.propEq('height', 90))(mockBlocks)[0];
+    mockBlocks = R.splitWhen(R.propEq("height", 90))(mockBlocks)[0];
     nextFork = R.concat(
         [
           R.assoc(
-              'previous_block',
+              "previous_block",
               R.last(mockBlocks).indep_hash,
               R.head(nextFork),
           ),
@@ -254,38 +254,38 @@ describe('integration suite', function() {
     );
     mockBlocks = R.concat(mockBlocks, nextFork);
 
-    lastBlock['height'] = R.last(mockBlocks).height;
-    lastBlock['current'] = R.last(mockBlocks).indep_hash;
+    lastBlock["height"] = R.last(mockBlocks).height;
+    lastBlock["current"] = R.last(mockBlocks).indep_hash;
 
     await new Promise((resolve) => setTimeout(resolve, 40000));
 
     const queryResponse = await client.execute(
-        'SELECT indep_hash,height FROM testway.block WHERE height>85 AND height<95 ALLOW FILTERING',
+        "SELECT indep_hash,height FROM testway.block WHERE height>85 AND height<95 ALLOW FILTERING",
     );
     const result = queryResponse.rows.map((obj: any) => ({
       height: parseInt(obj.height),
       hash: obj.indep_hash,
     }));
 
-    expect(R.findIndex(R.equals({height: 86, hash: 'x86'}), result)).toEqual(
+    expect(R.findIndex(R.equals({ height: 86, hash: "x86" }), result)).toEqual(
         1,
     );
-    expect(R.findIndex(R.equals({height: 87, hash: 'x87'}), result)).toEqual(
+    expect(R.findIndex(R.equals({ height: 87, hash: "x87" }), result)).toEqual(
         1,
     );
-    expect(R.findIndex(R.equals({height: 88, hash: 'x88'}), result)).toEqual(
+    expect(R.findIndex(R.equals({ height: 88, hash: "x88" }), result)).toEqual(
         1,
     );
-    expect(R.findIndex(R.equals({height: 89, hash: 'x89'}), result)).toEqual(
+    expect(R.findIndex(R.equals({ height: 89, hash: "x89" }), result)).toEqual(
         1,
     );
-    expect(R.findIndex(R.equals({height: 90, hash: 'x90'}), result)).toEqual(
+    expect(R.findIndex(R.equals({ height: 90, hash: "x90" }), result)).toEqual(
         1,
     );
-    expect(R.findIndex(R.equals({height: 91, hash: 'x91'}), result)).toEqual(
+    expect(R.findIndex(R.equals({ height: 91, hash: "x91" }), result)).toEqual(
         1,
     );
-    expect(R.findIndex(R.equals({height: 92, hash: 'x92'}), result)).toEqual(
+    expect(R.findIndex(R.equals({ height: 92, hash: "x92" }), result)).toEqual(
         1,
     );
   });

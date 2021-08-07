@@ -1,8 +1,8 @@
-import {config} from 'dotenv';
-import fs from 'fs-jetpack';
-import {streamAndCacheAns} from './ans.caching';
+import { config } from "dotenv";
+import fs from "fs-jetpack";
+import { streamAndCacheAns } from "./ans.caching";
 
-process.env.NODE_ENV !== 'test' && config();
+process.env.NODE_ENV !== "test" && config();
 
 export const cacheFolder = process.env.CACHE_FOLDER;
 

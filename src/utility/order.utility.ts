@@ -1,30 +1,30 @@
-import {config} from 'dotenv';
+import { config } from "dotenv";
 
-process.env.NODE_ENV !== 'test' && config();
+process.env.NODE_ENV !== "test" && config();
 
-export const indices = JSON.parse(process.env.INDICES || '[]') as Array<string>;
+export const indices = JSON.parse(process.env.INDICES || "[]") as Array<string>;
 export const blockOrder = [
-  'id',
-  'previous_block',
-  'mined_at',
-  'height',
-  'txs',
-  'extended',
+  "id",
+  "previous_block",
+  "mined_at",
+  "height",
+  "txs",
+  "extended",
 ];
 export const transactionOrder = [
-  'format',
-  'id',
-  'signature',
-  'owner',
-  'owner_address',
-  'target',
-  'reward',
-  'last_tx',
-  'height',
-  'tags',
-  'quantity',
-  'content_type',
-  'data_size',
-  'data_root',
+  "format",
+  "id",
+  "signature",
+  "owner",
+  "owner_address",
+  "target",
+  "reward",
+  "last_tx",
+  "height",
+  "tags",
+  "quantity",
+  "content_type",
+  "data_size",
+  "data_root",
 ];
-export const tagOrder = ['tx_id', 'index', 'name', 'value'];
+export const tagOrder = ["tx_id", "index", "name", "value"];

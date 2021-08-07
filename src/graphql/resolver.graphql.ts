@@ -1,23 +1,23 @@
-import * as R from 'rambda';
-import moment from 'moment';
-import {KEYSPACE} from '../constants';
-import {types as CassandraTypes} from 'cassandra-driver';
-import {cassandraClient, toLong} from '../database/cassandra.database';
-import {topHeight, topTxIndex} from '../database/sync.database';
-import graphqlFields from 'graphql-fields';
-import {config} from 'dotenv';
+import * as R from "rambda";
+import moment from "moment";
+import { KEYSPACE } from "../constants";
+import { types as CassandraTypes } from "cassandra-driver";
+import { cassandraClient, toLong } from "../database/cassandra.database";
+import { topHeight, topTxIndex } from "../database/sync.database";
+import graphqlFields from "graphql-fields";
+import { config } from "dotenv";
 import {
   QueryTransactionsArgs,
   QueryBlockArgs,
   QueryBlocksArgs,
-} from './types';
+} from "./types";
 import {
   ownerToAddress,
   ISO8601DateTimeString,
   winstonToAr,
   utf8DecodeTag,
-} from '../utility/encoding.utility';
-import {TransactionHeader} from '../types/arweave.types';
+} from "../utility/encoding.utility";
+import { TransactionHeader } from "../types/arweave.types";
 import {
   QueryParams,
   generateTransactionQuery,
@@ -26,10 +26,10 @@ import {
   generateDeferedTxBlockQuery,
   generateDeferedBlockQuery,
   generateTagQuery,
-} from './query.graphql';
-import * as DbMapper from '../database/mapper.database';
+} from "./query.graphql";
+import * as DbMapper from "../database/mapper.database";
 
-process.env.NODE_ENV !== 'test' && config();
+process.env.NODE_ENV !== "test" && config();
 
 function sortByTxIndexAsc(
     result1: { tx_index: CassandraTypes.Long },
@@ -45,8 +45,8 @@ function sortByTxIndexDesc(
   return result1.tx_index.compare(result2.tx_index);
 }
 
-const DEFAULT_PAGE_SIZE = parseInt(process.env.DEFAULT_PAGE_SIZE || '10');
-const MAX_PAGE_SIZE = parseInt(process.env.MAX_PAGE_SIZE || '100');
+const DEFAULT_PAGE_SIZE = parseInt(process.env.DEFAULT_PAGE_SIZE || "10");
+const MAX_PAGE_SIZE = parseInt(process.env.MAX_PAGE_SIZE || "100");
 
 interface FieldMap {
   indep_hash: string;
@@ -74,49 +74,49 @@ interface FieldMap {
 }
 
 const fieldMap = {
-  id: 'transactions.id',
-  anchor: 'transactions.last_tx',
-  recipient: 'transactions.target',
-  tags: 'transactions.tags',
-  fee: 'transactions.reward',
-  quantity: 'transactions.quantity',
-  data_size: 'transactions.data_size',
-  data_type: 'transactions.content_type',
-  parent: 'transactions.parent',
-  owner: 'transactions.owner',
-  owner_address: 'transactions.owner_address',
+  id: "transactions.id",
+  anchor: "transactions.last_tx",
+  recipient: "transactions.target",
+  tags: "transactions.tags",
+  fee: "transactions.reward",
+  quantity: "transactions.quantity",
+  data_size: "transactions.data_size",
+  data_type: "transactions.content_type",
+  parent: "transactions.parent",
+  owner: "transactions.owner",
+  owner_address: "transactions.owner_address",
   // signature: 'transactions.signature',
-  block_id: 'blocks.id',
-  block_timestamp: 'blocks.mined_at',
-  block_height: 'blocks.height',
-  block_previous: 'blocks.previous_block',
+  block_id: "blocks.id",
+  block_timestamp: "blocks.mined_at",
+  block_height: "blocks.height",
+  block_previous: "blocks.previous_block",
 };
 
 const edgeFieldMapTx = {
-  'edges.node.id': 'tx_id',
-  'edges.node.last_tx': 'anchor',
-  'edges.node.target': 'recipient',
-  'edges.node.tags': 'tags',
+  "edges.node.id": "tx_id",
+  "edges.node.last_tx": "anchor",
+  "edges.node.target": "recipient",
+  "edges.node.tags": "tags",
   // 'edges.node.reward': 'fee',
-  'edges.node.quantity': 'quantity',
-  'edges.node.data_size': 'data_size',
-  'edges.node.content_type': 'data_type',
-  'edges.node.parent': 'parent',
-  'edges.node.owner': 'owner',
+  "edges.node.quantity": "quantity",
+  "edges.node.data_size": "data_size",
+  "edges.node.content_type": "data_type",
+  "edges.node.parent": "parent",
+  "edges.node.owner": "owner",
   // 'edges.node.owner_address': 'owner_address',
 };
 
 const edgeFieldMapBlock = {
-  'edges.node.id': 'indep_hash',
-  'edges.node.timestamp': 'timestamp',
-  'edges.node.height': 'height',
-  'edges.node.previous': 'previous_block',
+  "edges.node.id": "indep_hash",
+  "edges.node.timestamp": "timestamp",
+  "edges.node.height": "height",
+  "edges.node.previous": "previous_block",
 };
 
 const blockFieldMap = {
-  id: 'blocks.indep_hash',
-  timestamp: 'blocks.mined_at',
-  height: 'blocks.height',
+  id: "blocks.indep_hash",
+  timestamp: "blocks.mined_at",
+  height: "blocks.height",
   // extended: 'blocks.extended',
 };
 
@@ -126,16 +126,16 @@ const hydrateGqlTx = async (tx) => {
   });
   const tags = await DbMapper.tagsByTxId(tx.id);
   const hydrated = R.reduce((acc: FieldMap, key: string) => {
-    const txKeyKey = fieldMap[key].split('.');
+    const txKeyKey = fieldMap[key].split(".");
     const txScope = txKeyKey[0];
     const txKey = txKeyKey[1];
     const val =
-      txScope === 'blocks' ?
-        (block[txKey] || '').toString() :
-        (tx[txKey] || '').toString();
+      txScope === "blocks" ?
+        (block[txKey] || "").toString() :
+        (tx[txKey] || "").toString();
     return R.assoc(key, val, acc);
   }, {} as FieldMap)(R.keys(fieldMap));
-  return R.assoc('tags', tags, hydrated);
+  return R.assoc("tags", tags, hydrated);
 };
 
 const resolveGqlTxSelect = (
@@ -146,7 +146,7 @@ const resolveGqlTxSelect = (
   R.keys(edgeFieldMapTx).forEach((keyPath) => {
     if (
       R.hasPath(
-        singleTx ? keyPath.replace('edges.node.', '') : keyPath,
+        singleTx ? keyPath.replace("edges.node.", "") : keyPath,
         userFields,
       )
     ) {
@@ -173,10 +173,10 @@ export const resolvers = {
     transaction: async (
         parent: FieldMap,
         queryParams: any,
-        {req, connection}: any,
+        { req, connection }: any,
         info: any,
     ) => {
-      const {timestamp, offset} = parseCursor(
+      const { timestamp, offset } = parseCursor(
           queryParams.after || newCursor(),
       );
       const fieldsWithSubFields = graphqlFields(info);
@@ -202,20 +202,20 @@ export const resolvers = {
       };
       // No selection = no search
       if (R.isEmpty(params.select)) {
-        return {data: {transaction: null}};
+        return { data: { transaction: null } };
       }
       // todo, elide selectors not selected from user
-      if (!params.select.includes('tx_id')) {
-        params.select = R.append('tx_id', params.select);
+      if (!params.select.includes("tx_id")) {
+        params.select = R.append("tx_id", params.select);
       }
 
-      params.select = R.append('tx_index', params.select);
+      params.select = R.append("tx_index", params.select);
       const txQuery = generateTransactionQuery(params);
 
-      const {rows: resultArray} = await cassandraClient.execute(
+      const { rows: resultArray } = await cassandraClient.execute(
           txQuery.query,
           txQuery.params,
-          {prepare: true, executionProfile: 'gql'},
+          { prepare: true, executionProfile: "gql" },
       );
 
       if (R.isEmpty(resultArray)) {
@@ -227,15 +227,15 @@ export const resolvers = {
       if (fieldsWithSubFields.block !== undefined) {
         let selectParams = [];
         const userSelectKeys = R.keys(fieldsWithSubFields.block);
-        ['id', 'timestamp', 'height', 'previous'].forEach((selectKey) => {
+        ["id", "timestamp", "height", "previous"].forEach((selectKey) => {
           if (userSelectKeys.includes(selectKey)) {
             switch (selectKey) {
-              case 'id': {
-                selectParams = R.append('indep_hash', selectParams);
+              case "id": {
+                selectParams = R.append("indep_hash", selectParams);
                 break;
               }
-              case 'previous': {
-                selectParams = R.append('previous_block', selectParams);
+              case "previous": {
+                selectParams = R.append("previous_block", selectParams);
                 break;
               }
               default: {
@@ -250,12 +250,12 @@ export const resolvers = {
             selectParams,
         );
 
-        const {rows: blockResult} = await cassandraClient.execute(
+        const { rows: blockResult } = await cassandraClient.execute(
             blockQuery.query,
             blockQuery.params,
             {
               prepare: true,
-              executionProfile: 'gql',
+              executionProfile: "gql",
             },
         );
         if (R.isEmpty(blockResult)) {
@@ -268,21 +268,21 @@ export const resolvers = {
       const selectedDeferedKeysUser = [];
       R.keys(fieldsWithSubFields).forEach(
           (k: any) =>
-            ['anchor', 'fee', 'signature'].includes(k) &&
+            ["anchor", "fee", "signature"].includes(k) &&
           selectedDeferedKeysUser.push(
-              R.find(R.equals(k))(['anchor', 'fee', 'signature']),
+              R.find(R.equals(k))(["anchor", "fee", "signature"]),
           ),
       );
       if (!R.isEmpty(selectedDeferedKeysUser)) {
         const selectedDeferedKeysDb = [];
         selectedDeferedKeysUser.forEach((k) => {
           switch (k) {
-            case 'anchor': {
-              selectedDeferedKeysDb.push('last_tx');
+            case "anchor": {
+              selectedDeferedKeysDb.push("last_tx");
               break;
             }
-            case 'fee': {
-              selectedDeferedKeysDb.push('reward');
+            case "fee": {
+              selectedDeferedKeysDb.push("reward");
               break;
             }
             default: {
@@ -296,22 +296,22 @@ export const resolvers = {
           tx_id: result.tx_id,
         });
 
-        const {rows: deferedTxResult} = await cassandraClient.execute(
+        const { rows: deferedTxResult } = await cassandraClient.execute(
             deferedTxQ.query,
             deferedTxQ.params,
             {
               prepare: true,
-              executionProfile: 'gql',
+              executionProfile: "gql",
             },
         );
         if (deferedTxResult[0].last_tx) {
-          result.anchor = deferedTxResult[0].last_tx || '';
+          result.anchor = deferedTxResult[0].last_tx || "";
         }
         if (deferedTxResult[0].reward) {
-          result.fee = deferedTxResult[0].reward || '';
+          result.fee = deferedTxResult[0].reward || "";
         }
         if (deferedTxResult[0].signature) {
-          result.signature = deferedTxResult[0].signature || '';
+          result.signature = deferedTxResult[0].signature || "";
         }
       }
 
@@ -320,10 +320,10 @@ export const resolvers = {
     transactions: async (
         parent: string,
         queryParams: QueryTransactionsArgs,
-        {req, connection}: any,
+        { req, connection }: any,
         info: any,
     ) => {
-      const {timestamp, offset} = parseCursor(
+      const { timestamp, offset } = parseCursor(
           queryParams.after || newCursor(),
       );
       const fieldsWithSubFields = graphqlFields(info);
@@ -343,8 +343,8 @@ export const resolvers = {
         maxHeight = toLong(queryParams.block.max).mul(1000);
       }
 
-      const selectsBlock = R.hasPath('edges.node.block', fieldsWithSubFields);
-      const params: Partial<Omit<QueryParams, 'after'> & { before: string }> = {
+      const selectsBlock = R.hasPath("edges.node.block", fieldsWithSubFields);
+      const params: Partial<Omit<QueryParams, "after"> & { before: string }> = {
         limit: fetchSize,
         offset: offset,
         ids: queryParams.ids || undefined,
@@ -370,18 +370,18 @@ export const resolvers = {
       }
 
       // todo, elide selectors not selected from user
-      if (!params.select.includes('tx_id')) {
-        params.select = R.append('tx_id', params.select);
+      if (!params.select.includes("tx_id")) {
+        params.select = R.append("tx_id", params.select);
       }
 
-      params.select = R.append('tx_index', params.select);
+      params.select = R.append("tx_index", params.select);
 
       const txQuery = generateTransactionQuery(params);
 
-      let {rows: result} = await cassandraClient.execute(
+      let { rows: result } = await cassandraClient.execute(
           txQuery.query,
           txQuery.params,
-          {prepare: true, executionProfile: 'gql'},
+          { prepare: true, executionProfile: "gql" },
       );
 
       let hasNextPage = false;
@@ -395,17 +395,17 @@ export const resolvers = {
         let selectParams = [];
         // let resultWithBlock = [];
         const userSelectKeys = Object.keys(
-            R.path('edges.node.block', fieldsWithSubFields),
+            R.path("edges.node.block", fieldsWithSubFields),
         );
-        ['id', 'timestamp', 'height', 'previous'].forEach((selectKey) => {
+        ["id", "timestamp", "height", "previous"].forEach((selectKey) => {
           if (userSelectKeys.includes(selectKey)) {
             switch (selectKey) {
-              case 'id': {
-                selectParams = R.append('indep_hash', selectParams);
+              case "id": {
+                selectParams = R.append("indep_hash", selectParams);
                 break;
               }
-              case 'previous': {
-                selectParams = R.append('previous_block', selectParams);
+              case "previous": {
+                selectParams = R.append("previous_block", selectParams);
                 break;
               }
               default: {
@@ -422,12 +422,12 @@ export const resolvers = {
               selectParams,
           );
 
-          const {rows: blockResult} = await cassandraClient.execute(
+          const { rows: blockResult } = await cassandraClient.execute(
               blockQuery.query,
               blockQuery.params,
               {
                 prepare: true,
-                executionProfile: 'gql',
+                executionProfile: "gql",
               },
           );
 
@@ -442,21 +442,21 @@ export const resolvers = {
       const selectedDeferedKeysUser = [];
       R.keys(fieldsWithSubFields.edges.node).forEach(
           (k: any) =>
-            ['anchor', 'fee', 'signature'].includes(k) &&
+            ["anchor", "fee", "signature"].includes(k) &&
           selectedDeferedKeysUser.push(
-              R.find(R.equals(k))(['anchor', 'fee', 'signature']),
+              R.find(R.equals(k))(["anchor", "fee", "signature"]),
           ),
       );
       if (!R.isEmpty(selectedDeferedKeysUser)) {
         const selectedDeferedKeysDb = [];
         selectedDeferedKeysUser.forEach((k) => {
           switch (k) {
-            case 'anchor': {
-              selectedDeferedKeysDb.push('last_tx');
+            case "anchor": {
+              selectedDeferedKeysDb.push("last_tx");
               break;
             }
-            case 'fee': {
-              selectedDeferedKeysDb.push('reward');
+            case "fee": {
+              selectedDeferedKeysDb.push("reward");
               break;
             }
             default: {
@@ -471,23 +471,23 @@ export const resolvers = {
             tx_id: tx.tx_id,
           });
 
-          const {rows: deferedTxResult} = await cassandraClient.execute(
+          const { rows: deferedTxResult } = await cassandraClient.execute(
               deferedTxQ.query,
               deferedTxQ.params,
               {
                 prepare: true,
-                executionProfile: 'gql',
+                executionProfile: "gql",
               },
           );
 
           if (deferedTxResult[0].last_tx) {
-            tx.anchor = deferedTxResult[0].last_tx || '';
+            tx.anchor = deferedTxResult[0].last_tx || "";
           }
           if (deferedTxResult[0].reward) {
-            tx.fee = deferedTxResult[0].reward || '';
+            tx.fee = deferedTxResult[0].reward || "";
           }
           if (deferedTxResult[0].signature) {
-            tx.signature = deferedTxResult[0].signature || '';
+            tx.signature = deferedTxResult[0].signature || "";
           }
         }
       }
@@ -497,12 +497,12 @@ export const resolvers = {
           hasNextPage,
         },
         edges: R.sort(
-          params.select.sort === 'HEIGHT_ASC' ?
+          params.select.sort === "HEIGHT_ASC" ?
             (sortByTxIndexAsc as any) :
             (sortByTxIndexDesc as any),
           result as any,
         ).map((tx, index) => ({
-          cursor: encodeCursor({timestamp, offset: offset + index + 1}),
+          cursor: encodeCursor({ timestamp, offset: offset + index + 1 }),
           node: tx,
         })),
       };
@@ -510,7 +510,7 @@ export const resolvers = {
     block: async (
         parent: string,
         queryParams: QueryBlockArgs,
-        {req, connection}: any,
+        { req, connection }: any,
     ) => {
       if (queryParams.id) {
         return (
@@ -528,12 +528,12 @@ export const resolvers = {
     blocks: async (
         parent: FieldMap,
         queryParams: QueryBlocksArgs,
-        {req, connection}: any,
+        { req, connection }: any,
         info: any,
     ) => {
       const fieldsWithSubFields = graphqlFields(info);
 
-      const {timestamp, offset} = parseCursor(
+      const { timestamp, offset } = parseCursor(
           queryParams.after || newCursor(),
       );
       const fetchSize =
@@ -580,10 +580,10 @@ export const resolvers = {
 
       let hasNextPage = false;
 
-      let {rows: result} = await cassandraClient.execute(
+      let { rows: result } = await cassandraClient.execute(
           blockQuery.query,
           blockQuery.params,
-          {prepare: true, executionProfile: 'gql'},
+          { prepare: true, executionProfile: "gql" },
       );
 
       if (result.length === fetchSize) {
@@ -596,7 +596,7 @@ export const resolvers = {
           hasNextPage,
         },
         edges: result.map((block, index) => ({
-          cursor: encodeCursor({timestamp, offset: offset + index + 1}),
+          cursor: encodeCursor({ timestamp, offset: offset + index + 1 }),
           node: block,
         })),
       };
@@ -607,16 +607,16 @@ export const resolvers = {
       return parent.tx_id;
     },
     anchor: (parent: any) => {
-      return parent.anchor || '';
+      return parent.anchor || "";
     },
     signature: (parent: any) => {
-      return parent.signature || '';
+      return parent.signature || "";
     },
     tags: (parent: FieldMap) => {
       return parent.tags.map(utf8DecodeTag);
     },
     recipient: (parent: FieldMap) => {
-      return parent.recipient.trim() || '';
+      return parent.recipient.trim() || "";
     },
     data: (parent: FieldMap) => {
       return {
@@ -626,14 +626,14 @@ export const resolvers = {
     },
     quantity: (parent: FieldMap) => {
       return {
-        ar: winstonToAr(parent.quantity || ('0' as const)),
-        winston: parent.quantity || '0',
+        ar: winstonToAr(parent.quantity || ("0" as const)),
+        winston: parent.quantity || "0",
       };
     },
     fee: (parent: FieldMap) => {
       return {
-        ar: winstonToAr(parent.fee || '0'),
-        winston: parent.fee || '0',
+        ar: winstonToAr(parent.fee || "0"),
+        winston: parent.fee || "0",
       };
     },
     block: (parent: FieldMap) => {
@@ -702,18 +702,18 @@ export function newCursor(): string {
   });
 }
 
-export function encodeCursor({timestamp, offset}: Cursor): string {
+export function encodeCursor({ timestamp, offset }: Cursor): string {
   const string = JSON.stringify([timestamp, offset]);
-  return Buffer.from(string).toString('base64');
+  return Buffer.from(string).toString("base64");
 }
 
 export function parseCursor(cursor: string): Cursor {
   try {
     const [timestamp, offset] = JSON.parse(
-        Buffer.from(cursor, 'base64').toString(),
+        Buffer.from(cursor, "base64").toString(),
     ) as [string, number];
-    return {timestamp, offset};
+    return { timestamp, offset };
   } catch (error) {
-    throw new Error('invalid cursor');
+    throw new Error("invalid cursor");
   }
 }

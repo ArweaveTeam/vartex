@@ -1,14 +1,14 @@
-import {readFileSync} from 'fs';
+import { readFileSync } from "fs";
 import {
   ApolloServer,
   ApolloServerExpressConfig,
   ExpressContext,
   gql,
-} from 'apollo-server-express';
+} from "apollo-server-express";
 // import {connection} from '../database/connection.database';
-import {resolvers} from './resolver.graphql.js';
+import { resolvers } from "./resolver.graphql.js";
 
-const typeDefs = gql(readFileSync(`${process.cwd()}/types.graphql`, 'utf8'));
+const typeDefs = gql(readFileSync(`${process.cwd()}/types.graphql`, "utf8"));
 
 export function graphServer(
     opts: ApolloServerExpressConfig = {},
@@ -19,8 +19,8 @@ export function graphServer(
     debug: true,
     playground: {
       settings: {
-        'schema.polling.enable': false,
-        'request.credentials': 'include',
+        "schema.polling.enable": false,
+        "request.credentials": "include",
       },
     },
     context: (ctx) => {

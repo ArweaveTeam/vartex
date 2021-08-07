@@ -1,8 +1,8 @@
-import {createWriteStream} from 'fs';
-import {dir, remove} from 'fs-jetpack';
-import {types as CassandraTypes} from 'cassandra-driver';
-import {cacheFolder} from './file.caching';
-import {getChunk} from '../query/chunk.query';
+import { createWriteStream } from "fs";
+import { dir, remove } from "fs-jetpack";
+import { types as CassandraTypes } from "cassandra-driver";
+import { cacheFolder } from "./file.caching";
+import { getChunk } from "../query/chunk.query";
 
 export async function streamAndCacheTx(
     id: string,
@@ -13,7 +13,7 @@ export async function streamAndCacheTx(
     dir(`${cacheFolder}`);
 
     const fileStream = createWriteStream(`${cacheFolder}/${id}`, {
-      flags: 'w',
+      flags: "w",
     });
 
     let byte = 0;

@@ -1,6 +1,6 @@
-import {types as CassandraTypes} from 'cassandra-driver';
-import {append, head, isEmpty as rIsEmpty, slice, sort} from 'rambda';
-import * as R from 'rambda';
+import { types as CassandraTypes } from "cassandra-driver";
+import { append, head, isEmpty as rIsEmpty, slice, sort } from "rambda";
+import * as R from "rambda";
 
 export default class PriorityQueue {
   protected queue = [];

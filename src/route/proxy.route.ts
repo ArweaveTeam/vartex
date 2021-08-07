@@ -3,22 +3,27 @@ import { grabNode } from '../query/node.query.js';
 import got from 'got';
 
 export function proxyGetRoute(req: Request, res: Response) {
-  const stream = got.stream.get(`${grabNode()}${req.originalUrl}`);
+  const uri = `${grabNode()}${req.originalUrl}`;
+  const stream = got.stream.get(uri);
   stream.on('error', (err) => {
-    res.status(404).json({
-      status: 404,
-      error: 'Not Found',
-    });
+    console.log(err);
+    res.status(503).send();
+    console.log(`[GET] New post failed. ${uri}`);
   });
   stream.on('end', () => res.end());
   stream.pipe(res);
 }
 
 export function proxyPostRoute(req: Request, res: Response) {
-  const stream = got.stream.post(`${grabNode()}${req.originalUrl}`, {
+  const uri = `${grabNode()}${req.originalUrl}`;
+  const stream = got.stream.post(uri, {
     body: JSON.stringify(req.body),
   });
-
+  stream.on('error', (err) => {
+    console.log(err);
+    res.status(503).send();
+    console.log(`[POST] New post failed. ${uri}`);
+  });
   stream.on('end', () => res.end());
   stream.pipe(res);
 }

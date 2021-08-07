@@ -8,7 +8,7 @@ export function proxyGetRoute(req: Request, res: Response) {
   stream.on('error', (err) => {
     console.log(err);
     res.status(503).send();
-    console.log(`[GET] New post failed. ${uri}`);
+    console.log(`[GET] Failed to get: ${uri}`);
   });
   stream.on('end', () => res.end());
   stream.pipe(res);
@@ -22,7 +22,7 @@ export function proxyPostRoute(req: Request, res: Response) {
   stream.on('error', (err) => {
     console.log(err);
     res.status(503).send();
-    console.log(`[POST] New post failed. ${uri}`);
+    console.log(`[POST] Failed to post: ${uri}`);
   });
   stream.on('end', () => res.end());
   stream.pipe(res);

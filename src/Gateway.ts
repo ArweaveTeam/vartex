@@ -76,7 +76,7 @@ export function start(): void {
     });
     startSync({ isTesting: process.env.NODE_ENV === 'test' });
   });
-  
+
   app.get(
     '/graphql',
     expressPlayground({
@@ -93,9 +93,9 @@ export function start(): void {
   });
 
   app.listen(process.env.PORT || 3000, () => {
-    log.info(`[app] started on http://localhost:${process.env.PORT || 3000}`);
-    log.info(`- Parallel: ${process.env.PARALLEL}`);
-    log.info(`- Nodes: ${JSON.parse(process.env.ARWEAVE_NODES).join(', ')}`);
+    log.info(`[app] Started on http://localhost:${process.env.PORT || 3000}`);
+    log.info(`[app] - Parallel: ${process.env.PARALLEL}`);
+    log.info(`[app] - Nodes: ${JSON.parse(process.env.ARWEAVE_NODES).join(', ')}`);
   });
 }
 

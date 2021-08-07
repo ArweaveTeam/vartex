@@ -16,3 +16,9 @@ export const KEYSPACE: string = process.env['KEYSPACE']
   : 'gateway';
 
 export let IPC_DATA = {};
+
+export const POLLTIME_DELAY_SECONDS: number = process.env[
+  'POLLTIME_DELAY_SECONDS'
+]
+  ? parseInt(process.env['POLLTIME_DELAY_SECONDS'] || '5')
+  : 5;

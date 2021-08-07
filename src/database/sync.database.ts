@@ -7,7 +7,7 @@ import Gauge from 'gauge';
 import GaugeThemes from 'gauge/themes';
 import { config } from 'dotenv';
 import { types as CassandraTypes } from 'cassandra-driver';
-import { IPC_DATA, KEYSPACE } from '../constants';
+import { IPC_DATA, KEYSPACE, POLLTIME_DELAY_SECONDS } from '../constants';
 import { MAX_TX_PER_BLOCK } from './constants.database';
 import { log } from '../utility/log.utility';
 import { ansBundles } from '../utility/ans.utility';
@@ -231,22 +231,25 @@ async function startPolling(): Promise<void> {
   if (!isPollingStarted) {
     isPollingStarted = true;
   }
-  // const lastPollStatus = R.head(await pollStatusMapper.findAll());
+
   const nodeInfo = await getNodeInfo({ keepAlive: true });
 
   if (!nodeInfo) {
-    await new Promise((res) => setTimeout(res, 5 * 1000));
+    await new Promise((res) => setTimeout(res, POLLTIME_DELAY_SECONDS * 1000));
     return startPolling();
   }
 
   [topHash, topHeight] = await getMaxHeightBlock();
+
   if (nodeInfo.current === topHash) {
     // wait 5 seconds before polling again
     log.info('[poll] fully aligned at height ' + topHeight.toString());
-    await new Promise((res) => setTimeout(res, 5 * 1000));
+
+    await new Promise((res) => setTimeout(res, POLLTIME_DELAY_SECONDS * 1000));
     return startPolling();
   } else if (nodeInfo) {
     // TODO fork recovery
+
     const newBlock = await queryGetBlock({
       height: nodeInfo.height,
       hash: nodeInfo.current,
@@ -265,7 +268,7 @@ async function startPolling(): Promise<void> {
     } else {
       console.error('Querying for new tx failed');
     }
-    await new Promise((res) => setTimeout(res, 5 * 1000));
+    await new Promise((res) => setTimeout(res, POLLTIME_DELAY_SECONDS * 1000));
     return startPolling();
   }
 }
@@ -410,11 +413,12 @@ export async function startSync({ isTesting = false }) {
     );
   } else if (R.isEmpty(unsyncedBlocks)) {
     log.info(`[sync] fully synced db`);
-    !isTesting && startPolling();
+    startPolling();
     return;
   } else {
     log.info(
-      `[sync] missing ${unsyncedBlocks.length} blocks, starting sync...`
+      `[sync] missing ${unsyncedBlocks.length} blocks, starting sync...` +
+        unsyncedBlocks.map(JSON.stringify as any).join(', ')
     );
   }
   // check health
@@ -431,9 +435,10 @@ export async function startSync({ isTesting = false }) {
     process.exit(1);
   })(() => {
     gauge.disable();
-    log.info(`Database fully in sync with block_list`);
-    if (isTesting) return;
-    !isPollingStarted && startPolling();
+    pWaitFor(() => blockQueue.isEmpty() && txQueue.isEmpty()).then(() => {
+      log.info(`Database fully in sync with block_list`);
+      !isPollingStarted && startPolling();
+    });
   })(
     parallel(PARALLEL)(
       (unsyncedBlocks as any).map(
@@ -498,6 +503,7 @@ export function storeBlock(
     }
 
     blockQueue.sortQueue();
+
     pWaitFor(
       () =>
         blockQueue.isEmpty() ||

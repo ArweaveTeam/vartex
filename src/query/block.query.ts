@@ -73,8 +73,9 @@ export async function getBlock({
   }
 
   if (hash && height !== body.height) {
+    console.error(height, typeof height, body.height, typeof body.height);
     log.error(
-      'fatal inconsistency: hash and height dont match for hash:' +
+      'fatal inconsistency: hash and height dont match for hash.' +
         'wanted: ' +
         hash +
         ' got: ' +

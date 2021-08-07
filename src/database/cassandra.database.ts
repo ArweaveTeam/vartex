@@ -586,7 +586,7 @@ export const getMaxHeightBlock = async (): Promise<
 > => {
   // note that the block_hash table is sorted descendingly by block height
   const response = await cassandraClient.execute(
-    `SELECT height,indep_hash FROM ${KEYSPACE}.block_gql limit 1;`
+    `SELECT height,indep_hash FROM ${KEYSPACE}.block_gql_desc limit 1;`
   );
 
   const row = response.rows[0];

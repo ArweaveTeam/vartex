@@ -84,7 +84,7 @@ export function nuke(): Promise<string> {
   });
 }
 
-export function generateMockBlocks({ totalBlocks }) {
+export function generateMockBlocks({ totalBlocks, offset = 0 }) {
   const template = {
     nonce: 'n1',
     previous_block: 'p0',
@@ -112,7 +112,7 @@ export function generateMockBlocks({ totalBlocks }) {
     },
   };
 
-  const blockHeights = R.range(0, totalBlocks);
+  const blockHeights = R.range(offset, offset + totalBlocks);
   return blockHeights.map((height) =>
     R.pipe(
       R.assoc('height', height),
@@ -132,7 +132,7 @@ export function startGateway(): any {
     ],
     {
       env: testEnvVars,
-      shell: true,
+      // shell: true,
       // stdio: 'inherit',
     }
   );

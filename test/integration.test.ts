@@ -1,5 +1,5 @@
 import * as R from 'rambda';
-import cassandra from 'cassandra-driver';
+import cassandra, { types as CassandraTypes } from 'cassandra-driver';
 import { exists as existsOrig } from 'fs';
 import fs from 'fs/promises';
 import { jest } from '@jest/globals';
@@ -13,7 +13,17 @@ const PORT = 12345;
 
 const exists = util.promisify(existsOrig);
 
-const mockBlocks = helpers.generateMockBlocks({ totalBlocks: 100 });
+let mockBlocks = helpers.generateMockBlocks({ totalBlocks: 100 });
+
+const lastBlock: any = {
+  current: '',
+  height: -1,
+};
+
+const tmpNextBlock = R.last(mockBlocks);
+
+lastBlock['height'] = tmpNextBlock.height;
+lastBlock['current'] = tmpNextBlock.indep_hash;
 
 let app: any;
 let srv: any;
@@ -31,6 +41,10 @@ describe('integration suite', function () {
     app = express();
     app.get('/hash_list', function (req, res) {
       res.status(200).json(R.reverse(R.pluck('indep_hash', mockBlocks)));
+    });
+
+    app.get('/info', function (req, res) {
+      res.status(200).json(lastBlock);
     });
 
     app.get('/block/hash/:id', function (req, res) {
@@ -150,5 +164,43 @@ describe('integration suite', function () {
     expect(missingBlockLog).not.toHaveBeenCalled();
     expect(seemsEmptyLog).not.toHaveBeenCalled();
     expect(seemsFullLog).toHaveBeenCalledTimes(1);
+  });
+
+  test('it starts polling and receives new blocks', async () => {
+    let logs = '';
+    let fullySyncPromiseResolve: any;
+    proc = proc || helpers.startGateway();
+    proc.stderr.on('data', process.stderr.write); //  (data) => console.error(data.toString())
+    proc.stdout.on('data', (log: string) => {
+      if (/fully synced db/g.test(log.toString()) && fullySyncPromiseResolve) {
+        fullySyncPromiseResolve();
+        fullySyncPromiseResolve = undefined;
+      }
+
+      process.stderr.write(log);
+      logs += log.toString();
+    });
+
+    await new Promise((resolve, reject) => {
+      fullySyncPromiseResolve = resolve;
+    });
+
+    const nextBlock = helpers.generateMockBlocks({
+      totalBlocks: 1,
+      offset: 100,
+    })[0];
+
+    mockBlocks.push(nextBlock);
+
+    lastBlock['height'] = nextBlock.height;
+    lastBlock['current'] = nextBlock.indep_hash;
+
+    await new Promise((resolve) => setTimeout(resolve, 10000));
+
+    const queryResponse = await client.execute(
+      'SELECT COUNT(*) FROM testway.block ALLOW FILTERING'
+    );
+
+    expect(queryResponse.rows[0].count.toString()).toEqual('101');
   });
 });

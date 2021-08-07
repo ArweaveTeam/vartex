@@ -64,6 +64,27 @@ export function start(): void {
   app.get(/\/wallet.*/, proxyGetRoute);
   app.get(/\/[a-z0-9_-]{43}/i, proxyGetRoute);
   
+  // graphql endpoints
+  const graphqlServer = graphServer({ introspection: true });
+  Promise.all([findPeers(), graphqlServer.start()]).then(() => {
+    (graphqlServer as any).applyMiddleware({
+      app,
+      path: '/graphql',
+      subscriptionEndpoint: '/graphql',
+      disableHealthCheck: true,
+      schemaPolling: false,
+    });
+    startSync({ isTesting: process.env.NODE_ENV === 'test' });
+  });
+  
+  app.get(
+    '/graphql',
+    expressPlayground({
+      endpoint: '/graphql',
+    })
+  );
+
+  // Everything else
   app.all('*', (req: Request, res: Response) => {
     res.status(400).json({
       status: 400,
@@ -75,24 +96,6 @@ export function start(): void {
     log.info(`[app] started on http://localhost:${process.env.PORT || 3000}`);
     log.info(`- Parallel: ${process.env.PARALLEL}`);
     log.info(`- Nodes: ${JSON.parse(process.env.ARWEAVE_NODES).join(', ')}`);
-
-    const graphqlServer = graphServer({ introspection: true });
-    Promise.all([findPeers(), graphqlServer.start()]).then(() => {
-      (graphqlServer as any).applyMiddleware({
-        app,
-        path: '/graphql',
-        subscriptionEndpoint: '/graphql',
-        disableHealthCheck: true,
-        schemaPolling: false,
-      });
-      startSync({ isTesting: process.env.NODE_ENV === 'test' });
-    });
-    app.get(
-      '/graphql',
-      expressPlayground({
-        endpoint: '/graphql',
-      })
-    );
   });
 }
 

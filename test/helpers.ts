@@ -84,16 +84,20 @@ export function nuke(): Promise<string> {
   });
 }
 
-export function generateMockBlocks({ totalBlocks, offset = 0 }) {
+export function generateMockBlocks({
+  totalBlocks,
+  offset = 0,
+  hashPrefix = 'x',
+}) {
   const template = {
     nonce: 'n1',
-    previous_block: 'p0',
+    previous_block: hashPrefix,
     timestamp: 1,
     last_retarget: 1,
     diff: '1111',
     height: 0,
     hash: '_____x',
-    indep_hash: 'x1',
+    indep_hash: hashPrefix,
     txs: [],
     tx_root: 'root1',
     wallet_list: 'wl1',
@@ -113,10 +117,12 @@ export function generateMockBlocks({ totalBlocks, offset = 0 }) {
   };
 
   const blockHeights = R.range(offset, offset + totalBlocks);
+
   return blockHeights.map((height) =>
     R.pipe(
       R.assoc('height', height),
-      R.assoc('indep_hash', `x${height}`)
+      R.assoc('indep_hash', `${hashPrefix}${height}`),
+      R.assoc('previous_block', `${hashPrefix}${height - 1}`)
     )(template)
   );
 }

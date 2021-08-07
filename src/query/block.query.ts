@@ -94,6 +94,32 @@ export async function getBlock({
   return body;
 }
 
+export async function fetchBlockByHash(
+  hash: string
+): Promise<BlockType | undefined> {
+  const tryNode = grabNode();
+  const url = `${tryNode}/block/hash/${hash}`;
+
+  let body;
+  try {
+    body = (await got.get(url, {
+      responseType: 'json',
+      resolveBodyOnly: true,
+      timeout: HTTP_TIMEOUT_SECONDS * 1000,
+      followRedirect: true,
+    })) as BlockType;
+  } catch (error) {
+    coolNode(tryNode);
+  }
+
+  if (!body) {
+    return fetchBlockByHash(hash);
+  }
+
+  warmNode(tryNode);
+  return body;
+}
+
 export async function currentBlock(): Promise<BlockType | undefined> {
   const tryNode = grabNode();
   let jsonPayload;

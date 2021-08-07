@@ -13,14 +13,14 @@ const PORT = 12345;
 
 const exists = util.promisify(existsOrig);
 
-let mockBlocks = helpers.generateMockBlocks({ totalBlocks: 100 });
+let mockBlocks: any[] = helpers.generateMockBlocks({ totalBlocks: 100 });
 
 const lastBlock: any = {
   current: '',
   height: -1,
 };
 
-const tmpNextBlock = R.last(mockBlocks);
+const tmpNextBlock: any = R.last(mockBlocks);
 
 lastBlock['height'] = tmpNextBlock.height;
 lastBlock['current'] = tmpNextBlock.indep_hash;
@@ -47,8 +47,20 @@ describe('integration suite', function () {
       res.status(200).json(lastBlock);
     });
 
+    app.get('/block/height/:id', function (req, res) {
+      const match = R.find(R.propEq('height', parseInt(req.params.id)))(
+        mockBlocks
+      );
+      if (match) {
+        res.status(200).json(match);
+      } else {
+        res.status(404);
+      }
+    });
+
     app.get('/block/hash/:id', function (req, res) {
       const match = R.find(R.propEq('indep_hash', req.params.id))(mockBlocks);
+      // console.error(req.params.id, req.params.id, match);
       if (match) {
         res.status(200).json(match);
       } else {
@@ -185,7 +197,7 @@ describe('integration suite', function () {
       fullySyncPromiseResolve = resolve;
     });
 
-    const nextBlock = helpers.generateMockBlocks({
+    const nextBlock: any = helpers.generateMockBlocks({
       totalBlocks: 1,
       offset: 100,
     })[0];
@@ -195,12 +207,86 @@ describe('integration suite', function () {
     lastBlock['height'] = nextBlock.height;
     lastBlock['current'] = nextBlock.indep_hash;
 
-    await new Promise((resolve) => setTimeout(resolve, 10000));
+    await new Promise((resolve) => setTimeout(resolve, 12000));
 
     const queryResponse = await client.execute(
       'SELECT COUNT(*) FROM testway.block ALLOW FILTERING'
     );
 
     expect(queryResponse.rows[0].count.toString()).toEqual('101');
+  });
+
+  test('it recovers when fork changes', async () => {
+    let logs = '';
+    let fullySyncPromiseResolve: any;
+    proc = proc || helpers.startGateway();
+    proc.stderr.on('data', process.stderr.write); //  (data) => console.error(data.toString())
+    proc.stdout.on('data', (log: string) => {
+      if (/fully synced db/g.test(log.toString()) && fullySyncPromiseResolve) {
+        fullySyncPromiseResolve();
+        fullySyncPromiseResolve = undefined;
+      }
+
+      process.stderr.write(log);
+      logs += log.toString();
+    });
+
+    await new Promise((resolve, reject) => {
+      fullySyncPromiseResolve = resolve;
+    });
+
+    let nextFork: any[] = helpers.generateMockBlocks({
+      totalBlocks: 15,
+      offset: 89,
+      hashPrefix: 'y',
+    });
+
+    mockBlocks = R.splitWhen(R.propEq('height', 90))(mockBlocks)[0];
+    nextFork = R.concat(
+      [
+        R.assoc(
+          'previous_block',
+          R.last(mockBlocks).indep_hash,
+          R.head(nextFork)
+        ),
+      ],
+      R.slice(1, nextFork.length, nextFork)
+    );
+    mockBlocks = R.concat(mockBlocks, nextFork);
+
+    lastBlock['height'] = R.last(mockBlocks).height;
+    lastBlock['current'] = R.last(mockBlocks).indep_hash;
+
+    await new Promise((resolve) => setTimeout(resolve, 40000));
+
+    const queryResponse = await client.execute(
+      'SELECT indep_hash,height FROM testway.block WHERE height>85 AND height<95 ALLOW FILTERING'
+    );
+    const result = queryResponse.rows.map((obj: any) => ({
+      height: parseInt(obj.height),
+      hash: obj.indep_hash,
+    }));
+
+    expect(R.findIndex(R.equals({ height: 86, hash: 'x86' }), result)).toEqual(
+      1
+    );
+    expect(R.findIndex(R.equals({ height: 87, hash: 'x87' }), result)).toEqual(
+      1
+    );
+    expect(R.findIndex(R.equals({ height: 88, hash: 'x88' }), result)).toEqual(
+      1
+    );
+    expect(R.findIndex(R.equals({ height: 89, hash: 'x89' }), result)).toEqual(
+      1
+    );
+    expect(R.findIndex(R.equals({ height: 90, hash: 'x90' }), result)).toEqual(
+      1
+    );
+    expect(R.findIndex(R.equals({ height: 91, hash: 'x91' }), result)).toEqual(
+      1
+    );
+    expect(R.findIndex(R.equals({ height: 92, hash: 'x92' }), result)).toEqual(
+      1
+    );
   });
 });

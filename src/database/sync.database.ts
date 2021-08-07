@@ -14,7 +14,10 @@ import { ansBundles } from '../utility/ans.utility';
 import { mkdir } from '../utility/file.utility';
 import { sleep } from '../utility/sleep.utility';
 import { getHashList, getNodeInfo } from '../query/node.query';
-import { getBlock as queryGetBlock } from '../query/block.query';
+import {
+  getBlock as queryGetBlock,
+  fetchBlockByHash,
+} from '../query/block.query';
 import {
   getTransaction,
   getTxOffset,
@@ -204,10 +207,6 @@ const processTxQueue = (queueSource: any, queueState: QueueState): void => {
   }
 };
 
-// const processBlockQueue = createPriorityQueue(blockQueue, blockQueueState);
-// const processTxQueue = createPriorityQueue(txQueue, txQueueState);
-// const processTagsQueue = createQueue(tagsQueue, tagsQueueState);
-
 function startQueueProcessors() {
   if (!blockQueueState.isStarted) {
     blockQueueState.isStarted = true;
@@ -221,13 +220,56 @@ function startQueueProcessors() {
       processTxQueue(txQueue, txQueueState); // follow block height when syncing tx's
     }, 100);
   }
-  // if (!tagsQueueState.isStarted) {
-  //   tagsQueueState.isStarted = true;
-  //   setInterval(processTagsQueue, 10);
-  // }
+}
+
+async function resolveFork(previousBlock: any): Promise<void> {
+  isPaused = true;
+  const pprevBlock = await fetchBlockByHash(previousBlock.previous_block);
+
+  const blockQueryResult = await cassandraClient.execute(
+    `SELECT height FROM ${KEYSPACE}.block WHERE indep_hash=?`,
+    [pprevBlock.previous_block]
+  );
+
+  if (blockQueryResult.rowLength > 0) {
+    cassandraClient.eachRow(
+      `SELECT height,indep_hash FROM ${KEYSPACE}.block WHERE height>${blockQueryResult.rows[0].height.toString()} ALLOW FILTERING`,
+      [],
+      {
+        autoPage: true,
+        prepare: false,
+        executionProfile: 'fast',
+      },
+      async function (n, row) {
+        await cassandraClient.execute(
+          `DELETE FROM ${KEYSPACE}.block WHERE indep_hash='${row.indep_hash}'`
+        );
+      },
+
+      function (err, res) {
+        isPaused = false;
+      }
+    );
+  } else {
+    const blockQueryCallback = makeBlockImportQuery(pprevBlock);
+    blockQueue.enqueue({
+      callback: blockQueryCallback,
+      height:
+        pprevBlock.height !== null && !isNaN(pprevBlock.height)
+          ? toLong(pprevBlock.height)
+          : toLong(0),
+      type: 'block',
+      txCount: pprevBlock.txs ? pprevBlock.txs.length : 0,
+    });
+
+    return await resolveFork(pprevBlock);
+  }
 }
 
 async function startPolling(): Promise<void> {
+  if (SIGINT || SIGKILL) {
+    process.exit(1);
+  }
   if (!isPollingStarted) {
     isPollingStarted = true;
   }
@@ -242,35 +284,46 @@ async function startPolling(): Promise<void> {
   [topHash, topHeight] = await getMaxHeightBlock();
 
   if (nodeInfo.current === topHash) {
-    // wait 5 seconds before polling again
-    log.info('[poll] fully aligned at height ' + topHeight.toString());
+    // wait before polling again
 
     await new Promise((res) => setTimeout(res, POLLTIME_DELAY_SECONDS * 1000));
     return startPolling();
-  } else if (nodeInfo) {
-    // TODO fork recovery
+  } else {
+    const currentRemoteBlock = await fetchBlockByHash(nodeInfo.current);
+    let previousBlock = await fetchBlockByHash(
+      currentRemoteBlock.previous_block
+    );
 
-    const newBlock = await queryGetBlock({
-      height: nodeInfo.height,
-      hash: nodeInfo.current,
-    });
-    if (newBlock !== undefined) {
-      const blockQueryCallback = makeBlockImportQuery(newBlock);
-      blockQueue.enqueue({
-        callback: blockQueryCallback,
-        height:
+    // fork recovery
+    if (previousBlock.indep_hash !== topHash) {
+      await resolveFork(currentRemoteBlock);
+    } else {
+      const newBlock = await queryGetBlock({
+        height: nodeInfo.height,
+        hash: nodeInfo.current,
+      });
+      if (newBlock !== undefined) {
+        const newBlockHeight =
           newBlock.height !== null && !isNaN(newBlock.height)
             ? toLong(newBlock.height)
-            : toLong(0),
-        type: 'block',
-        txCount: newBlock.txs ? newBlock.txs.length : 0,
-      });
-    } else {
-      console.error('Querying for new tx failed');
+            : toLong(0);
+        log.info('new block arrived at height ' + newBlockHeight.toString());
+        const blockQueryCallback = makeBlockImportQuery(newBlock);
+        blockQueue.enqueue({
+          callback: blockQueryCallback,
+          height: newBlockHeight,
+          type: 'block',
+          txCount: newBlock.txs ? newBlock.txs.length : 0,
+        });
+      } else {
+        console.error('Querying for new tx failed');
+      }
+      await new Promise((res) =>
+        setTimeout(res, POLLTIME_DELAY_SECONDS * 1000)
+      );
     }
-    await new Promise((res) => setTimeout(res, POLLTIME_DELAY_SECONDS * 1000));
-    return startPolling();
   }
+  return startPolling();
 }
 
 const detectFirstRun = async (): Promise<boolean> => {
@@ -473,12 +526,6 @@ export function storeBlock(
 
       if (newSyncBlock && newSyncBlock.height === height) {
         const newSyncBlockHeight = toLong(newSyncBlock.height);
-        blockQueue.enqueue({
-          callback: makeBlockImportQuery(newSyncBlock),
-          height: newSyncBlockHeight,
-          txCount: newSyncBlock.txs ? newSyncBlock.txs.length : 0,
-          type: 'block',
-        });
         await Promise.all(
           (newSyncBlock.txs || []).map(async (txId: string, index: number) => {
             const txIndex = newSyncBlockHeight.mul(MAX_TX_PER_BLOCK).add(index);
@@ -490,6 +537,12 @@ export function storeBlock(
             );
           })
         );
+        blockQueue.enqueue({
+          callback: makeBlockImportQuery(newSyncBlock),
+          height: newSyncBlockHeight,
+          txCount: newSyncBlock.txs ? newSyncBlock.txs.length : 0,
+          type: 'block',
+        });
         return;
       } else {
         await new Promise((res) => setTimeout(res, 100));

@@ -1,12 +1,12 @@
-import { Request, Response } from 'express';
-import { syncHeight, topHeight } from '../database/sync.database';
-import { toLong } from '../database/cassandra.database';
-import { getNodeInfo } from '../query/node.query';
+import {Request, Response} from 'express';
+import {syncHeight, topHeight} from '../database/sync.database';
+import {toLong} from '../database/cassandra.database';
+import {getNodeInfo} from '../query/node.query';
 
 export const start = Number(new Date());
 
 export async function syncRoute(req: Request, res: Response) {
-  const info = await getNodeInfo({ maxRetry: 1, keepAlive: true });
+  const info = await getNodeInfo({maxRetry: 1, keepAlive: true});
 
   if (info) {
     const delta = toLong(info.height).sub(syncHeight);

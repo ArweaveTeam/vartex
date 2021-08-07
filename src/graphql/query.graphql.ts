@@ -1,15 +1,15 @@
 import * as R from 'rambda';
-import { types as CassandraTypes } from 'cassandra-driver';
+import {types as CassandraTypes} from 'cassandra-driver';
 import * as Constants from '../database/constants.database';
-import { config } from 'dotenv';
-import { KEYSPACE } from '../constants';
-import { indices } from '../utility/order.utility';
-import { ISO8601DateTimeString } from '../utility/encoding.utility';
-import { TagFilter } from './types';
-import { toB64url } from '../query/transaction.query';
-import { default as cqlBuilder } from '@ridi/cql-builder';
+import {config} from 'dotenv';
+import {KEYSPACE} from '../constants';
+import {indices} from '../utility/order.utility';
+import {ISO8601DateTimeString} from '../utility/encoding.utility';
+import {TagFilter} from './types';
+import {toB64url} from '../query/transaction.query';
+import {default as cqlBuilder} from '@ridi/cql-builder';
 
-const { Insert, Select, Update, Delete, CqlBuilderError } = cqlBuilder;
+const {Insert, Select, Update, Delete, CqlBuilderError} = cqlBuilder;
 
 export type TxSortOrder = 'HEIGHT_ASC' | 'HEIGHT_DESC';
 
@@ -47,33 +47,33 @@ export function generateTransactionQuery(params: QueryParams): any {
     return cql.build();
   } else if (params.ids && Array.isArray(params.ids)) {
     cql.where.apply(
-      cql,
-      R.concat(
-        [
-          `tx_id IN ( ${R.range(0, params.ids.length)
-            .map(() => '?')
-            .join(', ')} )`,
-        ],
-        params.ids
-      )
+        cql,
+        R.concat(
+            [
+              `tx_id IN ( ${R.range(0, params.ids.length)
+                  .map(() => '?')
+                  .join(', ')} )`,
+            ],
+            params.ids,
+        ),
     );
   }
 
   if (Array.isArray(params.tags) && !R.isEmpty(params.tags)) {
-    for (const { name, values = '' } of params.tags) {
+    for (const {name, values = ''} of params.tags) {
       if (Array.isArray(values)) {
         for (const value of values) {
           cql.where(
-            `tags CONTAINS (?, ?)`,
-            toB64url(name || ''),
-            toB64url(value || '')
+              'tags CONTAINS (?, ?)',
+              toB64url(name || ''),
+              toB64url(value || ''),
           );
         }
       } else {
         cql.where(
-          `tags CONTAINS (?, ?)`,
-          toB64url(name || ''),
-          toB64url(values || '')
+            'tags CONTAINS (?, ?)',
+            toB64url(name || ''),
+            toB64url(values || ''),
         );
       }
     }
@@ -81,13 +81,13 @@ export function generateTransactionQuery(params: QueryParams): any {
 
   if (params.since) {
     cql.where(
-      'block_timestamp < ?',
-      CassandraTypes.Long.fromNumber(
-        Math.floor(
-          CassandraTypes.TimeUuid.fromString(params.since).getDate().valueOf() /
-            1000
-        )
-      )
+        'block_timestamp < ?',
+        CassandraTypes.Long.fromNumber(
+            Math.floor(
+                CassandraTypes.TimeUuid.fromString(params.since).getDate().valueOf() /
+            1000,
+            ),
+        ),
     );
   }
 
@@ -104,17 +104,17 @@ export function generateTransactionQuery(params: QueryParams): any {
   // }
 
   cql.where(
-    'tx_index >= ?',
-    params.sortOrder === 'HEIGHT_ASC'
-      ? params.minHeight.add(params.offset).toString()
-      : params.minHeight.toString()
+      'tx_index >= ?',
+    params.sortOrder === 'HEIGHT_ASC' ?
+      params.minHeight.add(params.offset).toString() :
+      params.minHeight.toString(),
   );
 
   cql.where(
-    'tx_index <= ?',
-    params.sortOrder === 'HEIGHT_DESC'
-      ? params.maxHeight.sub(params.offset).toString()
-      : params.maxHeight.toString()
+      'tx_index <= ?',
+    params.sortOrder === 'HEIGHT_DESC' ?
+      params.maxHeight.sub(params.offset).toString() :
+      params.maxHeight.toString(),
   );
 
   cql.limit(params.limit);
@@ -147,29 +147,29 @@ export function generateBlockQuery(params: BlockQueryParams): any {
   } = params;
 
   const cql = Select()
-    .table(
+      .table(
       params.sortOrder === 'HEIGHT_ASC' ? 'block_gql_asc' : 'block_gql_desc',
-      KEYSPACE
-    )
-    .field(
-      select.includes('indep_hash') ? select : R.append('indep_hash', select)
-    )
-    .filtering();
+      KEYSPACE,
+      )
+      .field(
+      select.includes('indep_hash') ? select : R.append('indep_hash', select),
+      )
+      .filtering();
 
   // const query = connection.queryBuilder().select(select).from('blocks');
   if (id) {
     cql.where('indep_hash = ?', id);
   } else if (ids && Array.isArray(ids) && !R.isEmpty(ids)) {
     cql.where.apply(
-      cql,
-      R.concat(
-        [
-          `indep_hash IN ( ${R.range(0, params.ids.length)
-            .map(() => '?')
-            .join(', ')} )`,
-        ],
-        params.ids
-      )
+        cql,
+        R.concat(
+            [
+              `indep_hash IN ( ${R.range(0, params.ids.length)
+                  .map(() => '?')
+                  .join(', ')} )`,
+            ],
+            params.ids,
+        ),
     );
   }
 
@@ -178,17 +178,17 @@ export function generateBlockQuery(params: BlockQueryParams): any {
   }
 
   cql.where(
-    'height >= ?',
-    params.sortOrder === 'HEIGHT_ASC'
-      ? minHeight.add(offset).toString()
-      : minHeight.toString()
+      'height >= ?',
+    params.sortOrder === 'HEIGHT_ASC' ?
+      minHeight.add(offset).toString() :
+      minHeight.toString(),
   );
 
   cql.where(
-    'height <= ?',
-    params.sortOrder === 'HEIGHT_DESC'
-      ? (maxHeight as any).sub(offset).toString()
-      : maxHeight.toString()
+      'height <= ?',
+    params.sortOrder === 'HEIGHT_DESC' ?
+      (maxHeight as any).sub(offset).toString() :
+      maxHeight.toString(),
   );
 
   cql.limit(fetchSize);
@@ -202,37 +202,37 @@ export interface DeferedBlockQueryParams {
 }
 
 export function generateDeferedBlockQuery(
-  params: DeferedBlockQueryParams
+    params: DeferedBlockQueryParams,
 ): any {
   return Select()
-    .table('block', KEYSPACE)
-    .where('indep_hash = ?', params.indep_hash)
-    .field(params.deferedSelect)
-    .build();
+      .table('block', KEYSPACE)
+      .where('indep_hash = ?', params.indep_hash)
+      .field(params.deferedSelect)
+      .build();
 }
 
 export function generateDeferedTxQuery(params: any): any {
   return Select()
-    .table('transaction', KEYSPACE)
-    .where('tx_id = ?', params.tx_id)
-    .field(params.deferedSelect)
-    .build();
+      .table('transaction', KEYSPACE)
+      .where('tx_id = ?', params.tx_id)
+      .field(params.deferedSelect)
+      .build();
 }
 
 export function generateDeferedTxBlockQuery(
-  height: CassandraTypes.Long,
-  fieldSelect: any
+    height: CassandraTypes.Long,
+    fieldSelect: any,
 ): any {
   return Select()
-    .table('block_gql_asc', KEYSPACE)
-    .field(fieldSelect)
-    .where('height = ?', height)
-    .where(
-      'partition_id = ?',
-      Constants.getGqlBlockHeightAscPartitionName(height)
-    )
-    .where('bucket_id = ?', Constants.getGqlBlockHeightAscBucketName(height))
-    .build();
+      .table('block_gql_asc', KEYSPACE)
+      .field(fieldSelect)
+      .where('height = ?', height)
+      .where(
+          'partition_id = ?',
+          Constants.getGqlBlockHeightAscPartitionName(height),
+      )
+      .where('bucket_id = ?', Constants.getGqlBlockHeightAscBucketName(height))
+      .build();
 }
 
 export function generateTagQuery(tags: TagFilter[]) {
@@ -241,15 +241,15 @@ export function generateTagQuery(tags: TagFilter[]) {
     cql.where('name = ?', tag.name.toString());
     if (Array.isArray(tag.values)) {
       cql.where.apply(
-        cql,
-        R.concat(
-          [
-            `value IN ( ${R.range(0, tag.values.length)
-              .map(() => '?')
-              .join(', ')} )`,
-          ],
-          tag.values
-        )
+          cql,
+          R.concat(
+              [
+                `value IN ( ${R.range(0, tag.values.length)
+                    .map(() => '?')
+                    .join(', ')} )`,
+              ],
+              tag.values,
+          ),
       );
     } else {
       cql.where('value = ?', (tag.values as any).toString());

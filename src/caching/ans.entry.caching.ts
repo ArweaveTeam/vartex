@@ -1,7 +1,7 @@
 import fs from 'fs-jetpack';
-import { DataItemJson } from 'arweave-bundles';
-import { cacheFolder } from './file.caching';
-import { b64UrlToBuffer } from '../utility/encoding.utility';
+import {DataItemJson} from 'arweave-bundles';
+import {cacheFolder} from './file.caching';
+import {b64UrlToBuffer} from '../utility/encoding.utility';
 
 export async function cacheANSEntries(entries: Array<DataItemJson>) {
   for (let i = 0; i < entries.length; i++) {

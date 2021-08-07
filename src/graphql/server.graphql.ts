@@ -1,4 +1,4 @@
-import { readFileSync } from 'fs';
+import {readFileSync} from 'fs';
 import {
   ApolloServer,
   ApolloServerExpressConfig,
@@ -6,12 +6,12 @@ import {
   gql,
 } from 'apollo-server-express';
 // import {connection} from '../database/connection.database';
-import { resolvers } from './resolver.graphql.js';
+import {resolvers} from './resolver.graphql.js';
 
 const typeDefs = gql(readFileSync(`${process.cwd()}/types.graphql`, 'utf8'));
 
 export function graphServer(
-  opts: ApolloServerExpressConfig = {}
+    opts: ApolloServerExpressConfig = {},
 ): ApolloServer<ExpressContext> {
   const graphServer = new (ApolloServer as any)({
     typeDefs,

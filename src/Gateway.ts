@@ -1,29 +1,29 @@
 import 'colors';
-import express, { Express, Request, Response } from 'express';
+import express, {Express, Request, Response} from 'express';
 import gpmeImport from 'graphql-playground-middleware-express';
-import { config } from 'dotenv';
+import {config} from 'dotenv';
 import cors from 'cors';
-import { jsonMiddleware } from './middleware/json.middleware.js';
-import { log } from './utility/log.utility.js';
-import { graphServer } from './graphql/server.graphql.js';
+import {jsonMiddleware} from './middleware/json.middleware.js';
+import {log} from './utility/log.utility.js';
+import {graphServer} from './graphql/server.graphql.js';
 import {
   blockCurrentRoute,
   blockByHashRoute,
   blockByHeightRoute,
 } from './route/block.route.js';
-import { statusRoute } from './route/status.route.js';
+import {statusRoute} from './route/status.route.js';
 import {
   txOffsetRoute,
   txUploadRoute,
   txGetByIdRoute,
 } from './route/transaction.route.js';
-import { proxyGetRoute, proxyPostRoute } from './route/proxy.route.js';
-import { hashListRoute } from './route/hash-list.route.js';
-import { koiLogger, koiLogsRoute, koiLogsRawRoute } from './route/koi.route.js';
-import { findPeers } from './query/node.query.js';
-import { startSync } from './database/sync.database.js';
+import {proxyGetRoute, proxyPostRoute} from './route/proxy.route.js';
+import {hashListRoute} from './route/hash-list.route.js';
+import {koiLogger, koiLogsRoute, koiLogsRawRoute} from './route/koi.route.js';
+import {findPeers} from './query/node.query.js';
+import {startSync} from './database/sync.database.js';
 
-const { default: expressPlayground } = gpmeImport as any;
+const {default: expressPlayground} = gpmeImport as any;
 
 config();
 
@@ -51,21 +51,21 @@ export function start(): void {
   app.get('/tx_anchor', proxyGetRoute);
 
   // db endpoints
-  app.get(`/block/height/:height`, blockByHeightRoute);
-  app.get(`/block/hash/:hash`, blockByHashRoute);
-  app.get(`/block/current`, blockCurrentRoute);
+  app.get('/block/height/:height', blockByHeightRoute);
+  app.get('/block/hash/:hash', blockByHashRoute);
+  app.get('/block/current', blockCurrentRoute);
 
-  app.post(`/tx`, txUploadRoute);
+  app.post('/tx', txUploadRoute);
   app.post('/chunk', proxyPostRoute);
-  app.post(`/wallet`, proxyPostRoute);
-  app.post(`/unsigned_tx`, proxyPostRoute);
-  app.post(`/api`, proxyPostRoute);
+  app.post('/wallet', proxyPostRoute);
+  app.post('/unsigned_tx', proxyPostRoute);
+  app.post('/api', proxyPostRoute);
   app.get(/\/price.*/, proxyGetRoute);
   app.get(/\/wallet.*/, proxyGetRoute);
   app.get(/\/[a-z0-9_-]{43}/i, proxyGetRoute);
-  
+
   // graphql endpoints
-  const graphqlServer = graphServer({ introspection: true });
+  const graphqlServer = graphServer({introspection: true});
   Promise.all([findPeers(), graphqlServer.start()]).then(() => {
     (graphqlServer as any).applyMiddleware({
       app,
@@ -83,14 +83,14 @@ export function start(): void {
       });
     });
 
-    startSync({ isTesting: process.env.NODE_ENV === 'test' });
+    startSync({isTesting: process.env.NODE_ENV === 'test'});
   });
 
   app.get(
-    '/graphql',
-    expressPlayground({
-      endpoint: '/graphql',
-    })
+      '/graphql',
+      expressPlayground({
+        endpoint: '/graphql',
+      }),
   );
 
   app.listen(process.env.PORT || 3000, () => {

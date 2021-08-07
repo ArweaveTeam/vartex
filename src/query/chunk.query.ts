@@ -1,7 +1,7 @@
 import got from 'got';
-import { b64UrlToBuffer } from '../utility/encoding.utility';
-import { grabNode } from './node.query';
-import { HTTP_TIMEOUT_SECONDS } from '../constants';
+import {b64UrlToBuffer} from '../utility/encoding.utility';
+import {grabNode} from './node.query';
+import {HTTP_TIMEOUT_SECONDS} from '../constants';
 
 // export interface TransactionOffsetType {
 //   size: number;
@@ -63,7 +63,7 @@ export async function getChunk({
     };
   } catch (error) {
     if (retry && retryCount > 0) {
-      return getChunk({ offset, retry: true, retryCount: retryCount - 1 });
+      return getChunk({offset, retry: true, retryCount: retryCount - 1});
     } else {
       throw error;
     }

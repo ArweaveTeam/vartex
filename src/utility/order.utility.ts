@@ -1,4 +1,4 @@
-import { config } from 'dotenv';
+import {config} from 'dotenv';
 
 process.env.NODE_ENV !== 'test' && config();
 

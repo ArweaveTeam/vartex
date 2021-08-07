@@ -1,4 +1,4 @@
-import { types as CassandraTypes } from 'cassandra-driver';
+import {types as CassandraTypes} from 'cassandra-driver';
 
 export const MAX_TX_PER_BLOCK = 1000;
 
@@ -14,72 +14,72 @@ export const GQL_TX_TAG_BUCKET_SIZE = 50000; // same guestimation
 // converters to help locating buckets
 
 export const getGqlBlockHeightAscPartitionName = (
-  height: CassandraTypes.Long
+    height: CassandraTypes.Long,
 ): string =>
   `gql_partition_block_height_asc_${height
-    .divide(GQL_BLOCK_HEIGHT_PARTITION_SIZE)
-    .toString()}`;
+      .divide(GQL_BLOCK_HEIGHT_PARTITION_SIZE)
+      .toString()}`;
 
 export const getGqlBlockHeightAscBucketName = (
-  height: CassandraTypes.Long
+    height: CassandraTypes.Long,
 ): string =>
   `gql_bucket_block_height_asc_${height
-    .divide(GQL_BLOCK_HEIGHT_BUCKET_SIZE)
-    .toString()}`;
+      .divide(GQL_BLOCK_HEIGHT_BUCKET_SIZE)
+      .toString()}`;
 
 export const getGqlBlockHeightDescPartitionName = (
-  height: CassandraTypes.Long
+    height: CassandraTypes.Long,
 ): string =>
   `gql_partition_block_height_desc_${height
-    .divide(GQL_BLOCK_HEIGHT_PARTITION_SIZE)
-    .toString()}`;
+      .divide(GQL_BLOCK_HEIGHT_PARTITION_SIZE)
+      .toString()}`;
 
 export const getGqlBlockHeightDescBucketName = (
-  height: CassandraTypes.Long
+    height: CassandraTypes.Long,
 ): string =>
   `gql_bucket_block_height_desc_${height
-    .divide(GQL_BLOCK_HEIGHT_BUCKET_SIZE)
-    .toString()}`;
+      .divide(GQL_BLOCK_HEIGHT_BUCKET_SIZE)
+      .toString()}`;
 
 export const getGqlTxIdAscPartitionName = (
-  height: CassandraTypes.Long
+    height: CassandraTypes.Long,
 ): string =>
   `gql_partition_tx_id_asc_${height
-    .divide(GQL_TX_ID_PARTITION_SIZE)
-    .toString()}`;
+      .divide(GQL_TX_ID_PARTITION_SIZE)
+      .toString()}`;
 
 export const getGqlTxIdAscBucketName = (height: CassandraTypes.Long): string =>
   `gql_bucket_tx_id_asc_${height.divide(GQL_TX_ID_BUCKET_SIZE).toString()}`;
 
 export const getGqlTxIdDescPartitionName = (
-  height: CassandraTypes.Long
+    height: CassandraTypes.Long,
 ): string =>
   `gql_partition_tx_id_desc_${height
-    .divide(GQL_TX_ID_PARTITION_SIZE)
-    .toString()}`;
+      .divide(GQL_TX_ID_PARTITION_SIZE)
+      .toString()}`;
 
 export const getGqlTxIdDescBucketName = (height: CassandraTypes.Long): string =>
   `gql_bucket_tx_id_desc_${height.divide(GQL_TX_ID_BUCKET_SIZE).toString()}`;
 
 export const getGqlTxTagAscPartitionName = (
-  height: CassandraTypes.Long
+    height: CassandraTypes.Long,
 ): string =>
   `gql_partition_tx_tag_asc_${height
-    .divide(GQL_TX_TAG_PARTITION_SIZE)
-    .toString()}`;
+      .divide(GQL_TX_TAG_PARTITION_SIZE)
+      .toString()}`;
 
 export const getGqlTxTagAscBucketName = (height: CassandraTypes.Long): string =>
   `gql_bucket_tx_tag_asc_${height.divide(GQL_TX_TAG_BUCKET_SIZE).toString()}`;
 
 export const getGqlTxTagDescPartitionName = (
-  height: CassandraTypes.Long
+    height: CassandraTypes.Long,
 ): string =>
   `gql_partition_tx_tag_desc_${height
-    .divide(GQL_TX_TAG_PARTITION_SIZE)
-    .toString()}`;
+      .divide(GQL_TX_TAG_PARTITION_SIZE)
+      .toString()}`;
 
 export const getGqlTxTagDescBucketName = (
-  height: CassandraTypes.Long
+    height: CassandraTypes.Long,
 ): string =>
   `gql_bucket_tx_tag_desc_${height.divide(GQL_TX_TAG_BUCKET_SIZE).toString()}`;
 

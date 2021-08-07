@@ -1,6 +1,6 @@
 import moment from 'moment';
-import { pick } from 'lodash';
-import { BlockType } from '../query/block.query';
+import {pick} from 'lodash';
+import {BlockType} from '../query/block.query';
 
 export interface BlockDatabaseType {
   id: string;

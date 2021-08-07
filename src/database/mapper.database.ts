@@ -1,11 +1,11 @@
 import * as R from 'rambda';
-import { mapping } from 'cassandra-driver';
-import { cassandraClient } from './cassandra.database.js';
+import {mapping} from 'cassandra-driver';
+import {cassandraClient} from './cassandra.database.js';
 
-const { Mapper } = mapping;
+const {Mapper} = mapping;
 
 // prune the null values away
-const withDefault = ({ name, fallback }: { name: string; fallback: any }) => ({
+const withDefault = ({name, fallback}: { name: string; fallback: any }) => ({
   [name]: {
     name,
     toModel: (v: any) => v || fallback,
@@ -23,13 +23,13 @@ const mapper = new Mapper(cassandraClient, {
       keyspace: 'gateway',
       tables: ['block'],
       columns: R.mergeAll([
-        withDefault({ name: 'cumulative_diff', fallback: '' }),
-        withDefault({ name: 'hash_list_merkle', fallback: '' }),
-        withDefault({ name: 'previous_block', fallback: '' }), // only block 0
-        withDefault({ name: 'tags', fallback: [] }),
-        withDefault({ name: 'tx_root', fallback: '' }),
-        withDefault({ name: 'tx_tree', fallback: '' }),
-        withDefault({ name: 'txs', fallback: [] }),
+        withDefault({name: 'cumulative_diff', fallback: ''}),
+        withDefault({name: 'hash_list_merkle', fallback: ''}),
+        withDefault({name: 'previous_block', fallback: ''}), // only block 0
+        withDefault({name: 'tags', fallback: []}),
+        withDefault({name: 'tx_root', fallback: ''}),
+        withDefault({name: 'tx_tree', fallback: ''}),
+        withDefault({name: 'txs', fallback: []}),
       ]),
     },
     BlockByTxId: {
@@ -48,12 +48,12 @@ const mapper = new Mapper(cassandraClient, {
       keyspace: 'gateway',
       tables: ['transaction'],
       columns: R.mergeAll([
-        withDefault({ name: 'target', fallback: '' }),
-        withDefault({ name: 'data', fallback: '' }),
-        withDefault({ name: 'data_root', fallback: '' }),
-        withDefault({ name: 'data_tree', fallback: '' }),
-        withDefault({ name: 'format', fallback: 0 }),
-        withDefault({ name: 'tx_uuid', fallback: '' }),
+        withDefault({name: 'target', fallback: ''}),
+        withDefault({name: 'data', fallback: ''}),
+        withDefault({name: 'data_root', fallback: ''}),
+        withDefault({name: 'data_tree', fallback: ''}),
+        withDefault({name: 'format', fallback: 0}),
+        withDefault({name: 'tx_uuid', fallback: ''}),
       ]),
     },
     TxTag: {
@@ -68,7 +68,7 @@ const mapper = new Mapper(cassandraClient, {
 });
 
 export const blockHeightToHashMapper = mapper.forModel(
-  'BlockHeightByBlockHash'
+    'BlockHeightByBlockHash',
 );
 
 export const blockMapper = mapper.forModel('Block');
@@ -86,19 +86,19 @@ export const txTagMapper = mapper.forModel('TxTag');
 export const txOffsetMapper = mapper.forModel('TxOffset');
 
 export const tagsByTxId = async (txId: string) => {
-  let lastRes = await txTagMapper.get({ tx_id: txId, tag_index: 0 });
+  let lastRes = await txTagMapper.get({tx_id: txId, tag_index: 0});
   const tags = [];
 
   if (!lastRes) {
     return tags;
   } else {
-    tags.push({ name: lastRes.name, value: lastRes.value });
+    tags.push({name: lastRes.name, value: lastRes.value});
     while (lastRes.next_tag_index) {
       lastRes = await txTagMapper.get({
         tx_id: txId,
         tag_index: lastRes.next_tag_index,
       });
-      tags.push({ name: lastRes.name, value: lastRes.value });
+      tags.push({name: lastRes.name, value: lastRes.value});
     }
   }
   return tags;

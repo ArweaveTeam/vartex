@@ -74,6 +74,15 @@ export function start(): void {
       disableHealthCheck: true,
       schemaPolling: false,
     });
+
+    // Everything else
+    app.all('*', (req: Request, res: Response) => {
+      res.status(400).json({
+        status: 400,
+        error: 'Not Found',
+      });
+    });
+
     startSync({ isTesting: process.env.NODE_ENV === 'test' });
   });
 
@@ -83,14 +92,6 @@ export function start(): void {
       endpoint: '/graphql',
     })
   );
-
-  // Everything else
-  app.all('*', (req: Request, res: Response) => {
-    res.status(400).json({
-      status: 400,
-      error: 'Not Found',
-    });
-  });
 
   app.listen(process.env.PORT || 3000, () => {
     log.info(`[app] Started on http://localhost:${process.env.PORT || 3000}`);

@@ -36,13 +36,13 @@ const trackerTheme = GaugeThemes.newTheme(
     }),
 );
 
-export const SIGINT: boolean = false;
-export let SIGKILL: boolean = false;
+export const SIGINT = false;
+export let SIGKILL = false;
 const PARALLEL = (isNaN as any)(process.env['PARALLEL']) ?
   36 :
   parseInt(process.env['PARALLEL'] || '36');
 
-export let topHash: string = '';
+export let topHash = '';
 export let topHeight: CassandraTypes.Long = toLong(0);
 export let topTxIndex: CassandraTypes.Long = toLong(0);
 
@@ -52,15 +52,15 @@ const developmentSyncLength: number | undefined =
     undefined :
     parseInt(process.env['DEVELOPMENT_SYNC_LENGTH'] as string);
 
-if (developmentSyncLength === NaN) {
+if (isNaN(developmentSyncLength)) {
   console.error('Development sync range variable produced, illegal value NaN');
   process.exit(1);
 }
 
 const isQueueProcessorStarted = false;
 let isPollingStarted = false;
-const isSyncing: boolean = true;
-let isPaused: boolean = false;
+const isSyncing = true;
+let isPaused = false;
 export const togglePause = (): void => {
   isPaused = !isPaused;
 };
@@ -618,7 +618,7 @@ export async function storeTransaction(
 export async function processAns(
     id: string,
     height: number,
-    retry: boolean = true,
+    retry = true,
 ) {
   try {
     const ansPayload = await getDataFromChunks({

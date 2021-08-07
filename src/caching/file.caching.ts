@@ -1,6 +1,5 @@
 import {config} from 'dotenv';
 import fs from 'fs-jetpack';
-import {streamAndCacheTx} from './stream.caching';
 import {streamAndCacheAns} from './ans.caching';
 
 process.env.NODE_ENV !== 'test' && config();

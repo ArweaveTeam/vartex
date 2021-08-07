@@ -140,7 +140,7 @@ const hydrateGqlTx = async (tx) => {
 
 const resolveGqlTxSelect = (
     userFields: any,
-    singleTx: boolean = false,
+    singleTx = false,
 ): string[] => {
   const select = [];
   R.keys(edgeFieldMapTx).forEach((keyPath) => {

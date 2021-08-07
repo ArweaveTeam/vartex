@@ -27,6 +27,7 @@ export function waitForCassandra(): Promise<void> {
           .on('connect', function() {
             try {
               client.destroy();
+              // eslint-disable-next-line no-empty
             } catch (error) {}
             resolve();
           });

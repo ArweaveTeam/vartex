@@ -69,7 +69,7 @@ export function warmNode(url: string) {
   }
 }
 
-export function coolNode(url: string, kickIfLow: boolean = false) {
+export function coolNode(url: string, kickIfLow = false) {
   const item = nodeTemperatures.find((i: WeightedNode) => i.id === url);
   if (item) {
     if (kickIfLow && item['weight'] < 2) {

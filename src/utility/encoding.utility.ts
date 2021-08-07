@@ -24,7 +24,7 @@ export class Base64DUrlecode extends Transform {
     this.bytesProcessed = 0;
   }
 
-  _transform(chunk: Buffer, encoding: any, cb: Function) {
+  _transform(chunk: Buffer, encoding: any, cb: () => void) {
     const conbinedChunk =
       this.extra +
       chunk
@@ -47,7 +47,7 @@ export class Base64DUrlecode extends Transform {
     cb();
   }
 
-  _flush(cb: Function) {
+  _flush(cb: () => void) {
     if (this.extra.length) {
       this.push(Buffer.from(this.extra, 'base64'));
     }
@@ -65,7 +65,7 @@ export function b64UrlToStringBuffer(b64UrlString: string): Buffer {
 }
 
 export function b64UrlDecode(b64UrlString: string): string {
-  b64UrlString = b64UrlString.replace(/\-/g, '+').replace(/\_/g, '/');
+  b64UrlString = b64UrlString.replace(/-/g, '+').replace(/_/g, '/');
   let padding;
   b64UrlString.length % 4 == 0 ?
     (padding = 0) :
@@ -133,7 +133,7 @@ export function bufferToJson<T = any | undefined>(input: Buffer): T {
   return JSON.parse(input.toString('utf8'));
 }
 
-export function jsonToBuffer(input: object): Buffer {
+export function jsonToBuffer(input: any): Buffer {
   return Buffer.from(JSON.stringify(input));
 }
 
@@ -189,6 +189,7 @@ export function utf8DecodeTag(
     if (isValidUTF8(valueBuffer)) {
       value = valueBuffer.toString('utf8');
     }
+    // eslint-disable-next-line no-empty
   } catch (error) {}
   return {
     name,

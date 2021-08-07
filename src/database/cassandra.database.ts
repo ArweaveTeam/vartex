@@ -1,7 +1,7 @@
 import * as cassandra from 'cassandra-driver';
 import * as R from 'rambda';
 import {types as CassandraTypes} from 'cassandra-driver';
-import {ImportQueue, Poa, TxOffset} from '../types/cassandra.types';
+import {Poa, TxOffset} from '../types/cassandra.types';
 import {KEYSPACE} from '../constants';
 import {config} from 'dotenv';
 import {

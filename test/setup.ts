@@ -8,7 +8,7 @@ export const testEnvVars = {
   PARALLEL: '32',
   KEYSPACE: 'testway',
   NODE_ENV: 'test',
-  POLLTIME_DELAY_SECONDS: '0.5',
+  POLLTIME_DELAY_SECONDS: '1',
 };
 process.env = testEnvVars;
 

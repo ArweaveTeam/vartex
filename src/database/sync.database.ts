@@ -171,12 +171,16 @@ const processBlockQueue = (queueSource: any, queueState: QueueState): void => {
     queueState.isProcessing = true;
     queueState.lastPrio = peek.height;
 
-    Promise.all(peek.callback()).then(() => {
+    peek.callback().then(() => {
       queueSource.pop();
       queueState.isProcessing = false;
 
       if (peek.height.gt(topHeight)) {
         topHeight = peek.height;
+      }
+
+      if (queueSource.isEmpty() && txQueue.isEmpty()) {
+        log.info('import queues have been consumed');
       }
     });
   }
@@ -196,12 +200,16 @@ const processTxQueue = (queueSource: any, queueState: QueueState): void => {
     queueState.importedHeights[peek.height.toString()] = currentImportCnt
       ? 1
       : currentImportCnt;
-    Promise.all(peek.callback()).then(() => {
+    peek.callback().then(() => {
       queueSource.pop();
       queueState.isProcessing = false;
 
       if (peek.txIndex.gt(topTxIndex)) {
         topTxIndex = peek.txIndex;
+      }
+
+      if (queueSource.isEmpty() && blockQueue.isEmpty()) {
+        log.info('import queues have been consumed');
       }
     });
   }
@@ -272,6 +280,11 @@ async function startPolling(): Promise<void> {
   }
   if (!isPollingStarted) {
     isPollingStarted = true;
+    log.info(
+      'polling for new blocks every ' +
+        POLLTIME_DELAY_SECONDS * 1000 +
+        ' seconds'
+    );
   }
 
   const nodeInfo = await getNodeInfo({ keepAlive: true });

@@ -20,5 +20,5 @@ export let IPC_DATA = {};
 export const POLLTIME_DELAY_SECONDS: number = process.env[
   'POLLTIME_DELAY_SECONDS'
 ]
-  ? parseInt(process.env['POLLTIME_DELAY_SECONDS'] || '5')
+  ? Math.min(1, parseInt(process.env['POLLTIME_DELAY_SECONDS'] || '5'))
   : 5;

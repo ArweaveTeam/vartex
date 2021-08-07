@@ -94,7 +94,7 @@ describe('integration suite', function () {
       proc = undefined;
     }
 
-    await killPort(3000, 'tcp');
+    await killPort(3000);
     await new Promise((resolve) => setTimeout(resolve, 1000));
   });
   beforeEach(async () => {
@@ -105,29 +105,12 @@ describe('integration suite', function () {
   test('it writes 100 blocks into cassandra', async () => {
     await helpers.nuke();
     await helpers.initDb();
+
     if (await exists('./cache/hash_list_test.json')) {
       await fs.unlink('./cache/hash_list_test.json');
     }
 
-    let logs = '';
-    let fullySyncPromiseResolve: any;
-    proc = helpers.startGateway();
-    proc.stdout.on('data', (log: string) => {
-      if (
-        /Database fully in sync/g.test(log.toString()) &&
-        fullySyncPromiseResolve
-      ) {
-        fullySyncPromiseResolve();
-        fullySyncPromiseResolve = undefined;
-      }
-      process.stderr.write(log);
-      logs += log.toString();
-    });
-    await new Promise((resolve, reject) => {
-      fullySyncPromiseResolve = resolve;
-    });
-    // from last http to last written row needs some time to get the queue empty
-    await new Promise((resolve) => setTimeout(resolve, 5000));
+    const logs = await helpers.runGatewayOnce();
 
     const queryResponse = await client.execute(
       'SELECT COUNT(*) FROM testway.block ALLOW FILTERING'
@@ -137,65 +120,18 @@ describe('integration suite', function () {
   });
 
   test('it detects correctly fully synced db on startup', async () => {
-    const seemsEmptyLog = jest.fn();
-    const seemsFullLog = jest.fn();
-    const missingBlockLog = jest.fn();
-
-    let logs = '';
-    let fullySyncPromiseResolve: any;
-    proc = proc || helpers.startGateway();
-    proc.stderr.on('data', process.stderr.write); //  (data) => console.error(data.toString())
-    proc.stdout.on('data', (log: string) => {
-      if (/fully synced db/g.test(log.toString()) && fullySyncPromiseResolve) {
-        fullySyncPromiseResolve();
-        seemsFullLog();
-        fullySyncPromiseResolve = undefined;
-      }
-
-      if (/database seems to be empty/.test(log)) {
-        seemsEmptyLog();
-      }
-
-      if (/Found missing block.*/.test(log)) {
-        missingBlockLog();
-      }
-      process.stderr.write(log);
-      logs += log.toString();
-    });
-    await new Promise((resolve, reject) => {
-      fullySyncPromiseResolve = resolve;
-    });
-
-    // from last http to last written row needs some time to get the queue empty
-    await new Promise((resolve) => setTimeout(resolve, 5000));
-
+    const logs = await helpers.runGatewayOnce();
+    console.error('LOGS', logs);
     const queryResponse = await client.execute(
       'SELECT COUNT(*) FROM testway.block ALLOW FILTERING'
     );
 
-    expect(missingBlockLog).not.toHaveBeenCalled();
-    expect(seemsEmptyLog).not.toHaveBeenCalled();
-    expect(seemsFullLog).toHaveBeenCalledTimes(1);
+    expect(logs).not.toContain('database seems to be empty');
+    expect(logs).not.toContain('Found missing block');
   });
 
   test('it starts polling and receives new blocks', async () => {
-    let logs = '';
-    let fullySyncPromiseResolve: any;
-    proc = proc || helpers.startGateway();
-    proc.stderr.on('data', process.stderr.write); //  (data) => console.error(data.toString())
-    proc.stdout.on('data', (log: string) => {
-      if (/fully synced db/g.test(log.toString()) && fullySyncPromiseResolve) {
-        fullySyncPromiseResolve();
-        fullySyncPromiseResolve = undefined;
-      }
-
-      process.stderr.write(log);
-      logs += log.toString();
-    });
-
-    await new Promise((resolve, reject) => {
-      fullySyncPromiseResolve = resolve;
-    });
+    const logs = await helpers.runGatewayOnce();
 
     const nextBlock: any = helpers.generateMockBlocks({
       totalBlocks: 1,
@@ -207,7 +143,7 @@ describe('integration suite', function () {
     lastBlock['height'] = nextBlock.height;
     lastBlock['current'] = nextBlock.indep_hash;
 
-    await new Promise((resolve) => setTimeout(resolve, 12000));
+    // await new Promise((resolve) => setTimeout(resolve, 12000));
 
     const queryResponse = await client.execute(
       'SELECT COUNT(*) FROM testway.block ALLOW FILTERING'
@@ -220,7 +156,7 @@ describe('integration suite', function () {
     let logs = '';
     let fullySyncPromiseResolve: any;
     proc = proc || helpers.startGateway();
-    proc.stderr.on('data', process.stderr.write); //  (data) => console.error(data.toString())
+    proc.stderr.on('data', process.stderr.write);
     proc.stdout.on('data', (log: string) => {
       if (/fully synced db/g.test(log.toString()) && fullySyncPromiseResolve) {
         fullySyncPromiseResolve();
@@ -237,7 +173,7 @@ describe('integration suite', function () {
 
     let nextFork: any[] = helpers.generateMockBlocks({
       totalBlocks: 15,
-      offset: 89,
+      offset: 90,
       hashPrefix: 'y',
     });
 
@@ -252,12 +188,13 @@ describe('integration suite', function () {
       ],
       R.slice(1, nextFork.length, nextFork)
     );
+    // console.error('NEXT FORK', nextFork);
     mockBlocks = R.concat(mockBlocks, nextFork);
 
     lastBlock['height'] = R.last(mockBlocks).height;
     lastBlock['current'] = R.last(mockBlocks).indep_hash;
 
-    await new Promise((resolve) => setTimeout(resolve, 40000));
+    // await new Promise((resolve) => setTimeout(resolve, 40000));
 
     const queryResponse = await client.execute(
       'SELECT indep_hash,height FROM testway.block WHERE height>85 AND height<95 ALLOW FILTERING'
@@ -266,27 +203,27 @@ describe('integration suite', function () {
       height: parseInt(obj.height),
       hash: obj.indep_hash,
     }));
-
-    expect(R.findIndex(R.equals({ height: 86, hash: 'x86' }), result)).toEqual(
-      1
-    );
-    expect(R.findIndex(R.equals({ height: 87, hash: 'x87' }), result)).toEqual(
-      1
-    );
-    expect(R.findIndex(R.equals({ height: 88, hash: 'x88' }), result)).toEqual(
-      1
-    );
-    expect(R.findIndex(R.equals({ height: 89, hash: 'x89' }), result)).toEqual(
-      1
-    );
-    expect(R.findIndex(R.equals({ height: 90, hash: 'x90' }), result)).toEqual(
-      1
-    );
-    expect(R.findIndex(R.equals({ height: 91, hash: 'x91' }), result)).toEqual(
-      1
-    );
-    expect(R.findIndex(R.equals({ height: 92, hash: 'x92' }), result)).toEqual(
-      1
-    );
+    // console.error(result);
+    expect(
+      R.filter(R.equals({ height: 86, hash: 'x86' }), result)
+    ).toHaveLength(1);
+    expect(
+      R.filter(R.equals({ height: 87, hash: 'x87' }), result)
+    ).toHaveLength(1);
+    expect(
+      R.filter(R.equals({ height: 88, hash: 'x88' }), result)
+    ).toHaveLength(1);
+    expect(
+      R.filter(R.equals({ height: 89, hash: 'x89' }), result)
+    ).toHaveLength(1);
+    expect(
+      R.filter(R.equals({ height: 90, hash: 'y90' }), result)
+    ).toHaveLength(1);
+    expect(
+      R.filter(R.equals({ height: 91, hash: 'y91' }), result)
+    ).toHaveLength(1);
+    expect(
+      R.filter(R.equals({ height: 92, hash: 'y92' }), result)
+    ).toHaveLength(1);
   });
 });

@@ -37,9 +37,14 @@ export const toLong = (anyValue: any): CassandraTypes.Long =>
       )
     : (cassandra as any).types.Long.fromNumber(anyValue);
 
-const contactPoints = process.env.CASSANDRA_CONTACT_POINTS
+let contactPoints = ['localhost:9042'];
+try {
+  contactPoints = process.env.CASSANDRA_CONTACT_POINTS
   ? JSON.parse(process.env.CASSANDRA_CONTACT_POINTS)
   : ['localhost:9042'];
+} catch (e) {
+  console.error('[cassandra] Invalid array of contact points.');
+}
 
 export const cassandraClient = new cassandra.Client({
   contactPoints,

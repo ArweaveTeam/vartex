@@ -133,7 +133,7 @@ export function bufferToJson<T = any | undefined>(input: Buffer): T {
   try {
     return JSON.parse(input.toString('utf8'));
   } catch (e) {
-    console.log(`Unable to convert buffer to JSON ${input.toString('utf8')}`);
+    console.error(`[encoding] unable to convert buffer to JSON ${input.toString('utf8')}`);
     return undefined;
   }
 }

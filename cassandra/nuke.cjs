@@ -6,9 +6,14 @@ process.env.NODE_ENV !== 'test' && require('dotenv').config();
 
 const KEYSPACE = process.env['KEYSPACE'] ? process.env['KEYSPACE'] : 'gateway';
 
-const contactPoints = process.env.CASSANDRA_CONTACT_POINTS
+let contactPoints = ['localhost:9042'];
+try {
+  contactPoints = process.env.CASSANDRA_CONTACT_POINTS
   ? JSON.parse(process.env.CASSANDRA_CONTACT_POINTS)
   : ['localhost:9042'];
+} catch (e) {
+  console.error('[nuke] Invalid array of contact points.');
+}
 
 const client = new cassandra.Client({
   contactPoints,

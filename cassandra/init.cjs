@@ -246,7 +246,7 @@ function checkEnvVars() {
     !process.env.ARWEAVE_NODES ||
     !process.env.ARWEAVE_NODES.length
   ) {
-    process.env.ARWEAVE_NODES = JSON.stringify(["http://lon-2.eu-west-1.arweave.net:1984"]);
+    process.env.ARWEAVE_NODES = '["http://lon-2.eu-west-1.arweave.net:1984"]';
   } 
 
   if (!process.env.PORT || isNaN(process.env.PORT)) {
@@ -272,7 +272,7 @@ function checkEnvVars() {
     !process.env.CASSANDRA_CONTACT_POINTS ||
     !process.env.CASSANDRA_CONTACT_POINTS.length
   ) {
-    process.env.CASSANDRA_CONTACT_POINTS = JSON.stringify(['cassandra']);
+    process.env.CASSANDRA_CONTACT_POINTS = '["cassandra"]';
   }
 
   if (!process.env.KEYSPACE || !process.env.KEYSPACE.length) {

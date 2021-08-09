@@ -215,8 +215,7 @@ const transformBlockKey = (key: string, obj: any) => {
     case "previous_block":
     case "reward_addr":
     case "tx_root":
-    case "wallet_list":
-    case "last_retarget": {
+    case "wallet_list": {
       if (obj[key] || isNumeric(obj[key])) {
         return typeof obj[key] === "string" ? obj[key] : obj[key].toString();
       } else {

@@ -1,0 +1,36 @@
+dist: xenial
+addons:
+  apt:
+    sources:
+    - sourceline: 'deb https://apt.kubernetes.io/ kubernetes-xenial main'
+      key_url: 'https://packages.cloud.google.com/apt/doc/apt-key.gpg'
+    packages:
+      - kubectl
+
+language: node_js
+node_js:
+  - 16.3.0
+
+cache:
+  directories:
+    - "$HOME/.npm"
+
+services:
+  - docker
+
+branches:
+  only:
+    - main
+
+jobs:
+  include:
+
+    # This stage will trigger the build and tests
+    - stage: Build
+      if: type = push OR type = pull_request
+
+      script:
+        - ./build/docker_build.sh
+
+      after_script:
+        - ./build/docker_push.sh

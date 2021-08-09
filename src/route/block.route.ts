@@ -1,20 +1,20 @@
-import * as R from 'rambda';
-import { Request, Response } from 'express';
+import * as R from "rambda";
+import { Request, Response } from "express";
 import {
   blockMapper,
   blockHeightToHashMapper,
   poaMapper,
-} from '../database/mapper.database';
-import { topHash, topHeight } from '../database/sync.database';
+} from "../database/mapper.database";
+import { topHash, topHeight } from "../database/sync.database";
 
 export async function blockByHeightRoute(
-  req: Request,
-  res: Response,
-  next: (err?: string) => void
+    req: Request,
+    res: Response,
+    next: (err?: string) => void,
 ) {
   if (!req.params.height) {
     res.status(503);
-    return next('Height value was not specified');
+    return next("Height value was not specified");
   } else {
     try {
       const height = req.params.height;
@@ -28,12 +28,12 @@ export async function blockByHeightRoute(
       });
 
       R.pipe(
-        R.dissoc('txs_count'),
-        R.assoc(
-          'poa',
-          R.pipe(R.dissoc('block_hash'), R.dissoc('block_height'))(poa)
-        ),
-        (ret) => res.json(ret)
+          R.dissoc("txs_count"),
+          R.assoc(
+              "poa",
+              R.pipe(R.dissoc("block_hash"), R.dissoc("block_height"))(poa),
+          ),
+          (ret) => res.json(ret),
       )(blockResult);
     } catch (error) {
       // Passes errors into the error handler
@@ -43,13 +43,13 @@ export async function blockByHeightRoute(
 }
 
 export async function blockByHashRoute(
-  req: Request,
-  res: Response,
-  next: (err?: string) => void
+    req: Request,
+    res: Response,
+    next: (err?: string) => void,
 ) {
   if (!req.params.hash) {
     res.status(503);
-    return next('Height value was not specified');
+    return next("Height value was not specified");
   } else {
     try {
       const hash = req.params.hash;
@@ -57,10 +57,10 @@ export async function blockByHashRoute(
         indep_hash: hash,
       });
 
-      if(!blockResult ||  !blockResult.height) {
+      if (!blockResult || !blockResult.height) {
         return res.status(404).json({
           status: 404,
-          error: 'Not Found'
+          error: "Not Found",
         });
       }
 
@@ -70,12 +70,12 @@ export async function blockByHashRoute(
       });
 
       R.pipe(
-        R.dissoc('txs_count'),
-        R.assoc(
-          'poa',
-          R.pipe(R.dissoc('block_hash'), R.dissoc('block_height'))(poa)
-        ),
-        (ret) => res.json(ret)
+          R.dissoc("txs_count"),
+          R.assoc(
+              "poa",
+              R.pipe(R.dissoc("block_hash"), R.dissoc("block_height"))(poa),
+          ),
+          (ret) => res.json(ret),
       )(blockResult);
     } catch (error) {
       // Passes errors into the error handler
@@ -85,9 +85,9 @@ export async function blockByHashRoute(
 }
 
 export async function blockCurrentRoute(
-  req: Request,
-  res: Response,
-  next: (err?: string) => void
+    req: Request,
+    res: Response,
+    next: (err?: string) => void,
 ) {
   try {
     const { block_hash } = await blockHeightToHashMapper.get({
@@ -100,7 +100,7 @@ export async function blockCurrentRoute(
 
     if (!blockResult) {
       res.status(404);
-      return next('Current block was not found');
+      return next("Current block was not found");
     }
 
     const poa = await poaMapper.get({
@@ -109,12 +109,12 @@ export async function blockCurrentRoute(
     });
 
     R.pipe(
-      R.dissoc('txs_count'),
-      R.assoc(
-        'poa',
-        R.pipe(R.dissoc('block_hash'), R.dissoc('block_height'))(poa)
-      ),
-      (ret) => res.json(ret)
+        R.dissoc("txs_count"),
+        R.assoc(
+            "poa",
+            R.pipe(R.dissoc("block_hash"), R.dissoc("block_height"))(poa),
+        ),
+        (ret) => res.json(ret),
     )(blockResult);
   } catch (error) {
     return next(error);

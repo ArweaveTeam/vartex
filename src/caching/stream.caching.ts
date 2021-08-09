@@ -1,19 +1,19 @@
-import { createWriteStream } from 'fs';
-import { dir, remove } from 'fs-jetpack';
-import { types as CassandraTypes } from 'cassandra-driver';
-import { cacheFolder } from './file.caching';
-import { getChunk } from '../query/chunk.query';
+import { createWriteStream } from "fs";
+import { dir, remove } from "fs-jetpack";
+import { types as CassandraTypes } from "cassandra-driver";
+import { cacheFolder } from "./file.caching";
+import { getChunk } from "../query/chunk.query";
 
 export async function streamAndCacheTx(
-  id: string,
-  startOffset: CassandraTypes.Long,
-  endOffset: CassandraTypes.Long
+    id: string,
+    startOffset: CassandraTypes.Long,
+    endOffset: CassandraTypes.Long,
 ): Promise<boolean> {
   try {
     dir(`${cacheFolder}`);
 
     const fileStream = createWriteStream(`${cacheFolder}/${id}`, {
-      flags: 'w',
+      flags: "w",
     });
 
     let byte = 0;
@@ -33,8 +33,8 @@ export async function streamAndCacheTx(
   } catch (error) {
     remove(`${cacheFolder}/${id}`);
     console.error(
-      `error caching data from ${id}, please note that this may be a cancelled transaction`
-        .red.bold
+        `error caching data from ${id}, please note that this may be a cancelled transaction`
+            .red.bold,
     );
     throw error;
   }

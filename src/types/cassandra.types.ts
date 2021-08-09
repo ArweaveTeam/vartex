@@ -1,4 +1,4 @@
-import { types as CassandraTypes } from 'cassandra-driver';
+import { types as CassandraTypes } from "cassandra-driver";
 
 export type ImportQueue = { [v: string]: any };
 

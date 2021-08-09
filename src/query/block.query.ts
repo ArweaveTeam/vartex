@@ -1,9 +1,9 @@
-import got from 'got';
-import fs from 'fs/promises';
-import path from 'path';
-import { log } from '../utility/log.utility';
-import { grabNode, warmNode, coolNode } from './node.query';
-import { HTTP_TIMEOUT_SECONDS } from '../constants';
+import got from "got";
+import fs from "fs/promises";
+import path from "path";
+import { log } from "../utility/log.utility";
+import { grabNode, warmNode, coolNode } from "./node.query";
+import { HTTP_TIMEOUT_SECONDS } from "../constants";
 
 export interface BlockType {
   nonce: string;
@@ -45,16 +45,16 @@ export async function getBlock({
   getProgress?: () => string;
 }): Promise<BlockType | undefined> {
   const tryNode = grabNode();
-  const url = hash
-    ? `${tryNode}/block/hash/${hash}`
-    : `${tryNode}/block/height/${height}`;
-  gauge && gauge.show(`${getProgress ? getProgress() || '' : ''} ${url}`);
+  const url = hash ?
+    `${tryNode}/block/hash/${hash}` :
+    `${tryNode}/block/height/${height}`;
+  gauge && gauge.show(`${getProgress ? getProgress() || "" : ""} ${url}`);
   // const
 
   let body;
   try {
     body = (await got.get(url, {
-      responseType: 'json',
+      responseType: "json",
       resolveBodyOnly: true,
       timeout: HTTP_TIMEOUT_SECONDS * 1000,
       followRedirect: true,
@@ -75,17 +75,17 @@ export async function getBlock({
   if (hash && height !== body.height) {
     console.error(height, typeof height, body.height, typeof body.height);
     log.error(
-      'fatal inconsistency: hash and height dont match for hash.' +
-        'wanted: ' +
+        "fatal inconsistency: hash and height dont match for hash." +
+        "wanted: " +
         hash +
-        ' got: ' +
+        " got: " +
         body.indep_hash +
-        '\nwanted: ' +
+        "\nwanted: " +
         height +
-        ' got: ' +
+        " got: " +
         body.height +
-        ' while requesting ' +
-        url
+        " while requesting " +
+        url,
     );
     // REVIEW: does assuming re-forking condition work better than fatal error?
     process.exit(1);
@@ -95,7 +95,7 @@ export async function getBlock({
 }
 
 export async function fetchBlockByHash(
-  hash: string
+    hash: string,
 ): Promise<BlockType | undefined> {
   const tryNode = grabNode();
   const url = `${tryNode}/block/hash/${hash}`;
@@ -103,7 +103,7 @@ export async function fetchBlockByHash(
   let body;
   try {
     body = (await got.get(url, {
-      responseType: 'json',
+      responseType: "json",
       resolveBodyOnly: true,
       timeout: HTTP_TIMEOUT_SECONDS * 1000,
       followRedirect: true,
@@ -125,7 +125,7 @@ export async function currentBlock(): Promise<BlockType | undefined> {
   let jsonPayload;
   try {
     jsonPayload = await got.get(`${tryNode}/block/current`, {
-      responseType: 'json',
+      responseType: "json",
       resolveBodyOnly: true,
       timeout: 15 * 1000,
     });

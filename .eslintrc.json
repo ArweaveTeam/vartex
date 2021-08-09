@@ -4,7 +4,9 @@
         "node": true
     },
     "extends": [
-        "google"
+      "eslint:recommended",
+      "plugin:@typescript-eslint/eslint-recommended",
+      "plugin:@typescript-eslint/recommended"
     ],
     "parser": "@typescript-eslint/parser",
     "parserOptions": {
@@ -12,15 +14,15 @@
         "sourceType": "module"
     },
     "plugins": [
-        "@typescript-eslint"
+      "@typescript-eslint"
     ],
     "rules": {
-      "quotes": [2, "single", { "avoidEscape": true }],
       "require-jsdoc": 0,
       "max-len": 0,
       "camelcase": 0,
       "guard-for-in": 0,
       "prefer-spread": 0,
+      "quotes": ["error", "double"],
       "object-curly-spacing": ["error", "always"]
     }
 }

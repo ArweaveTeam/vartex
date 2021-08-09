@@ -1,4 +1,4 @@
-import {Base64UrlEncodedString, WinstonString} from '../utility/encoding.utility';
+import { Base64UrlEncodedString, WinstonString } from "../utility/encoding.utility";
 
 export interface Tag {
     name: Base64UrlEncodedString;
@@ -21,4 +21,4 @@ export interface Transaction {
     data_tree: string[];
 }
 
-export type TransactionHeader = Omit<Transaction, 'data'>;
+export type TransactionHeader = Omit<Transaction, "data">;

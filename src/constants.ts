@@ -18,7 +18,7 @@ export const KEYSPACE: string = process.env["KEYSPACE"] ?
 export const IPC_DATA = {};
 
 export const POLLTIME_DELAY_SECONDS: number = process.env[
-  'POLLTIME_DELAY_SECONDS'
+  "POLLTIME_DELAY_SECONDS"
 ]
-  ? Math.min(1, parseInt(process.env['POLLTIME_DELAY_SECONDS'] || '5'))
+  ? Math.min(1, parseInt(process.env["POLLTIME_DELAY_SECONDS"] || "5"))
   : 5;

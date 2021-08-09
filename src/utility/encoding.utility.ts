@@ -131,9 +131,9 @@ export async function streamToString(stream: Readable): Promise<string> {
 
 export function bufferToJson<T = any | undefined>(input: Buffer): T {
   try {
-    return JSON.parse(input.toString('utf8'));
+    return JSON.parse(input.toString("utf8"));
   } catch (e) {
-    console.error(`[encoding] unable to convert buffer to JSON ${input.toString('utf8')}`);
+    console.error(`[encoding] unable to convert buffer to JSON ${input.toString("utf8")}`);
     return undefined;
   }
 }

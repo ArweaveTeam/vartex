@@ -106,8 +106,8 @@ describe("integration suite", function() {
     await helpers.nuke();
     await helpers.initDb();
 
-    if (await exists('./cache/hash_list_test.json')) {
-      await fs.unlink('./cache/hash_list_test.json');
+    if (await exists("./cache/hash_list_test.json")) {
+      await fs.unlink("./cache/hash_list_test.json");
     }
 
     const logs = await helpers.runGatewayOnce({});
@@ -119,20 +119,20 @@ describe("integration suite", function() {
     expect(queryResponse.rows[0].count.toString()).toEqual("100");
   });
 
-  test('it detects correctly fully synced db on startup', async () => {
+  test("it detects correctly fully synced db on startup", async () => {
     const logs = await helpers.runGatewayOnce({});
 
     const queryResponse = await client.execute(
         "SELECT COUNT(*) FROM testway.block ALLOW FILTERING",
     );
 
-    expect(logs).not.toContain('database seems to be empty');
-    expect(logs).not.toContain('Found missing block');
+    expect(logs).not.toContain("database seems to be empty");
+    expect(logs).not.toContain("Found missing block");
   });
 
-  test('it starts polling and receives new blocks', async () => {
+  test("it starts polling and receives new blocks", async () => {
     const runp = helpers.runGatewayOnce({
-      stopCondition: (log) => log.includes('new block arrived at height 100'),
+      stopCondition: (log) => log.includes("new block arrived at height 100"),
     });
 
     await new Promise((resolve) => setTimeout(resolve, 2000));
@@ -183,8 +183,8 @@ describe("integration suite", function() {
       process.stderr.write(log);
       logs += log.toString();
     };
-    proc.stderr.on('data', logCallback);
-    proc.stdout.on('data', logCallback);
+    proc.stderr.on("data", logCallback);
+    proc.stdout.on("data", logCallback);
     await new Promise((resolve, reject) => {
       fullySyncPromiseResolve = resolve;
     });
@@ -192,7 +192,7 @@ describe("integration suite", function() {
     let nextFork: any[] = helpers.generateMockBlocks({
       totalBlocks: 15,
       offset: 90,
-      hashPrefix: 'y',
+      hashPrefix: "y",
     });
 
     mockBlocks = R.splitWhen(R.propEq("height", 90))(mockBlocks)[0];
@@ -225,25 +225,25 @@ describe("integration suite", function() {
     }));
 
     expect(
-      R.filter(R.equals({ height: 86, hash: 'x86' }), result)
+      R.filter(R.equals({ height: 86, hash: "x86" }), result)
     ).toHaveLength(1);
     expect(
-      R.filter(R.equals({ height: 87, hash: 'x87' }), result)
+      R.filter(R.equals({ height: 87, hash: "x87" }), result)
     ).toHaveLength(1);
     expect(
-      R.filter(R.equals({ height: 88, hash: 'x88' }), result)
+      R.filter(R.equals({ height: 88, hash: "x88" }), result)
     ).toHaveLength(1);
     expect(
-      R.filter(R.equals({ height: 89, hash: 'x89' }), result)
+      R.filter(R.equals({ height: 89, hash: "x89" }), result)
     ).toHaveLength(1);
     expect(
-      R.filter(R.equals({ height: 90, hash: 'y90' }), result)
+      R.filter(R.equals({ height: 90, hash: "y90" }), result)
     ).toHaveLength(1);
     expect(
-      R.filter(R.equals({ height: 91, hash: 'y91' }), result)
+      R.filter(R.equals({ height: 91, hash: "y91" }), result)
     ).toHaveLength(1);
     expect(
-      R.filter(R.equals({ height: 92, hash: 'y92' }), result)
+      R.filter(R.equals({ height: 92, hash: "y92" }), result)
     ).toHaveLength(1);
   });
 });

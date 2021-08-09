@@ -1,20 +1,20 @@
-import { existsSync } from 'fs';
-import fs from 'fs/promises';
-import { types as CassandraTypes } from 'cassandra-driver';
-import * as R from 'rambda';
-import rwc from 'random-weighted-choice';
-import got from 'got';
-import { log } from '../utility/log.utility';
-import { getChunk } from './chunk.query';
-import { HTTP_TIMEOUT_SECONDS } from '../constants';
+import { existsSync } from "fs";
+import fs from "fs/promises";
+import { types as CassandraTypes } from "cassandra-driver";
+import * as R from "rambda";
+import rwc from "random-weighted-choice";
+import got from "got";
+import { log } from "../utility/log.utility";
+import { getChunk } from "./chunk.query";
+import { HTTP_TIMEOUT_SECONDS } from "../constants";
 
-let tmpNodes = ['http://lon-2.eu-west-1.arweave.net:1984'];
+let tmpNodes = ["http://lon-2.eu-west-1.arweave.net:1984"];
 try {
   tmpNodes = process.env.ARWEAVE_NODES
   ? JSON.parse(process.env.ARWEAVE_NODES)
-  : ['http://lon-2.eu-west-1.arweave.net:1984'];
+  : ["http://lon-2.eu-west-1.arweave.net:1984"];
 } catch (e) {
-  console.error('[node] invalid list of nodes.');
+  console.error("[node] invalid list of nodes.");
 }
 export const NODES = tmpNodes;
 
@@ -174,7 +174,7 @@ export async function getHashList({
       try {
         return JSON.parse(hashListBuf.toString());
       } catch (e) {
-        console.error('[node] invalid hash_list from cache');
+        console.error("[node] invalid hash_list from cache");
         return [];
       }
     });

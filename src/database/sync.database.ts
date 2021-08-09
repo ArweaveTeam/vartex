@@ -165,7 +165,7 @@ const processBlockQueue = (queueSource: any, queueState: QueueState): void => {
       }
 
       if (queueSource.isEmpty() && txQueue.isEmpty()) {
-        log.info('import queues have been consumed');
+        log.info("import queues have been consumed");
       }
     });
   }
@@ -194,7 +194,7 @@ const processTxQueue = (queueSource: any, queueState: QueueState): void => {
       }
 
       if (queueSource.isEmpty() && blockQueue.isEmpty()) {
-        log.info('import queues have been consumed');
+        log.info("import queues have been consumed");
       }
     });
   }
@@ -246,9 +246,9 @@ async function resolveFork(previousBlock: any): Promise<void> {
       function (err, res) {
         isPaused = false;
         log.info(
-          'fork diverges at ' +
+          "fork diverges at " +
             blockQueryResult.rows[0].height.toString() +
-            ' waiting for missing blocks to be imported...'
+            " waiting for missing blocks to be imported..."
         );
       }
     );
@@ -275,7 +275,7 @@ async function startPolling(): Promise<void> {
   if (!isPollingStarted) {
     isPollingStarted = true;
     log.info(
-      'polling for new blocks every ' + POLLTIME_DELAY_SECONDS + ' seconds'
+      "polling for new blocks every " + POLLTIME_DELAY_SECONDS + " seconds"
     );
   }
 
@@ -303,14 +303,14 @@ async function startPolling(): Promise<void> {
     // fork recovery
     if (previousBlock.indep_hash !== topHash) {
       log.info(
-        'blocks out of sync with the remote node ' +
+        "blocks out of sync with the remote node " +
           previousBlock.indep_hash +
-          '!= ' +
+          "!= " +
           topHash
       );
       await resolveFork(currentRemoteBlock);
       await pWaitFor(() => blockQueue.isEmpty());
-      log.info('blocks are back in sync!');
+      log.info("blocks are back in sync!");
     } else {
       const newBlock = await queryGetBlock({
         height: nodeInfo.height,

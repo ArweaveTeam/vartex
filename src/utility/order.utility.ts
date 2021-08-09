@@ -4,9 +4,9 @@ process.env.NODE_ENV !== "test" && config();
 
 let tmpIndices: string[] = [];
 try { 
-  tmpIndices = JSON.parse(process.env.INDICES || '[]');
+  tmpIndices = JSON.parse(process.env.INDICES || "[]");
 } catch (e) {
-  console.error('[order] invalid indices', process.env.INDICES);
+  console.error("[order] invalid indices", process.env.INDICES);
 }
 
 export const indices = tmpIndices;

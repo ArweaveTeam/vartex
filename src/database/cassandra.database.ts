@@ -29,21 +29,21 @@ const isNumeric = (s: any) => !(isNaN as any)(s);
 export const toLong = (anyValue: any): CassandraTypes.Long =>
   (cassandra as any).types.Long.isLong(anyValue)
     ? anyValue
-    : !anyValue && typeof anyValue !== 'string'
+    : !anyValue && typeof anyValue !== "string"
     ? (cassandra as any).types.Long.fromNumber(0)
-    : typeof anyValue === 'string'
+    : typeof anyValue === "string"
     ? (cassandra as any).types.Long.fromString(
-        R.isEmpty(anyValue) ? '0' : anyValue
+        R.isEmpty(anyValue) ? "0" : anyValue
       )
     : (cassandra as any).types.Long.fromNumber(anyValue);
 
-let contactPoints = ['localhost:9042'];
+let contactPoints = ["localhost:9042"];
 try {
   contactPoints = process.env.CASSANDRA_CONTACT_POINTS
   ? JSON.parse(process.env.CASSANDRA_CONTACT_POINTS)
-  : ['localhost:9042'];
+  : ["localhost:9042"];
 } catch (e) {
-  console.error('[cassandra] Invalid array of contact points.');
+  console.error("[cassandra] Invalid array of contact points.");
 }
 
 export const cassandraClient = new cassandra.Client({
@@ -418,7 +418,7 @@ export const makeTxImportQuery = (
       cassandraClient.execute(
         transactionInsertQuery(nonNilTxKeys),
         txInsertParams,
-        { prepare: true, executionProfile: 'full' }
+        { prepare: true, executionProfile: "full" }
       ),
 
       cassandraClient.execute(
@@ -433,9 +433,9 @@ export const makeTxImportQuery = (
           tx.id,
           tx.owner,
           tx.target,
-          '', // FIXME ANS-102/ANS-104
+          "", // FIXME ANS-102/ANS-104
         ],
-        { prepare: true, executionProfile: 'full' }
+        { prepare: true, executionProfile: "full" }
       ),
       cassandraClient.execute(
         txIdGqlInsertDescQuery,
@@ -449,9 +449,9 @@ export const makeTxImportQuery = (
           tx.id,
           tx.owner,
           tx.target,
-          '', // FIXME ANS-102/ANS-104
+          "", // FIXME ANS-102/ANS-104
         ],
-        { prepare: true, executionProfile: 'full' }
+        { prepare: true, executionProfile: "full" }
       ),
     ]
       .concat(
@@ -463,14 +463,14 @@ export const makeTxImportQuery = (
               getGqlTxTagAscBucketName(height),
               txIndex,
               index,
-              tag.value || '',
-              tag.name || '',
+              tag.value || "",
+              tag.name || "",
               tx.id,
               tx.owner,
               tx.target,
-              '', // FIXME ANS-102/ANS-104
+              "", // FIXME ANS-102/ANS-104
             ],
-            { prepare: true, executionProfile: 'full' }
+            { prepare: true, executionProfile: "full" }
           )
         )
       )
@@ -483,14 +483,14 @@ export const makeTxImportQuery = (
               getGqlTxTagDescBucketName(height),
               txIndex,
               index,
-              tag.value || '',
-              tag.name || '',
+              tag.value || "",
+              tag.name || "",
               tx.id,
               tx.owner,
               tx.target,
-              '', // FIXME ANS-102/ANS-104
+              "", // FIXME ANS-102/ANS-104
             ],
-            { prepare: true, executionProfile: 'full' }
+            { prepare: true, executionProfile: "full" }
           )
         )
       )
@@ -508,7 +508,7 @@ export const makeTxImportQuery = (
             ),
             {
               prepare: true,
-              executionProfile: 'full',
+              executionProfile: "full",
             }
           )
         )
@@ -521,7 +521,7 @@ export const makeTxImportQuery = (
                 transformTxOffsetKeys(tx),
                 {
                   prepare: true,
-                  executionProfile: 'full',
+                  executionProfile: "full",
                 }
               ),
             ]

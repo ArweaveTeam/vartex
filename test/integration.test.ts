@@ -110,7 +110,7 @@ describe('integration suite', function () {
       await fs.unlink('./cache/hash_list_test.json');
     }
 
-    const logs = await helpers.runGatewayOnce();
+    const logs = await helpers.runGatewayOnce({});
 
     const queryResponse = await client.execute(
       'SELECT COUNT(*) FROM testway.block ALLOW FILTERING'
@@ -120,8 +120,8 @@ describe('integration suite', function () {
   });
 
   test('it detects correctly fully synced db on startup', async () => {
-    const logs = await helpers.runGatewayOnce();
-    console.error('LOGS', logs);
+    const logs = await helpers.runGatewayOnce({});
+
     const queryResponse = await client.execute(
       'SELECT COUNT(*) FROM testway.block ALLOW FILTERING'
     );
@@ -131,7 +131,11 @@ describe('integration suite', function () {
   });
 
   test('it starts polling and receives new blocks', async () => {
-    const logs = await helpers.runGatewayOnce();
+    const runp = helpers.runGatewayOnce({
+      stopCondition: (log) => log.includes('new block arrived at height 100'),
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 2000));
 
     const nextBlock: any = helpers.generateMockBlocks({
       totalBlocks: 1,
@@ -143,7 +147,9 @@ describe('integration suite', function () {
     lastBlock['height'] = nextBlock.height;
     lastBlock['current'] = nextBlock.indep_hash;
 
-    // await new Promise((resolve) => setTimeout(resolve, 12000));
+    await runp;
+
+    await new Promise((resolve) => setTimeout(resolve, 100));
 
     const queryResponse = await client.execute(
       'SELECT COUNT(*) FROM testway.block ALLOW FILTERING'
@@ -155,18 +161,30 @@ describe('integration suite', function () {
   test('it recovers when fork changes', async () => {
     let logs = '';
     let fullySyncPromiseResolve: any;
+    let newForkPromiseResolve: any;
     proc = proc || helpers.startGateway();
-    proc.stderr.on('data', process.stderr.write);
-    proc.stdout.on('data', (log: string) => {
-      if (/fully synced db/g.test(log.toString()) && fullySyncPromiseResolve) {
+    const logCallback = (log: string) => {
+      if (
+        /polling for new blocks/g.test(log.toString()) &&
+        fullySyncPromiseResolve
+      ) {
         fullySyncPromiseResolve();
         fullySyncPromiseResolve = undefined;
       }
 
+      if (
+        /blocks are back in sync/g.test(log.toString()) &&
+        newForkPromiseResolve
+      ) {
+        newForkPromiseResolve();
+        newForkPromiseResolve = undefined;
+      }
+
       process.stderr.write(log);
       logs += log.toString();
-    });
-
+    };
+    proc.stderr.on('data', logCallback);
+    proc.stdout.on('data', logCallback);
     await new Promise((resolve, reject) => {
       fullySyncPromiseResolve = resolve;
     });
@@ -188,13 +206,15 @@ describe('integration suite', function () {
       ],
       R.slice(1, nextFork.length, nextFork)
     );
-    // console.error('NEXT FORK', nextFork);
+
     mockBlocks = R.concat(mockBlocks, nextFork);
 
     lastBlock['height'] = R.last(mockBlocks).height;
     lastBlock['current'] = R.last(mockBlocks).indep_hash;
 
-    // await new Promise((resolve) => setTimeout(resolve, 40000));
+    await new Promise((resolve, reject) => {
+      newForkPromiseResolve = resolve;
+    });
 
     const queryResponse = await client.execute(
       'SELECT indep_hash,height FROM testway.block WHERE height>85 AND height<95 ALLOW FILTERING'
@@ -203,7 +223,7 @@ describe('integration suite', function () {
       height: parseInt(obj.height),
       hash: obj.indep_hash,
     }));
-    // console.error(result);
+
     expect(
       R.filter(R.equals({ height: 86, hash: 'x86' }), result)
     ).toHaveLength(1);

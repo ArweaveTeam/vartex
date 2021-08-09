@@ -143,17 +143,21 @@ export function startGateway(): any {
   );
 }
 
-export async function runGatewayOnce(): Promise<string> {
+export async function runGatewayOnce({
+  stopCondition,
+}: {
+  stopCondition?: (log: string) => boolean;
+}): Promise<string> {
   const logs = [];
   let fullySyncPromiseResolve: any;
-
+  const shouldStop = (log) =>
+    stopCondition
+      ? stopCondition(log.toString())
+      : /fully synced db/g.test(log.toString()) ||
+        /import queues have been consumed/g.test(log.toString());
   let proc = startGateway();
   proc.stderr.on('data', (log: string) => {
-    if (
-      (/fully synced db/g.test(log.toString()) ||
-        /import queues have been consumed/g.test(log.toString())) &&
-      fullySyncPromiseResolve
-    ) {
+    if (shouldStop(log) && fullySyncPromiseResolve) {
       fullySyncPromiseResolve = undefined;
       setTimeout(fullySyncPromiseResolve, 0);
     }
@@ -162,11 +166,7 @@ export async function runGatewayOnce(): Promise<string> {
     process.stderr.write(log);
   });
   proc.stdout.on('data', (log: string) => {
-    if (
-      (/fully synced db/g.test(log.toString()) ||
-        /import queues have been consumed/g.test(log.toString())) &&
-      fullySyncPromiseResolve
-    ) {
+    if (shouldStop(log) && fullySyncPromiseResolve) {
       setTimeout(fullySyncPromiseResolve, 0);
     }
 

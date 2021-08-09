@@ -20,6 +20,8 @@ spec:
         - env:
             - name: CASSANDRA_CONTACT_POINTS
               value: '["cassandra"]'
+            - name: CASSANDRA_PASSWORD
+              value: z3o77AjtLD
             - name: PORT
               value: "1248"
           image: 625593260641.dkr.ecr.us-east-2.amazonaws.com/koii_vartex_gateway

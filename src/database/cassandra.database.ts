@@ -27,19 +27,24 @@ process.env.NODE_ENV !== "test" && config();
 const isNumeric = (s: any) => !(isNaN as any)(s);
 
 export const toLong = (anyValue: any): CassandraTypes.Long =>
-  (cassandra as any).types.Long.isLong(anyValue) ?
-    anyValue :
-    !anyValue && typeof anyValue !== "string" ?
-    (cassandra as any).types.Long.fromNumber(0) :
-    typeof anyValue === "string" ?
-    (cassandra as any).types.Long.fromString(
-        R.isEmpty(anyValue) ? "0" : anyValue,
-    ) :
-    (cassandra as any).types.Long.fromNumber(anyValue);
+  (cassandra as any).types.Long.isLong(anyValue)
+    ? anyValue
+    : !anyValue && typeof anyValue !== 'string'
+    ? (cassandra as any).types.Long.fromNumber(0)
+    : typeof anyValue === 'string'
+    ? (cassandra as any).types.Long.fromString(
+        R.isEmpty(anyValue) ? '0' : anyValue
+      )
+    : (cassandra as any).types.Long.fromNumber(anyValue);
 
-const contactPoints = process.env.CASSANDRA_CONTACT_POINTS ?
-  JSON.parse(process.env.CASSANDRA_CONTACT_POINTS) :
-  ["localhost:9042"];
+let contactPoints = ['localhost:9042'];
+try {
+  contactPoints = process.env.CASSANDRA_CONTACT_POINTS
+  ? JSON.parse(process.env.CASSANDRA_CONTACT_POINTS)
+  : ['localhost:9042'];
+} catch (e) {
+  console.error('[cassandra] Invalid array of contact points.');
+}
 
 export const cassandraClient = new cassandra.Client({
   contactPoints,
@@ -408,119 +413,121 @@ export const makeTxImportQuery = (
       [],
   );
 
-  return [
-    cassandraClient.execute(
+  return Promise.all(
+    [
+      cassandraClient.execute(
         transactionInsertQuery(nonNilTxKeys),
         txInsertParams,
-        { prepare: true, executionProfile: "full" },
-    ),
+        { prepare: true, executionProfile: 'full' }
+      ),
 
-    cassandraClient.execute(
+      cassandraClient.execute(
         txIdGqlInsertAscQuery,
         [
           getGqlTxIdAscPartitionName(height),
           getGqlTxIdAscBucketName(height),
           txIndex,
           (tx.tags || []).map(({ name, value }) =>
-            CassandraTypes.Tuple.fromArray([name, value]),
+            CassandraTypes.Tuple.fromArray([name, value])
           ),
           tx.id,
           tx.owner,
           tx.target,
-          "", // FIXME ANS-102/ANS-104
+          '', // FIXME ANS-102/ANS-104
         ],
-        { prepare: true, executionProfile: "full" },
-    ),
-    cassandraClient.execute(
+        { prepare: true, executionProfile: 'full' }
+      ),
+      cassandraClient.execute(
         txIdGqlInsertDescQuery,
         [
           getGqlTxIdDescPartitionName(height),
           getGqlTxIdDescBucketName(height),
           txIndex,
           (tx.tags || []).map(({ name, value }) =>
-            CassandraTypes.Tuple.fromArray([name, value]),
+            CassandraTypes.Tuple.fromArray([name, value])
           ),
           tx.id,
           tx.owner,
           tx.target,
-          "", // FIXME ANS-102/ANS-104
+          '', // FIXME ANS-102/ANS-104
         ],
-        { prepare: true, executionProfile: "full" },
-    ),
-  ]
+        { prepare: true, executionProfile: 'full' }
+      ),
+    ]
       .concat(
-          (tx.tags || []).map((tag: UpstreamTag, index: number) =>
-            cassandraClient.execute(
-                txTagGqlInsertAscQuery,
-                [
-                  getGqlTxTagAscPartitionName(height),
-                  getGqlTxTagAscBucketName(height),
-                  txIndex,
-                  index,
-                  tag.value || "",
-                  tag.name || "",
-                  tx.id,
-                  tx.owner,
-                  tx.target,
-                  "", // FIXME ANS-102/ANS-104
-                ],
-                { prepare: true, executionProfile: "full" },
-            ),
-          ),
+        (tx.tags || []).map((tag: UpstreamTag, index: number) =>
+          cassandraClient.execute(
+            txTagGqlInsertAscQuery,
+            [
+              getGqlTxTagAscPartitionName(height),
+              getGqlTxTagAscBucketName(height),
+              txIndex,
+              index,
+              tag.value || '',
+              tag.name || '',
+              tx.id,
+              tx.owner,
+              tx.target,
+              '', // FIXME ANS-102/ANS-104
+            ],
+            { prepare: true, executionProfile: 'full' }
+          )
+        )
       )
       .concat(
-          (tx.tags || []).map((tag: UpstreamTag, index: number) =>
-            cassandraClient.execute(
-                txTagGqlInsertDescQuery,
-                [
-                  getGqlTxTagDescPartitionName(height),
-                  getGqlTxTagDescBucketName(height),
-                  txIndex,
-                  index,
-                  tag.value || "",
-                  tag.name || "",
-                  tx.id,
-                  tx.owner,
-                  tx.target,
-                  "", // FIXME ANS-102/ANS-104
-                ],
-                { prepare: true, executionProfile: "full" },
-            ),
-          ),
+        (tx.tags || []).map((tag: UpstreamTag, index: number) =>
+          cassandraClient.execute(
+            txTagGqlInsertDescQuery,
+            [
+              getGqlTxTagDescPartitionName(height),
+              getGqlTxTagDescBucketName(height),
+              txIndex,
+              index,
+              tag.value || '',
+              tag.name || '',
+              tx.id,
+              tx.owner,
+              tx.target,
+              '', // FIXME ANS-102/ANS-104
+            ],
+            { prepare: true, executionProfile: 'full' }
+          )
+        )
       )
       .concat(
-          (tx.tags || []).map((tag: UpstreamTag, index: number) =>
-            cassandraClient.execute(
-                txTagsInsertQuery,
-                transformTag(
-                    tag,
-                    tx,
-                    height,
-                    txIndex,
-                    index,
-            index + 1 < tx.tags.length ? index + 1 : undefined,
-                ),
+        (tx.tags || []).map((tag: UpstreamTag, index: number) =>
+          cassandraClient.execute(
+            txTagsInsertQuery,
+            transformTag(
+              tag,
+              tx,
+              height,
+              txIndex,
+              index,
+              index + 1 < tx.tags.length ? index + 1 : undefined
+            ),
+            {
+              prepare: true,
+              executionProfile: 'full',
+            }
+          )
+        )
+      )
+      .concat(
+        dataSize && dataSize.gt(0)
+          ? [
+              cassandraClient.execute(
+                txOffsetInsertQuery,
+                transformTxOffsetKeys(tx),
                 {
                   prepare: true,
-                  executionProfile: "full",
-                },
-            ),
-          ),
+                  executionProfile: 'full',
+                }
+              ),
+            ]
+          : []
       )
-      .concat(
-      dataSize && dataSize.gt(0) ?
-        [
-          cassandraClient.execute(
-              txOffsetInsertQuery,
-              transformTxOffsetKeys(tx),
-              {
-                prepare: true,
-                executionProfile: "full",
-              },
-          ),
-        ] :
-        [],
-      );
+  );
 };
 
 export const makeBlockImportQuery = (input: any) => () => {
@@ -539,7 +546,7 @@ export const makeBlockImportQuery = (input: any) => () => {
   );
   const height = toLong(input.height);
 
-  return [
+  return Promise.all([
     cassandraClient.execute(poaInsertQuery, transformPoaKeys(input), {
       prepare: true,
       executionProfile: "full",
@@ -578,7 +585,7 @@ export const makeBlockImportQuery = (input: any) => () => {
         blockInsertParams,
         { prepare: true, executionProfile: "full" },
     ),
-  ];
+  ]);
 };
 
 export const getMaxHeightBlock = async (): Promise<

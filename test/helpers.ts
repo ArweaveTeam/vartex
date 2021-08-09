@@ -1,8 +1,9 @@
-import * as R from "rambda";
-import net from "net";
-import path from "path";
-import child_process, { fork } from "child_process";
-import { testEnvVars } from "./setup";
+import * as R from 'rambda';
+import net from 'net';
+import path from 'path';
+import killPort from 'kill-port';
+import child_process, { fork } from 'child_process';
+import { testEnvVars } from './setup';
 
 export function waitForCassandra(): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -129,17 +130,62 @@ export function generateMockBlocks({
 
 export function startGateway(): any {
   return child_process.spawn(
-      "node",
-      [
-        "--experimental-specifier-resolution=node",
-        "--max-old-space-size=4096",
-        "--loader=ts-node/esm.mjs",
-        "src/Gateway.ts",
-      ],
-      {
-        env: testEnvVars,
-      // shell: true,
-      // stdio: 'inherit',
-      },
+    'node',
+    [
+      '--experimental-specifier-resolution=node',
+      '--max-old-space-size=4096',
+      '--loader=ts-node/esm.mjs',
+      'src/Gateway.ts',
+    ],
+    {
+      env: testEnvVars,
+    }
   );
+}
+
+export async function runGatewayOnce({
+  stopCondition,
+}: {
+  stopCondition?: (log: string) => boolean;
+}): Promise<string> {
+  const logs = [];
+  let fullySyncPromiseResolve: any;
+  const shouldStop = (log) =>
+    stopCondition
+      ? stopCondition(log.toString())
+      : /fully synced db/g.test(log.toString()) ||
+        /import queues have been consumed/g.test(log.toString());
+  let proc = startGateway();
+  proc.stderr.on('data', (log: string) => {
+    if (shouldStop(log) && fullySyncPromiseResolve) {
+      fullySyncPromiseResolve = undefined;
+      setTimeout(fullySyncPromiseResolve, 0);
+    }
+
+    logs.push(log);
+    process.stderr.write(log);
+  });
+  proc.stdout.on('data', (log: string) => {
+    if (shouldStop(log) && fullySyncPromiseResolve) {
+      setTimeout(fullySyncPromiseResolve, 0);
+    }
+
+    process.stderr.write(log);
+    logs.push(log);
+    // logs = ' ' + log.toString();
+  });
+
+  return await new Promise((resolve, reject) => {
+    fullySyncPromiseResolve = async () => {
+      if (proc) {
+        proc.kill('SIGINT');
+        proc = undefined;
+      }
+
+      await killPort(3000);
+      await new Promise((res_) => setTimeout(res_, 0));
+
+      resolve(logs.join(' '));
+    };
+  });
 }

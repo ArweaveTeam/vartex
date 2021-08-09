@@ -145,22 +145,27 @@ const processBlockQueue = (queueSource: any, queueState: QueueState): void => {
   const peek = !queueSource.isEmpty() && queueSource.peek();
 
   if (
-    CassandraTypes.Long.isLong(peek.height) &&
+    (CassandraTypes.Long.isLong(peek.height) && isPollingStarted) ||
+    (CassandraTypes.Long.isLong(peek.height) &&
     peek.height.equals(nextHeight) &&
-    txQueueState.importedHeights[queueState.lastPrio.toString()] ?
-      txQueueState.importedHeights[queueState.lastPrio.toString()] ===
-      peek.txCount :
-      true
+    txQueueState.importedHeights[queueState.lastPrio.toString()]
+      ? txQueueState.importedHeights[queueState.lastPrio.toString()] ===
+        peek.txCount
+      : true)
   ) {
     queueState.isProcessing = true;
     queueState.lastPrio = peek.height;
 
-    Promise.all(peek.callback()).then(() => {
+    peek.callback().then(() => {
       queueSource.pop();
       queueState.isProcessing = false;
 
       if (peek.height.gt(topHeight)) {
         topHeight = peek.height;
+      }
+
+      if (queueSource.isEmpty() && txQueue.isEmpty()) {
+        log.info('import queues have been consumed');
       }
     });
   }
@@ -177,15 +182,19 @@ const processTxQueue = (queueSource: any, queueState: QueueState): void => {
     queueState.isProcessing = true;
     queueState.lastPrio = peek.txIndex;
     const currentImportCnt = queueState.importedHeights[peek.height.toString()];
-    queueState.importedHeights[peek.height.toString()] = currentImportCnt ?
-      1 :
-      currentImportCnt;
-    Promise.all(peek.callback()).then(() => {
+    queueState.importedHeights[peek.height.toString()] = currentImportCnt
+      ? 1
+      : currentImportCnt;
+    peek.callback().then(() => {
       queueSource.pop();
       queueState.isProcessing = false;
 
       if (peek.txIndex.gt(topTxIndex)) {
         topTxIndex = peek.txIndex;
+      }
+
+      if (queueSource.isEmpty() && blockQueue.isEmpty()) {
+        log.info('import queues have been consumed');
       }
     });
   }
@@ -211,10 +220,8 @@ async function resolveFork(previousBlock: any): Promise<void> {
   const pprevBlock = await fetchBlockByHash(previousBlock.previous_block);
 
   const blockQueryResult = await cassandraClient.execute(
-      `SELECT height
-     FROM ${KEYSPACE}.block
-     WHERE indep_hash = ?`,
-      [pprevBlock.previous_block],
+    `SELECT height FROM ${KEYSPACE}.block WHERE indep_hash=?`,
+    [pprevBlock.indep_hash]
   );
 
   if (blockQueryResult.rowLength > 0) {
@@ -236,9 +243,14 @@ async function resolveFork(previousBlock: any): Promise<void> {
           );
         },
 
-        function(err, res) {
-          isPaused = false;
-        },
+      function (err, res) {
+        isPaused = false;
+        log.info(
+          'fork diverges at ' +
+            blockQueryResult.rows[0].height.toString() +
+            ' waiting for missing blocks to be imported...'
+        );
+      }
     );
   } else {
     const blockQueryCallback = makeBlockImportQuery(pprevBlock);
@@ -262,6 +274,9 @@ async function startPolling(): Promise<void> {
   }
   if (!isPollingStarted) {
     isPollingStarted = true;
+    log.info(
+      'polling for new blocks every ' + POLLTIME_DELAY_SECONDS + ' seconds'
+    );
   }
 
   const nodeInfo = await getNodeInfo({ keepAlive: true });
@@ -284,9 +299,18 @@ async function startPolling(): Promise<void> {
         currentRemoteBlock.previous_block,
     );
 
+    // log.info('prevIndep: ' + previousBlock.indep_hash + ' topHash: ' + topHash);
     // fork recovery
     if (previousBlock.indep_hash !== topHash) {
+      log.info(
+        'blocks out of sync with the remote node ' +
+          previousBlock.indep_hash +
+          '!= ' +
+          topHash
+      );
       await resolveFork(currentRemoteBlock);
+      await pWaitFor(() => blockQueue.isEmpty());
+      log.info('blocks are back in sync!');
     } else {
       const newBlock = await queryGetBlock({
         height: nodeInfo.height,

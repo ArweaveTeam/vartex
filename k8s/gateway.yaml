@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    io.kompose.service: gateway
+  name: gateway
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      io.kompose.service: gateway
+  strategy: {}
+  template:
+    metadata:
+      labels:
+        io.kompose.network/arlocal: "true"
+        io.kompose.service: gateway
+    spec:
+      containers:
+        - env:
+            - name: CASSANDRA_CONTACT_POINTS
+              value: '["cassandra"]'
+            - name: PORT
+              value: "1248"
+          image: 625593260641.dkr.ecr.us-east-2.amazonaws.com/koii_vartex_gateway
+          name: gateway
+          ports:
+            - containerPort: 1248
+          resources: {}
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    io.kompose.service: gateway
+  name: gateway
+spec:
+  type: NodePort
+  ports:
+    - name: "1248"
+      port: 1248
+      targetPort: 1248
+  selector:
+    io.kompose.service: gateway
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: arlocal
+spec:
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              io.kompose.network/arlocal: "true"
+  podSelector:
+    matchLabels:
+      io.kompose.network/arlocal: "true"
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:us-west-2:625593260641:certificate/e4e67694-be70-4186-bb4e-e740731d19f6
+    alb.ingress.kubernetes.io/ssl-policy: ELBSecurityPolicy-TLS-1-1-2017-01
+    external-dns.alpha.kubernetes.io/hostname: g3.koi.rocks
+    kubernetes.io/ingress.class: alb
+  name: koii-vartex-gateway
+spec:
+  rules:
+  - host: g3.koi.rocks
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: gateway
+            port: 
+              number: 1248

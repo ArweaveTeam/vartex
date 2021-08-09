@@ -1,6 +1,6 @@
 # This is a basic workflow to help you get started with Actions
 
-name: CI
+name: Eslint check
 on: push
 jobs:
   build:
@@ -12,4 +12,4 @@ jobs:
     - name: Install modules
       run: yarn install --ignore-engines
     - name: Run ESLint
-      run: yarn run eslint . --ext .js,.jsx,.ts,.tsx
+      run: yarn run --ignore-engines eslint . --ext .js,.jsx,.ts,.tsx

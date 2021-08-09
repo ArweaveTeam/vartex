@@ -495,8 +495,7 @@ export async function startSync({ isTesting = false }) {
     return;
   } else {
     log.info(
-      `[sync] missing ${unsyncedBlocks.length} blocks, starting sync...` +
-        unsyncedBlocks.map(JSON.stringify as any).join(', ')
+      `[sync] missing ${unsyncedBlocks.length} blocks, starting sync...`
     );
   }
   // check health

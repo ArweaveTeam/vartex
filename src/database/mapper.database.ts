@@ -68,7 +68,7 @@ const mapper = new Mapper(cassandraClient, {
 });
 
 export const blockHeightToHashMapper = mapper.forModel(
-    "BlockHeightByBlockHash",
+  "BlockHeightByBlockHash"
 );
 
 export const blockMapper = mapper.forModel("Block");
@@ -86,19 +86,19 @@ export const txTagMapper = mapper.forModel("TxTag");
 export const txOffsetMapper = mapper.forModel("TxOffset");
 
 export const tagsByTxId = async (txId: string) => {
-  let lastRes = await txTagMapper.get({ tx_id: txId, tag_index: 0 });
+  let lastTagResponse = await txTagMapper.get({ tx_id: txId, tag_index: 0 });
   const tags = [];
 
-  if (!lastRes) {
+  if (!lastTagResponse) {
     return tags;
   } else {
-    tags.push({ name: lastRes.name, value: lastRes.value });
-    while (lastRes.next_tag_index) {
-      lastRes = await txTagMapper.get({
+    tags.push({ name: lastTagResponse.name, value: lastTagResponse.value });
+    while (lastTagResponse.next_tag_index) {
+      lastTagResponse = await txTagMapper.get({
         tx_id: txId,
-        tag_index: lastRes.next_tag_index,
+        tag_index: lastTagResponse.next_tag_index,
       });
-      tags.push({ name: lastRes.name, value: lastRes.value });
+      tags.push({ name: lastTagResponse.name, value: lastTagResponse.value });
     }
   }
   return tags;

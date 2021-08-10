@@ -3,10 +3,10 @@ import { Request, Response } from "express";
 
 export const koiLogger = new KoiLogs("./");
 
-export async function koiLogsRoute(request: Request, res: Response) {
-  return koiLogger.koiLogsHelper(request, res);
+export async function koiLogsRoute(request: Request, response: Response) {
+  return koiLogger.koiLogsHelper(request, response);
 }
 
-export async function koiLogsRawRoute(request: Request, res: Response) {
-  return koiLogger.koiRawLogsHelper(request, res);
+export async function koiLogsRawRoute(request: Request, response: Response) {
+  return koiLogger.koiRawLogsHelper(request, response);
 }

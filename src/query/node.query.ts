@@ -11,8 +11,8 @@ import { HTTP_TIMEOUT_SECONDS } from "../constants";
 let temporaryNodes = ["http://lon-2.eu-west-1.arweave.net:1984"];
 try {
   temporaryNodes = process.env.ARWEAVE_NODES
-  ? JSON.parse(process.env.ARWEAVE_NODES)
-  : ["http://lon-2.eu-west-1.arweave.net:1984"];
+    ? JSON.parse(process.env.ARWEAVE_NODES)
+    : ["http://lon-2.eu-west-1.arweave.net:1984"];
 } catch {
   console.error("[node] invalid list of nodes.");
 }
@@ -21,37 +21,23 @@ export const NODES = temporaryNodes;
 type WeightedNode = { id: string; weight: number };
 
 let nodeTemperatures: WeightedNode[] =
-  process.env.NODE_ENV === "test" ?
-    [] :
-    [
-      { id: "https://arweave.net", weight: 2 },
-      { id: "http://lon-2.eu-west-1.arweave.net:1984", weight: 2 },
-    ];
+  process.env.NODE_ENV === "test"
+    ? []
+    : [
+        { id: "https://arweave.net", weight: 2 },
+        { id: "http://lon-2.eu-west-1.arweave.net:1984", weight: 2 },
+      ];
 
 const syncNodeTemperatures = () => {
   nodeTemperatures = NODES.map((url: string) => {
     const previousWeight = nodeTemperatures.find(
-        (index: WeightedNode) => index.id === url,
+      (index: WeightedNode) => index.id === url
     );
     return {
       id: url,
       weight: previousWeight ? previousWeight.weight : 1,
     };
   });
-};
-
-export const findPeers = async () => {
-  // await superagent.get('https://www.arweave.net/peers').then((payload) => {
-  //   const rootPeers = JSON.parse(payload.text);
-  //   rootPeers.forEach(
-  //     (peer: string) =>
-  //       peer &&
-  //       !peer.startsWith('127.0') &&
-  //       !NODES.includes(peer) &&
-  //       NODES.push(peer)
-  //   );
-  //   syncNodeTemperatures();
-  // });
 };
 
 export function grabNode() {
@@ -63,9 +49,9 @@ export function grabNode() {
     }
     throw new Error("No more peers were found");
   }
-  return randomWeightedNode.startsWith("http") ?
-    randomWeightedNode :
-    `http://${randomWeightedNode}`;
+  return randomWeightedNode.startsWith("http")
+    ? randomWeightedNode
+    : `http://${randomWeightedNode}`;
 }
 
 export function warmNode(url: string) {
@@ -81,7 +67,7 @@ export function coolNode(url: string, kickIfLow = false) {
     if (kickIfLow && item["weight"] < 2) {
       log.info(`[network] peer ${url} kicked out because of unresponsiveness`);
       nodeTemperatures = R.reject((temporary: WeightedNode) =>
-        R.equals(R.prop("id", temporary), url),
+        R.equals(R.prop("id", temporary), url)
       )(nodeTemperatures) as WeightedNode[];
     }
     item["weight"] = Math.min(item["weight"] - 1, 1);
@@ -130,31 +116,31 @@ export async function getNodeInfo({
     };
   } catch {
     coolNode(tryNode, true);
-    return new Promise((res) => setTimeout(res, 10 + 2 * retry)).then(
-        async () => {
-          if (retry < maxRetry) {
-            return await getNodeInfo({ retry: retry + 1, maxRetry });
-          } else {
-            console.trace(
-                "\n" +
+    return new Promise((resolve) => setTimeout(resolve, 10 + 2 * retry)).then(
+      async () => {
+        if (retry < maxRetry) {
+          return await getNodeInfo({ retry: retry + 1, maxRetry });
+        } else {
+          console.trace(
+            "\n" +
               "Failed to establish connection to any specified node after 100 retries with these nodes: " +
               nodeTemperatures.map(R.prop("id")).join(", ") +
-              "\n",
-            );
+              "\n"
+          );
 
-            if (keepAlive) {
-              console.error(
-                  "\n" +
+          if (keepAlive) {
+            console.error(
+              "\n" +
                 "Check the network status, trying again to reach some of these nodes, but it is unlikely to make a differnece:" +
                 nodeTemperatures.map(R.prop("id")).join(", ") +
-                "\n",
-              );
-              return await getNodeInfo({ retry: 0, maxRetry });
-            } else {
-              return;
-            }
+                "\n"
+            );
+            return await getNodeInfo({ retry: 0, maxRetry });
+          } else {
+            return;
           }
-        },
+        }
+      }
     );
   }
 }
@@ -163,9 +149,9 @@ export async function getHashList({
   retry = 0,
 }): Promise<string[] | undefined> {
   const hashListCachePath =
-    process.env.NODE_ENV === "test" ?
-      "cache/hash_list_test.json" :
-      "cache/hash_list.json";
+    process.env.NODE_ENV === "test"
+      ? "cache/hash_list_test.json"
+      : "cache/hash_list.json";
   const cacheExists = existsSync(hashListCachePath);
 
   if (cacheExists) {
@@ -192,25 +178,25 @@ export async function getHashList({
 
       const linearHashList = R.reverse(body as any);
       return fs
-          .writeFile(
-              hashListCachePath,
-              JSON.stringify(linearHashList, undefined, 2),
-          )
-          .then(() => linearHashList as string[]);
+        .writeFile(
+          hashListCachePath,
+          JSON.stringify(linearHashList, undefined, 2)
+        )
+        .then(() => linearHashList as string[]);
     } catch (error) {
       process.env.NODE_ENV === "test" && console.error(error);
       coolNode(tryNode);
-      return new Promise((res) => setTimeout(res, 10 + 2 * retry)).then(
-          async () => {
-            if (retry < 100) {
-              return await getHashList({ retry: retry + 1 });
-            } else {
-              console.trace(
-                  "Failed to establish connection to any specified node after 100 retries",
-              );
-              process.exit(1);
-            }
-          },
+      return new Promise((resolve) => setTimeout(resolve, 10 + 2 * retry)).then(
+        async () => {
+          if (retry < 100) {
+            return await getHashList({ retry: retry + 1 });
+          } else {
+            console.trace(
+              "Failed to establish connection to any specified node after 100 retries"
+            );
+            process.exit(1);
+          }
+        }
       );
     }
   }
@@ -247,8 +233,8 @@ export async function getDataFromChunks({
   } catch (error) {
     if (retry) {
       console.error(
-          `error retrieving data from ${id}, please note that this may be a cancelled transaction`
-              .red.bold,
+        `error retrieving data from ${id}, please note that this may be a cancelled transaction`
+          .red.bold
       );
       return await getDataFromChunks({
         id,

@@ -11,9 +11,9 @@ import { grabNode } from "../query/node.query.js";
 import Transaction from "arweave/node/lib/transaction";
 
 export async function txUploadRoute(
-    request: Request,
-    res: Response,
-    next: NextFunction,
+  request: Request,
+  response: Response,
+  next: NextFunction
 ) {
   try {
     const tx = request.body as Transaction;
@@ -35,40 +35,40 @@ export async function txUploadRoute(
       });
     }
 
-    return res.sendStatus(200).end();
+    return response.sendStatus(200).end();
   } catch (error) {
     console.log(error);
-    return res.status(500).send(error);
+    return response.status(500).send(error);
   }
 }
 
 export async function txGetByIdRoute(
-    request: Request,
-    res: Response,
-    next: NextFunction,
+  request: Request,
+  response: Response,
+  next: NextFunction
 ) {
   try {
     const txId = request.params.id;
     const rawTx = await transactionMapper.get({
       tx_id: txId,
     });
-    res.json(R.pipe(R.dissoc("tag_count"), R.dissoc("tx_index"))(rawTx));
+    response.json(R.pipe(R.dissoc("tag_count"), R.dissoc("tx_index"))(rawTx));
   } catch (error) {
     return next(error);
   }
 }
 
 export async function txOffsetRoute(
-    request: Request,
-    res: Response,
-    next: NextFunction,
+  request: Request,
+  response: Response,
+  next: NextFunction
 ) {
   try {
     const txId = request.params.id;
     const rawTx = await txOffsetMapper.get({
       tx_id: txId,
     });
-    res.json(R.dissoc("tx_id")(rawTx || { size: 0, offset: -1 }));
+    response.json(R.dissoc("tx_id")(rawTx || { size: 0, offset: -1 }));
   } catch (error) {
     return next(error);
   }

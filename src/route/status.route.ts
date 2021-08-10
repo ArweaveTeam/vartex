@@ -5,18 +5,18 @@ import { getNodeInfo } from "../query/node.query.js";
 
 export const start = Date.now();
 
-export async function statusRoute(request: Request, res: Response) {
+export async function statusRoute(request: Request, response: Response) {
   try {
     const info = await getNodeInfo({ maxRetry: 1 });
     const delta = toLong(info.height).sub(topHeight).toString();
 
-    return res.status(200).send({
+    return response.status(200).send({
       status: "OK",
       gatewayHeight: topHeight.toString(),
       arweaveHeight: info.height,
       delta,
     });
   } catch (error) {
-    return res.status(503).send(error);
+    return response.status(503).send(error);
   }
 }

@@ -46,16 +46,18 @@ export async function getTransaction({
     });
   } catch {
     coolNode(tryNode);
-    return new Promise((res) => setTimeout(res, 10 + 2 * retry)).then(() => {
-      if (retry < 100) {
-        return getTransaction({ txId, retry: retry + 1 });
-      } else {
-        console.error(
-            "Failed to establish connection to any specified node after 100 retries",
-        );
-        process.exit(1);
+    return new Promise((resolve) => setTimeout(resolve, 10 + 2 * retry)).then(
+      () => {
+        if (retry < 100) {
+          return getTransaction({ txId, retry: retry + 1 });
+        } else {
+          console.error(
+            "Failed to establish connection to any specified node after 100 retries"
+          );
+          process.exit(1);
+        }
       }
-    });
+    );
   }
   warmNode(tryNode);
   return jsonPayload;
@@ -77,16 +79,18 @@ export async function getTxOffset({
     });
   } catch {
     coolNode(tryNode);
-    return new Promise((res) => setTimeout(res, 10 + 2 * retry)).then(() => {
-      if (retry < 100) {
-        return getTransaction({ txId, retry: retry + 1 });
-      } else {
-        console.error(
-            "Failed to establish connection to any specified node after 100 retries",
-        );
-        process.exit(1);
+    return new Promise((resolve) => setTimeout(resolve, 10 + 2 * retry)).then(
+      () => {
+        if (retry < 100) {
+          return getTransaction({ txId, retry: retry + 1 });
+        } else {
+          console.error(
+            "Failed to establish connection to any specified node after 100 retries"
+          );
+          process.exit(1);
+        }
       }
-    });
+    );
     warmNode(tryNode);
     return jsonPayload;
   }
@@ -94,10 +98,10 @@ export async function getTxOffset({
 
 export function toB64url(input: string): Base64UrlEncodedString {
   return Buffer.from(input)
-      .toString("base64")
-      .replace(/\+/g, "-")
-      .replace(/\//g, "_")
-      .replace(/=/g, "");
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=/g, "");
 }
 
 export function tagValue(tags: Array<Tag>, name: string): string {

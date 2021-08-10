@@ -56,7 +56,7 @@ const trackerTheme = GaugeThemes.newTheme(
 
 export const SIGINT = false;
 export let SIGKILL = false;
-const PARALLEL = (isNaN as any)(process.env["PARALLEL"])
+const PARALLEL = (Number.isNaN as any)(process.env["PARALLEL"])
   ? 36
   : Number.parseInt(process.env["PARALLEL"] || "36");
 
@@ -70,6 +70,7 @@ const developmentSyncLength: number | undefined =
     ? undefined
     : Number.parseInt(process.env["DEVELOPMENT_SYNC_LENGTH"] as string);
 
+// eslint-disable-next-line use-isnan
 if (developmentSyncLength === Number.NaN) {
   console.error("Development sync range variable produced, illegal value NaN");
   process.exit(1);
@@ -94,7 +95,9 @@ const txQueue = new PriorityQueue(function (
   a: { txIndex: CassandraTypes.Long },
   b: { txIndex: CassandraTypes.Long }
 ) {
-  return a.txIndex.equals(0) || b.txIndex.equals(0) ? -1 : a.txIndex.compare(b.txIndex);
+  return a.txIndex.equals(0) || b.txIndex.equals(0)
+    ? -1
+    : a.txIndex.compare(b.txIndex);
 });
 
 const blockQueueState: BlockQueueState = {
@@ -145,9 +148,12 @@ const processBlockQueue = (
       }
 
       queueSource.sortQueue();
-      queueState.nextHeight = !queueSource.isEmpty() &&
+      queueState.nextHeight =
+        !queueSource.isEmpty() &&
         queueSource.peek().nextHeight &&
-        peek.height.lt(queueSource.peek().nextHeight) ? toLong(queueSource.peek().nextHeight) : toLong(-1);
+        peek.height.lt(queueSource.peek().nextHeight)
+          ? toLong(queueSource.peek().nextHeight)
+          : toLong(-1);
 
       if (queueSource.isEmpty() && txQueue.isEmpty()) {
         log.info("import queues have been consumed");
@@ -228,7 +234,7 @@ async function resolveFork(previousBlock: any): Promise<void> {
         );
       },
 
-      function (error, res) {
+      function (error, result) {
         isPaused = false;
         log.info(
           "fork diverges at " +
@@ -242,7 +248,7 @@ async function resolveFork(previousBlock: any): Promise<void> {
     blockQueue.enqueue({
       callback: blockQueryCallback,
       height:
-        pprevBlock.height !== null && !isNaN(pprevBlock.height)
+        pprevBlock.height !== null && !Number.isNaN(pprevBlock.height)
           ? toLong(pprevBlock.height)
           : toLong(0),
       type: "block",
@@ -268,7 +274,9 @@ async function startPolling(): Promise<void> {
   const nodeInfo = await getNodeInfo({ keepAlive: true });
 
   if (!nodeInfo) {
-    await new Promise((res) => setTimeout(res, POLLTIME_DELAY_SECONDS * 1000));
+    await new Promise((resolve) =>
+      setTimeout(resolve, POLLTIME_DELAY_SECONDS * 1000)
+    );
     return startPolling();
   }
 
@@ -277,7 +285,9 @@ async function startPolling(): Promise<void> {
   if (nodeInfo.current === topHash) {
     // wait before polling again
 
-    await new Promise((res) => setTimeout(res, POLLTIME_DELAY_SECONDS * 1000));
+    await new Promise((resolve) =>
+      setTimeout(resolve, POLLTIME_DELAY_SECONDS * 1000)
+    );
     return startPolling();
   } else {
     const currentRemoteBlock = await fetchBlockByHash(nodeInfo.current);
@@ -304,7 +314,7 @@ async function startPolling(): Promise<void> {
       });
       if (newBlock !== undefined) {
         const newBlockHeight =
-          newBlock.height !== null && !isNaN(newBlock.height)
+          newBlock.height !== null && !Number.isNaN(newBlock.height)
             ? toLong(newBlock.height)
             : toLong(0);
         log.info("new block arrived at height " + newBlockHeight.toString());
@@ -319,8 +329,8 @@ async function startPolling(): Promise<void> {
       } else {
         console.error("Querying for new tx failed");
       }
-      await new Promise((res) =>
-        setTimeout(res, POLLTIME_DELAY_SECONDS * 1000)
+      await new Promise((resolve) =>
+        setTimeout(resolve, POLLTIME_DELAY_SECONDS * 1000)
       );
     }
   }
@@ -372,7 +382,7 @@ const findMissingBlocks = (
             delete hashListObject[row.height];
           }
         },
-        async function (error, res) {
+        async function (error, result) {
           gauge.disable();
           if (error) {
             reject((error || "").toString());
@@ -428,7 +438,9 @@ export async function startSync({ isTesting = false }) {
               storeBlock({
                 height: gap,
                 next:
-                  index + 1 < blockGap.length ? blockGap[index + 1] : 99_999_999,
+                  index + 1 < blockGap.length
+                    ? blockGap[index + 1]
+                    : 99_999_999,
               })
             )
           )
@@ -598,7 +610,7 @@ export function storeBlock({
         });
         return;
       } else {
-        await new Promise((res) => setTimeout(res, 100));
+        await new Promise((resolve) => setTimeout(resolve, 100));
         if (retry >= 250) {
           log.info(`Could not retrieve block at height ${height}`);
           reject("Failed to fetch block after 250 retries");

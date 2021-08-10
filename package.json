@@ -10,7 +10,8 @@
     "node": ">=16"
   },
   "prettier": {
-    "singleQuote": true
+    "singleQuote": false,
+    "doubleQuote": true
   },
   "execMap": {
     "ts": "node --loader ts-node/esm"

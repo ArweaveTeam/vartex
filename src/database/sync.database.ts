@@ -433,7 +433,7 @@ export async function startSync({ isTesting = false }) {
         const doneSignal = new Promise((resolve) => {
           doneSignalResolve = resolve;
         });
-        fork((error) => console.error(error))(() => {
+        (fork as any)((error) => console.error(error))(() => {
           doneSignalResolve();
           console.log('Block repair done!');
         })(

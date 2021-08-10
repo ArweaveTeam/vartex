@@ -14,7 +14,7 @@ export function proxyGetRoute(request: Request, response: Response) {
     console.log(`[GET] Failed to get: ${uri}`);
   });
   stream.on("end", () => response.end());
-  stream.pipe(res);
+  stream.pipe(response);
 }
 
 export function proxyPostRoute(request: Request, response: Response) {
@@ -29,5 +29,5 @@ export function proxyPostRoute(request: Request, response: Response) {
     console.log(`[POST] Failed to post: ${uri}`);
   });
   stream.on("end", () => response.end());
-  stream.pipe(res);
+  stream.pipe(response);
 }

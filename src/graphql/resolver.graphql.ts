@@ -17,7 +17,8 @@ import {
   utf8DecodeTag,
 } from "../utility/encoding.utility";
 import {
-  QueryParams as QueryParameters,
+  QueryParameters,
+  generateBlockQuery,
   generateTransactionQuery,
   generateDeferedTxQuery,
   generateDeferedTxBlockQuery,
@@ -257,7 +258,7 @@ export const resolvers = {
       }
 
       const selectedDeferedKeysUser = [];
-      for (const k of R.keys(fieldsWithSubFields)) {
+      for (const k of R.keys(fieldsWithSubFields) as string[]) {
         ["anchor", "fee", "signature"].includes(k) &&
           selectedDeferedKeysUser.push(
             R.find(R.equals(k))(["anchor", "fee", "signature"])
@@ -429,7 +430,7 @@ export const resolvers = {
       }
 
       const selectedDeferedKeysUser = [];
-      for (const k of R.keys(fieldsWithSubFields.edges.node)) {
+      for (const k of R.keys(fieldsWithSubFields.edges.node) as string[]) {
         ["anchor", "fee", "signature"].includes(k) &&
           selectedDeferedKeysUser.push(
             R.find(R.equals(k))(["anchor", "fee", "signature"])

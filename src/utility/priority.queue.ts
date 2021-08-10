@@ -40,7 +40,9 @@ export default class PriorityQueue {
   // hacky solution for tx imports
   hasNoneLt(height: CassandraTypes.Long): boolean {
     const answer = R.isEmpty(
-        R.filter((item) => height.lessThan(item.height)),
+      R.filter((item: { height: number | CassandraTypes.Long | string }) =>
+        height.lessThan(item.height)
+      )
     );
 
     return answer;

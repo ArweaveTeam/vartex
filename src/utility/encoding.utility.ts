@@ -70,7 +70,7 @@ export function b64UrlDecode(b64UrlString: string): string {
   b64UrlString.length % 4 == 0
     ? (padding = 0)
     : (padding = 4 - (b64UrlString.length % 4));
-  return [b64UrlString, ..."=".repeat(padding)];
+  return [...b64UrlString, ..."=".repeat(padding)].join("");
 }
 
 export function sha256(buffer: Buffer): Buffer {
@@ -91,7 +91,7 @@ export function fromB64Url(input: Base64UrlEncodedString): Buffer {
   const base64 = [
     ...input.replace(/-/g, "+").replace(/_/g, "/"),
     ..."=".repeat(paddingLength),
-  ];
+  ].join("");
 
   return Buffer.from(base64, "base64");
 }

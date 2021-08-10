@@ -2,14 +2,14 @@ import { types as CassandraTypes } from "cassandra-driver";
 
 export const MAX_TX_PER_BLOCK = 1000;
 
-export const GQL_BLOCK_HEIGHT_PARTITION_SIZE = 500000; // Should be well under 100MB
-export const GQL_BLOCK_HEIGHT_BUCKET_SIZE = 100000; // Bit skinny bucket for greater distribution
+export const GQL_BLOCK_HEIGHT_PARTITION_SIZE = 500_000; // Should be well under 100MB
+export const GQL_BLOCK_HEIGHT_BUCKET_SIZE = 100_000; // Bit skinny bucket for greater distribution
 
-export const GQL_TX_ID_PARTITION_SIZE = 100000; // Low partition for greater distribution
-export const GQL_TX_ID_BUCKET_SIZE = 50000; // Very hard to guestimate 100MB
+export const GQL_TX_ID_PARTITION_SIZE = 100_000; // Low partition for greater distribution
+export const GQL_TX_ID_BUCKET_SIZE = 50_000; // Very hard to guestimate 100MB
 
-export const GQL_TX_TAG_PARTITION_SIZE = 100000; // same guestimation
-export const GQL_TX_TAG_BUCKET_SIZE = 50000; // same guestimation
+export const GQL_TX_TAG_PARTITION_SIZE = 100_000; // same guestimation
+export const GQL_TX_TAG_BUCKET_SIZE = 50_000; // same guestimation
 
 // converters to help locating buckets
 

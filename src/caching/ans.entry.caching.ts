@@ -4,8 +4,7 @@ import { cacheFolder } from "./file.caching";
 import { b64UrlToBuffer } from "../utility/encoding.utility";
 
 export async function cacheANSEntries(entries: Array<DataItemJson>) {
-  for (let i = 0; i < entries.length; i++) {
-    const entry = entries[i];
+  for (const entry of entries) {
     const id = entry.id;
     const data = entry.data;
 

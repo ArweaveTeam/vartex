@@ -20,8 +20,7 @@ export async function streamAndCacheAns(id: string): Promise<boolean> {
 
     const ansTxsConverted: Array<DataItemJson> = [];
 
-    for (let i = 0; i < ansTxs.length; i++) {
-      const ansTx = ansTxs[i];
+    for (const ansTx of ansTxs) {
       const newAnsTx: DataItemJson = {
         id: ansTx.id,
         owner: ansTx.owner,
@@ -35,7 +34,10 @@ export async function streamAndCacheAns(id: string): Promise<boolean> {
       ansTxsConverted.push(newAnsTx);
     }
 
-    fs.write(`${cacheFolder}/${id}`, JSON.stringify(ansTxsConverted, null, 2));
+    fs.write(
+      `${cacheFolder}/${id}`,
+      JSON.stringify(ansTxsConverted, undefined, 2)
+    );
 
     await cacheANSEntries(ansTxs);
 
@@ -43,8 +45,8 @@ export async function streamAndCacheAns(id: string): Promise<boolean> {
   } catch (error) {
     fs.remove(`${cacheFolder}/${id}`);
     console.error(
-        `error caching data from ${id}, please note that this may be a cancelled transaction`
-            .red.bold,
+      `error caching data from ${id}, please note that this may be a cancelled transaction`
+        .red.bold
     );
     throw error;
   }

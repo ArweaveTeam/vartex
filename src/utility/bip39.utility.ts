@@ -1,4 +1,4 @@
-import { createHash } from "crypto";
+import { createHash } from "node:crypto";
 import { entropyToMnemonic } from "bip39";
 
 export function stringToBip39(input: string) {

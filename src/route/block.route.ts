@@ -8,16 +8,16 @@ import {
 import { topHash, topHeight } from "../database/sync.database";
 
 export async function blockByHeightRoute(
-    req: Request,
-    res: Response,
-    next: (err?: string) => void,
+  request: Request,
+  response: Response,
+  next: (error?: string) => void
 ) {
-  if (!req.params.height) {
-    res.status(503);
+  if (!request.params.height) {
+    response.status(503);
     return next("Height value was not specified");
   } else {
     try {
-      const height = req.params.height;
+      const height = request.params.height;
       const { block_hash } = await blockHeightToHashMapper.get({
         block_height: height,
       });
@@ -28,12 +28,12 @@ export async function blockByHeightRoute(
       });
 
       R.pipe(
-          R.dissoc("txs_count"),
-          R.assoc(
-              "poa",
-              R.pipe(R.dissoc("block_hash"), R.dissoc("block_height"))(poa),
-          ),
-          (ret) => res.json(ret),
+        R.dissoc("txs_count"),
+        R.assoc(
+          "poa",
+          R.pipe(R.dissoc("block_hash"), R.dissoc("block_height"))(poa)
+        ),
+        (returnValue) => response.json(returnValue)
       )(blockResult);
     } catch (error) {
       // Passes errors into the error handler
@@ -43,22 +43,22 @@ export async function blockByHeightRoute(
 }
 
 export async function blockByHashRoute(
-    req: Request,
-    res: Response,
-    next: (err?: string) => void,
+  request: Request,
+  response: Response,
+  next: (error?: string) => void
 ) {
-  if (!req.params.hash) {
-    res.status(503);
+  if (!request.params.hash) {
+    response.status(503);
     return next("Height value was not specified");
   } else {
     try {
-      const hash = req.params.hash;
+      const hash = request.params.hash;
       const blockResult = await blockMapper.get({
         indep_hash: hash,
       });
 
       if (!blockResult || !blockResult.height) {
-        return res.status(404).json({
+        return response.status(404).json({
           status: 404,
           error: "Not Found",
         });
@@ -70,12 +70,12 @@ export async function blockByHashRoute(
       });
 
       R.pipe(
-          R.dissoc("txs_count"),
-          R.assoc(
-              "poa",
-              R.pipe(R.dissoc("block_hash"), R.dissoc("block_height"))(poa),
-          ),
-          (ret) => res.json(ret),
+        R.dissoc("txs_count"),
+        R.assoc(
+          "poa",
+          R.pipe(R.dissoc("block_hash"), R.dissoc("block_height"))(poa)
+        ),
+        (returnValue) => response.json(returnValue)
       )(blockResult);
     } catch (error) {
       // Passes errors into the error handler
@@ -85,9 +85,9 @@ export async function blockByHashRoute(
 }
 
 export async function blockCurrentRoute(
-    req: Request,
-    res: Response,
-    next: (err?: string) => void,
+  request: Request,
+  response: Response,
+  next: (error?: string) => void
 ) {
   try {
     const { block_hash } = await blockHeightToHashMapper.get({
@@ -99,7 +99,7 @@ export async function blockCurrentRoute(
     });
 
     if (!blockResult) {
-      res.status(404);
+      response.status(404);
       return next("Current block was not found");
     }
 
@@ -109,12 +109,12 @@ export async function blockCurrentRoute(
     });
 
     R.pipe(
-        R.dissoc("txs_count"),
-        R.assoc(
-            "poa",
-            R.pipe(R.dissoc("block_hash"), R.dissoc("block_height"))(poa),
-        ),
-        (ret) => res.json(ret),
+      R.dissoc("txs_count"),
+      R.assoc(
+        "poa",
+        R.pipe(R.dissoc("block_hash"), R.dissoc("block_height"))(poa)
+      ),
+      (returnValue) => response.json(returnValue)
     )(blockResult);
   } catch (error) {
     return next(error);

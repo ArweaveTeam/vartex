@@ -2,8 +2,8 @@ import Ar from "arweave/node/ar";
 import { types as CassandraTypes } from "cassandra-driver";
 import * as B64js from "base64-js";
 import { base32 } from "rfc4648";
-import crypto, { createHash } from "crypto";
-import { Readable, PassThrough, Transform } from "stream";
+import crypto, { createHash } from "node:crypto";
+import { Readable, PassThrough, Transform } from "node:stream";
 import { Tag } from "../types/arweave.types";
 
 const ar = new ((Ar as any).default as typeof Ar)();
@@ -24,14 +24,14 @@ export class Base64DUrlecode extends Transform {
     this.bytesProcessed = 0;
   }
 
-  _transform(chunk: Buffer, encoding: any, cb: () => void) {
+  _transform(chunk: Buffer, encoding: any, callback: () => void) {
     const conbinedChunk =
       this.extra +
       chunk
-          .toString("base64")
-          .replace(/-/g, "+")
-          .replace(/_/g, "/")
-          .replace(/(\r\n|\n|\r)/gm, "");
+        .toString("base64")
+        .replace(/-/g, "+")
+        .replace(/_/g, "/")
+        .replace(/(\r\n|\n|\r)/gm, "");
 
     this.bytesProcessed += chunk.byteLength;
 
@@ -40,19 +40,19 @@ export class Base64DUrlecode extends Transform {
     this.extra = conbinedChunk.slice(chunk.length - remaining);
 
     const buf = Buffer.from(
-        conbinedChunk.slice(0, chunk.length - remaining),
-        "base64",
+      conbinedChunk.slice(0, chunk.length - remaining),
+      "base64"
     );
     this.push(buf);
-    cb();
+    callback();
   }
 
-  _flush(cb: () => void) {
-    if (this.extra.length) {
+  _flush(callback: () => void) {
+    if (this.extra.length > 0) {
       this.push(Buffer.from(this.extra, "base64"));
     }
 
-    cb();
+    callback();
   }
 }
 
@@ -61,16 +61,16 @@ export function b64UrlToBuffer(b64UrlString: string): Uint8Array {
 }
 
 export function b64UrlToStringBuffer(b64UrlString: string): Buffer {
-  return new Buffer(B64js.toByteArray(b64UrlDecode(b64UrlString)));
+  return Buffer.from(B64js.toByteArray(b64UrlDecode(b64UrlString)));
 }
 
 export function b64UrlDecode(b64UrlString: string): string {
   b64UrlString = b64UrlString.replace(/-/g, "+").replace(/_/g, "/");
   let padding;
-  b64UrlString.length % 4 == 0 ?
-    (padding = 0) :
-    (padding = 4 - (b64UrlString.length % 4));
-  return b64UrlString.concat("=".repeat(padding));
+  b64UrlString.length % 4 == 0
+    ? (padding = 0)
+    : (padding = 4 - (b64UrlString.length % 4));
+  return [...b64UrlString, ..."=".repeat(padding)].join("");
 }
 
 export function sha256(buffer: Buffer): Buffer {
@@ -79,28 +79,28 @@ export function sha256(buffer: Buffer): Buffer {
 
 export function toB64url(buffer: Buffer): Base64UrlEncodedString {
   return buffer
-      .toString("base64")
-      .replace(/\+/g, "-")
-      .replace(/\//g, "_")
-      .replace(/=/g, "");
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=/g, "");
 }
 
 export function fromB64Url(input: Base64UrlEncodedString): Buffer {
   const paddingLength = input.length % 4 === 0 ? 0 : 4 - (input.length % 4);
 
-  const base64 = input
-      .replace(/-/g, "+")
-      .replace(/_/g, "/")
-      .concat("=".repeat(paddingLength));
+  const base64 = [
+    ...input.replace(/-/g, "+").replace(/_/g, "/"),
+    ..."=".repeat(paddingLength),
+  ].join("");
 
   return Buffer.from(base64, "base64");
 }
 
 export function fromB32(input: string): Buffer {
   return Buffer.from(
-      base32.parse(input, {
-        loose: true,
-      }),
+    base32.parse(input, {
+      loose: true,
+    })
   );
 }
 
@@ -132,8 +132,10 @@ export async function streamToString(stream: Readable): Promise<string> {
 export function bufferToJson<T = any | undefined>(input: Buffer): T {
   try {
     return JSON.parse(input.toString("utf8"));
-  } catch (e) {
-    console.error(`[encoding] unable to convert buffer to JSON ${input.toString("utf8")}`);
+  } catch {
+    console.error(
+      `[encoding] unable to convert buffer to JSON ${input.toString("utf8")}`
+    );
     return undefined;
   }
 }
@@ -143,7 +145,7 @@ export function jsonToBuffer(input: any): Buffer {
 }
 
 export async function streamToJson<T = any | undefined>(
-    input: Readable,
+  input: Readable
 ): Promise<T> {
   return bufferToJson<T>(await streamToBuffer(input));
 }
@@ -167,7 +169,7 @@ export function bufferToStream(buffer: Buffer) {
     objectMode: false,
     read() {
       this.push(buffer);
-      this.push(null);
+      this.push(undefined);
     },
   });
 }
@@ -181,7 +183,7 @@ export function arToWinston(amount: string) {
 }
 
 export function utf8DecodeTag(
-    tag: CassandraTypes.Tuple,
+  tag: CassandraTypes.Tuple
 ): { name: string | undefined; value: string | undefined } {
   let name;
   let value;
@@ -195,7 +197,7 @@ export function utf8DecodeTag(
       value = valueBuffer.toString("utf8");
     }
     // eslint-disable-next-line no-empty
-  } catch (error) {}
+  } catch {}
   return {
     name,
     value,

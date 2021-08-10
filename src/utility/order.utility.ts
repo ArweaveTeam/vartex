@@ -2,14 +2,14 @@ import { config } from "dotenv";
 
 process.env.NODE_ENV !== "test" && config();
 
-let tmpIndices: string[] = [];
+let temporaryIndices: string[] = [];
 try { 
-  tmpIndices = JSON.parse(process.env.INDICES || "[]");
-} catch (e) {
+  temporaryIndices = JSON.parse(process.env.INDICES || "[]");
+} catch {
   console.error("[order] invalid indices", process.env.INDICES);
 }
 
-export const indices = tmpIndices;
+export const indices = temporaryIndices;
 export const blockOrder = [
   "id",
   "previous_block",

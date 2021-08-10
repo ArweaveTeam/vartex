@@ -44,18 +44,20 @@ export async function getTransaction({
       responseType: "json",
       resolveBodyOnly: true,
     });
-  } catch (error) {
+  } catch {
     coolNode(tryNode);
-    return new Promise((res) => setTimeout(res, 10 + 2 * retry)).then(() => {
-      if (retry < 100) {
-        return getTransaction({ txId, retry: retry + 1 });
-      } else {
-        console.error(
-            "Failed to establish connection to any specified node after 100 retries",
-        );
-        process.exit(1);
+    return new Promise((resolve) => setTimeout(resolve, 10 + 2 * retry)).then(
+      () => {
+        if (retry < 100) {
+          return getTransaction({ txId, retry: retry + 1 });
+        } else {
+          console.error(
+            "Failed to establish connection to any specified node after 100 retries"
+          );
+          process.exit(1);
+        }
       }
-    });
+    );
   }
   warmNode(tryNode);
   return jsonPayload;
@@ -75,18 +77,20 @@ export async function getTxOffset({
       responseType: "json",
       resolveBodyOnly: true,
     });
-  } catch (error) {
+  } catch {
     coolNode(tryNode);
-    return new Promise((res) => setTimeout(res, 10 + 2 * retry)).then(() => {
-      if (retry < 100) {
-        return getTransaction({ txId, retry: retry + 1 });
-      } else {
-        console.error(
-            "Failed to establish connection to any specified node after 100 retries",
-        );
-        process.exit(1);
+    return new Promise((resolve) => setTimeout(resolve, 10 + 2 * retry)).then(
+      () => {
+        if (retry < 100) {
+          return getTransaction({ txId, retry: retry + 1 });
+        } else {
+          console.error(
+            "Failed to establish connection to any specified node after 100 retries"
+          );
+          process.exit(1);
+        }
       }
-    });
+    );
     warmNode(tryNode);
     return jsonPayload;
   }
@@ -94,15 +98,14 @@ export async function getTxOffset({
 
 export function toB64url(input: string): Base64UrlEncodedString {
   return Buffer.from(input)
-      .toString("base64")
-      .replace(/\+/g, "-")
-      .replace(/\//g, "_")
-      .replace(/=/g, "");
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=/g, "");
 }
 
 export function tagValue(tags: Array<Tag>, name: string): string {
-  for (let i = 0; i < tags.length; i++) {
-    const tag = tags[i];
+  for (const tag of tags) {
     if (fromB64Url(tag.name).toString().toLowerCase() === name.toLowerCase()) {
       return fromB64Url(tag.value).toString();
     }
@@ -114,8 +117,7 @@ export function tagValue(tags: Array<Tag>, name: string): string {
 export function tagToUTF8(tags: Array<Tag>): Array<Tag> {
   const conversion: Array<Tag> = [];
 
-  for (let i = 0; i < tags.length; i++) {
-    const tag = tags[i];
+  for (const tag of tags) {
     conversion.push({
       name: fromB64Url(tag.name).toString(),
       value: fromB64Url(tag.value).toString(),
@@ -128,8 +130,7 @@ export function tagToUTF8(tags: Array<Tag>): Array<Tag> {
 export function tagToB64(tags: Array<TagFilter>): Array<TagFilter> {
   const conversion: Array<TagFilter> = [];
 
-  for (let i = 0; i < tags.length; i++) {
-    const tag = tags[i];
+  for (const tag of tags) {
     conversion.push({
       name: toB64url(tag.name),
       values: tag.values.map((v) => toB64url(v)),

@@ -5,27 +5,27 @@ import { KEYSPACE } from "../constants.js";
 import { cassandraClient } from "../database/cassandra.database.js";
 
 export async function hashListRoute(
-    req: Request,
-    res: Response,
-    next: (err?: string) => void,
+  request: Request,
+  response: Response,
+  next: (error?: string) => void
 ) {
-  res.writeHead(200, {
+  response.writeHead(200, {
     "Content-Type": "application/json",
     "Transfer-Encoding": "chunked",
   });
-  res.write("[");
+  response.write("[");
   const stream = cassandraClient.stream(
-      `SELECT indep_hash FROM ${KEYSPACE}.block`,
+    `SELECT indep_hash FROM ${KEYSPACE}.block`
   );
   stream.on("end", function streamEnd() {
-    res.write("]");
-    res.end();
+    response.write("]");
+    response.end();
   });
   stream.on("readable", function streamReadable() {
     let item;
     let head = true;
     while ((item = (stream as any).read())) {
-      res.write((!head ? "," : "") + JSON.stringify(item.indep_hash));
+      response.write((!head ? "," : "") + JSON.stringify(item.indep_hash));
       head = false;
     }
   });

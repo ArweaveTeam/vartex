@@ -12,26 +12,26 @@ export function waitForCassandra(): Promise<void> {
     // Wait until cassandra is reachable
     const retry = () => {
       const client = net
-          .createConnection(9042, "127.0.0.1")
-          .on("error", function(error: string) {
-            rtry += 1;
-            if (rtry < maxRetry) {
-              new Promise((resolveRetry) => setTimeout(resolveRetry, 1000)).then(
-                  retry,
-              );
-            } else {
-              throw new Error(
-                  "Couldn't find cassandra running after 100 retries: " + error,
-              );
-            }
-          })
-          .on("connect", function() {
-            try {
-              client.destroy();
-              // eslint-disable-next-line no-empty
-            } catch (error) {}
-            resolve();
-          });
+        .createConnection(9042, "127.0.0.1")
+        .on("error", function (error: string) {
+          rtry += 1;
+          if (rtry < maxRetry) {
+            new Promise((resolveRetry) => setTimeout(resolveRetry, 1000)).then(
+              retry
+            );
+          } else {
+            throw new Error(
+              "Couldn't find cassandra running after 100 retries: " + error
+            );
+          }
+        })
+        .on("connect", function () {
+          try {
+            client.destroy();
+            // eslint-disable-next-line no-empty
+          } catch (error) {}
+          resolve();
+        });
     };
     retry();
   });
@@ -45,14 +45,14 @@ export function initDb(): Promise<string> {
     });
 
     // listen for errors as they may prevent the exit event from firing
-    forkps.on("error", function(err) {
+    forkps.on("error", function (err) {
       if (invoked) return;
       invoked = true;
       reject((err || "").toString());
     });
 
     // execute the callback once the forkps has finished running
-    forkps.on("exit", function(code) {
+    forkps.on("exit", function (code) {
       if (invoked) return;
       invoked = true;
       const err = code === 0 ? null : new Error("exit code " + code);
@@ -69,14 +69,14 @@ export function nuke(): Promise<string> {
     });
 
     // listen for errors as they may prevent the exit event from firing
-    forkps.on("error", function(err) {
+    forkps.on("error", function (err) {
       if (invoked) return;
       invoked = true;
       reject((err || "").toString());
     });
 
     // execute the callback once the forkps has finished running
-    forkps.on("exit", function(code) {
+    forkps.on("exit", function (code) {
       if (invoked) return;
       invoked = true;
       const err = code === 0 ? null : new Error("exit code " + code);
@@ -121,10 +121,10 @@ export function generateMockBlocks({
 
   return blockHeights.map((height) =>
     R.pipe(
-        R.assoc("height", height),
-        R.assoc("indep_hash", `${hashPrefix}${height}`),
-        R.assoc("previous_block", `${hashPrefix}${height - 1}`),
-    )(template),
+      R.assoc("height", height),
+      R.assoc("indep_hash", `${hashPrefix}${height}`),
+      R.assoc("previous_block", `${hashPrefix}${height - 1}`)
+    )(template)
   );
 }
 
@@ -144,8 +144,10 @@ export function startGateway(): any {
 }
 
 export async function runGatewayOnce({
+  onLog,
   stopCondition,
 }: {
+  onLog?: (log: string) => boolean;
   stopCondition?: (log: string) => boolean;
 }): Promise<string> {
   const logs = [];
@@ -164,6 +166,7 @@ export async function runGatewayOnce({
 
     logs.push(log);
     process.stderr.write(log);
+    onLog && onLog(log);
   });
   proc.stdout.on("data", (log: string) => {
     if (shouldStop(log) && fullySyncPromiseResolve) {
@@ -172,6 +175,7 @@ export async function runGatewayOnce({
 
     process.stderr.write(log);
     logs.push(log);
+    onLog && onLog(log);
     // logs = ' ' + log.toString();
   });
 

@@ -21,8 +21,19 @@ import {
   fetchBlockByHash,
   getBlock as queryGetBlock,
 } from '../query/block.query';
-import { getTransaction, getTxOffset } from '../query/transaction.query';
-import { QueueState, UnsyncedBlock } from '../types/cassandra.types';
+import {
+  getTransaction,
+  getTxOffset,
+  tagValue,
+  Tag,
+} from '../query/transaction.query';
+import {
+  DeleteRowData,
+  ImportQueue,
+  UnsyncedBlock,
+  TxQueueState,
+  BlockQueueState,
+} from '../types/cassandra.types';
 import {
   cassandraClient,
   getMaxHeightBlock,
@@ -90,78 +101,44 @@ const txQueue = new PriorityQueue(function (
   }
 });
 
-// const txQueue: ImportQueue = {};
-// const tagsQueue: ImportQueue = {};
-const blockQueueState: QueueState = {
+const blockQueueState: BlockQueueState = {
   isProcessing: false,
   isStarted: false,
-  lastPrio: toLong(-1),
+  nextHeight: toLong(-1),
 };
-const txQueueState: QueueState = {
+const txQueueState: TxQueueState = {
   isProcessing: false,
   isStarted: false,
-  lastPrio: toLong(-1),
-  importedHeights: {},
+  nextTxIndex: toLong(-1),
 };
 
-const tagsQueueState: QueueState = { isProcessing: false, isStarted: false };
+// const tagsQueueState: QueueState = { isProcessing: false, isStarted: false };
 
-const createQueue = (
-  queueSource: Record<string, any>,
-  queueState: QueueState
-) => (): void => {
-  if (queueState.isProcessing) return;
-
-  const items: string[] = R.keys(queueSource);
-  if (items.length > 0) {
-    // name could be misleading as this can be a batch of db-batches
-    const batchPrio = items.sort()[0];
-    queueState.isProcessing = true;
-    const batch = queueSource[batchPrio]();
-    (Array.isArray(batch) ? Promise.all(batch) : batch)
-      .then(function (ret: any) {
-        delete (queueSource as any)[batchPrio];
-        queueState.isProcessing = false;
-      })
-      .catch(function (err: any) {
-        console.error('FATAL', err);
-        process.exit(1);
-      });
-  }
-};
-
-const processBlockQueue = (queueSource: any, queueState: QueueState): void => {
+const processBlockQueue = (
+  queueSource: any,
+  queueState: BlockQueueState
+): void => {
   // console.log(
   //   !txQueue.hasNoneLt(queueState.lastPrio ? toLong(0) : queueState.lastPrio),
   //   queueSource.isEmpty(),
   //   isPaused,
   //   queueState.isProcessing
   // );
-  if (
-    !txQueue.hasNoneLt(queueState.lastPrio ? toLong(0) : queueState.lastPrio) ||
-    queueSource.isEmpty() ||
-    isPaused ||
-    queueState.isProcessing
-  ) {
+  if (queueSource.isEmpty() || isPaused || queueState.isProcessing) {
     return;
   }
+
   queueSource.sortQueue();
-  const nextHeight = queueState.lastPrio
-    ? queueState.lastPrio.add(1)
-    : toLong(0);
   const peek = !queueSource.isEmpty() && queueSource.peek();
 
   if (
     (CassandraTypes.Long.isLong(peek.height) && isPollingStarted) ||
     (CassandraTypes.Long.isLong(peek.height) &&
-    peek.height.equals(nextHeight) &&
-    txQueueState.importedHeights[queueState.lastPrio.toString()]
-      ? txQueueState.importedHeights[queueState.lastPrio.toString()] ===
-        peek.txCount
-      : true)
+      (queueState.nextHeight.lt(1) ||
+        peek.height.lt(1) ||
+        peek.height.lessThanOrEqual(queueState.nextHeight)))
   ) {
     queueState.isProcessing = true;
-    queueState.lastPrio = peek.height;
 
     peek.callback().then(() => {
       queueSource.pop();
@@ -171,6 +148,17 @@ const processBlockQueue = (queueSource: any, queueState: QueueState): void => {
         topHeight = peek.height;
       }
 
+      queueSource.sortQueue();
+      if (
+        !queueSource.isEmpty() &&
+        queueSource.peek().nextHeight &&
+        peek.height.lt(queueSource.peek().nextHeight)
+      ) {
+        queueState.nextHeight = toLong(queueSource.peek().nextHeight);
+      } else {
+        queueState.nextHeight = toLong(-1);
+      }
+
       if (queueSource.isEmpty() && txQueue.isEmpty()) {
         log.info('import queues have been consumed');
       }
@@ -178,7 +166,7 @@ const processBlockQueue = (queueSource: any, queueState: QueueState): void => {
   }
 };
 
-const processTxQueue = (queueSource: any, queueState: QueueState): void => {
+const processTxQueue = (queueSource: any, queueState: TxQueueState): void => {
   if (queueSource.isEmpty() || isPaused || queueState.isProcessing) {
     return;
   }
@@ -187,11 +175,11 @@ const processTxQueue = (queueSource: any, queueState: QueueState): void => {
 
   if (CassandraTypes.Long.isLong(peek.txIndex)) {
     queueState.isProcessing = true;
-    queueState.lastPrio = peek.txIndex;
-    const currentImportCnt = queueState.importedHeights[peek.height.toString()];
-    queueState.importedHeights[peek.height.toString()] = currentImportCnt
-      ? 1
-      : currentImportCnt;
+    queueState.nextTxIndex = peek.nextTxIndex;
+    // const currentImportCnt = queueState.importedHeights[peek.height.toString()];
+    // queueState.importedHeights[peek.height.toString()] = currentImportCnt
+    //   ? 1
+    //   : currentImportCnt;
     peek.callback().then(() => {
       queueSource.pop();
       queueState.isProcessing = false;
@@ -268,6 +256,7 @@ async function resolveFork(previousBlock: any): Promise<void> {
           ? toLong(pprevBlock.height)
           : toLong(0),
       type: 'block',
+      nextHeight: toLong(-1),
       txCount: pprevBlock.txs ? pprevBlock.txs.length : 0,
     });
 
@@ -331,6 +320,7 @@ async function startPolling(): Promise<void> {
         log.info('new block arrived at height ' + newBlockHeight.toString());
         const blockQueryCallback = makeBlockImportQuery(newBlock);
         blockQueue.enqueue({
+          nextHeight: toLong(-1),
           callback: blockQueryCallback,
           height: newBlockHeight,
           type: 'block',
@@ -370,7 +360,7 @@ const findMissingBlocks = (
   gauge.enable();
   log.info('[database] Looking for missing blocks...');
   return new Promise(
-    (resolve: (val?: any) => void, reject: (err: string) => void) => {
+    (resolve: (val: any) => void, reject: (err: string) => void) => {
       cassandraClient.eachRow(
         `SELECT height, indep_hash, timestamp, txs
          FROM ${KEYSPACE}.block`,
@@ -401,7 +391,22 @@ const findMissingBlocks = (
           if (err) {
             reject((err || '').toString());
           } else {
-            resolve(R.pipe(R.values, R.sortBy(R.prop('height')))(hashListObj));
+            const ret = R.pipe(
+              R.values,
+              R.sortBy(R.prop('height')),
+              (missingBlocksList) =>
+                missingBlocksList.reduce((acc, val, index) => {
+                  // adding .next to each unsynced blocked
+                  const nextHeight =
+                    index + 1 < missingBlocksList.length
+                      ? missingBlocksList[index + 1]
+                      : -1;
+                  (val as any)['next'] = nextHeight;
+                  acc.push(val);
+                  return acc;
+                }, [])
+            )(hashListObj);
+            resolve(ret);
           }
         }
       );
@@ -423,12 +428,34 @@ export async function startSync({ isTesting = false }) {
     if (isMaybeMissingBlocks) {
       const blockGap = await Dr.findBlockGaps();
       if (!R.isEmpty(blockGap)) {
-        console.error('Found missing block(s):', blockGap);
+        console.error('Repairing missing block(s):', blockGap);
+        let doneSignalResolve;
+        const doneSignal = new Promise((resolve) => {
+          doneSignalResolve = resolve;
+        });
+        fork((error) => console.error(error))(() => {
+          doneSignalResolve();
+          console.log('Block repair done!');
+        })(
+          (parallel as any)(PARALLEL)(
+            blockGap.map((gap, index) =>
+              storeBlock({
+                height: gap,
+                next:
+                  index + 1 < blockGap.length ? blockGap[index + 1] : 99999999,
+              })
+            )
+          )
+        );
+        await doneSignal;
+        blockQueueState.nextHeight = toLong(R.head(blockGap) + 1);
+        await pWaitFor(() => blockQueue.isEmpty() && txQueue.isEmpty());
+        blockQueueState.nextHeight = toLong(-1);
       }
       // process.exit(1);
     }
 
-    await Dr.findTxGaps();
+    // await Dr.findTxGaps();
 
     try {
       lastBlock = (
@@ -465,7 +492,7 @@ export async function startSync({ isTesting = false }) {
 
   let initialLastBlock = toLong(
     unsyncedBlocks[0] ? unsyncedBlocks[0].height : 0
-  ).add(-1);
+  );
 
   if (developmentSyncLength) {
     unsyncedBlocks = R.slice(
@@ -474,7 +501,7 @@ export async function startSync({ isTesting = false }) {
       unsyncedBlocks
     );
 
-    initialLastBlock = toLong(developmentSyncLength).sub(1);
+    // initialLastBlock = toLong(developmentSyncLength).sub(1);
     topTxIndex = initialLastBlock.mul(MAX_TX_PER_BLOCK);
     topHeight = initialLastBlock;
   } else {
@@ -482,8 +509,10 @@ export async function startSync({ isTesting = false }) {
     topHeight = lastBlock;
   }
 
-  blockQueueState.lastPrio = initialLastBlock;
-  txQueueState.lastPrio = initialLastBlock.mul(MAX_TX_PER_BLOCK);
+  blockQueueState.nextHeight = initialLastBlock.lt(1)
+    ? toLong(1)
+    : initialLastBlock;
+  txQueueState.nextTxIndex = initialLastBlock.mul(MAX_TX_PER_BLOCK);
 
   if (firstRun) {
     log.info(
@@ -517,22 +546,37 @@ export async function startSync({ isTesting = false }) {
   })(
     parallel(PARALLEL)(
       (unsyncedBlocks as any).map(
-        ({ height, hash }: { height: any; hash: string }): any => {
+        ({
+          height,
+          hash,
+          next,
+        }: {
+          height: number;
+          hash: string;
+          next: number;
+        }): any => {
           const getProgress = () =>
             `${height}/${hashList.length}/${blockQueue.getSize()}`;
-          return storeBlock(height, hash, getProgress, gauge);
+          return storeBlock({ height, hash, next, getProgress, gauge });
         }
       )
     )
   );
 }
 
-export function storeBlock(
-  height: number,
-  hash: string,
-  getProgress: () => string,
-  gauge: any
-): unknown {
+export function storeBlock({
+  height,
+  hash,
+  next,
+  getProgress,
+  gauge,
+}: {
+  height: number;
+  next: number;
+  hash?: string;
+  getProgress?: () => string;
+  gauge?: any;
+}): unknown {
   let isCancelled = false;
   return Fluture((reject: any, resolve: any) => {
     async function getBlock(retry = 0) {
@@ -563,6 +607,7 @@ export function storeBlock(
           callback: makeBlockImportQuery(newSyncBlock),
           height: newSyncBlockHeight,
           txCount: newSyncBlock.txs ? newSyncBlock.txs.length : 0,
+          nextHeight: toLong(next),
           type: 'block',
         });
         return;

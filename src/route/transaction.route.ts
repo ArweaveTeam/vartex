@@ -11,19 +11,19 @@ import { grabNode } from "../query/node.query.js";
 import Transaction from "arweave/node/lib/transaction";
 
 export async function txUploadRoute(
-    req: Request,
+    request: Request,
     res: Response,
     next: NextFunction,
 ) {
   try {
-    const tx = req.body as Transaction;
+    const tx = request.body as Transaction;
     console.log(`[new-tx] broadcast tx ${tx.id}`);
 
     const host = grabNode();
 
     const result = await got.post(`${host}/tx`, {
       followRedirect: true,
-      json: req.body,
+      json: request.body,
     });
 
     if ([400, 410].includes(result.statusCode)) {
@@ -43,12 +43,12 @@ export async function txUploadRoute(
 }
 
 export async function txGetByIdRoute(
-    req: Request,
+    request: Request,
     res: Response,
     next: NextFunction,
 ) {
   try {
-    const txId = req.params.id;
+    const txId = request.params.id;
     const rawTx = await transactionMapper.get({
       tx_id: txId,
     });
@@ -59,12 +59,12 @@ export async function txGetByIdRoute(
 }
 
 export async function txOffsetRoute(
-    req: Request,
+    request: Request,
     res: Response,
     next: NextFunction,
 ) {
   try {
-    const txId = req.params.id;
+    const txId = request.params.id;
     const rawTx = await txOffsetMapper.get({
       tx_id: txId,
     });

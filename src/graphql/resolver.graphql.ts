@@ -7,9 +7,9 @@ import { topHeight, topTxIndex } from "../database/sync.database";
 import graphqlFields from "graphql-fields";
 import { config } from "dotenv";
 import {
-  QueryTransactionsArgs,
-  QueryBlockArgs,
-  QueryBlocksArgs,
+  QueryTransactionsArgs as QueryTransactionsArguments,
+  QueryBlockArgs as QueryBlockArguments,
+  QueryBlocksArgs as QueryBlocksArguments,
 } from "./types";
 import {
   ownerToAddress,
@@ -19,7 +19,7 @@ import {
 } from "../utility/encoding.utility";
 import { TransactionHeader } from "../types/arweave.types";
 import {
-  QueryParams,
+  QueryParams as QueryParameters,
   generateTransactionQuery,
   generateBlockQuery,
   generateDeferedTxQuery,
@@ -27,7 +27,7 @@ import {
   generateDeferedBlockQuery,
   generateTagQuery,
 } from "./query.graphql";
-import * as DbMapper from "../database/mapper.database";
+import * as DatabaseMapper from "../database/mapper.database";
 
 process.env.NODE_ENV !== "test" && config();
 
@@ -45,8 +45,8 @@ function sortByTxIndexDesc(
   return result1.tx_index.compare(result2.tx_index);
 }
 
-const DEFAULT_PAGE_SIZE = parseInt(process.env.DEFAULT_PAGE_SIZE || "10");
-const MAX_PAGE_SIZE = parseInt(process.env.MAX_PAGE_SIZE || "100");
+const DEFAULT_PAGE_SIZE = Number.parseInt(process.env.DEFAULT_PAGE_SIZE || "10");
+const MAX_PAGE_SIZE = Number.parseInt(process.env.MAX_PAGE_SIZE || "100");
 
 interface FieldMap {
   indep_hash: string;
@@ -121,19 +121,19 @@ const blockFieldMap = {
 };
 
 const hydrateGqlTx = async (tx) => {
-  const block = await DbMapper.txIdToBlockMapper.get({
+  const block = await DatabaseMapper.txIdToBlockMapper.get({
     tx_id: tx.id,
   });
-  const tags = await DbMapper.tagsByTxId(tx.id);
-  const hydrated = R.reduce((acc: FieldMap, key: string) => {
+  const tags = await DatabaseMapper.tagsByTxId(tx.id);
+  const hydrated = R.reduce((accumulator: FieldMap, key: string) => {
     const txKeyKey = fieldMap[key].split(".");
     const txScope = txKeyKey[0];
     const txKey = txKeyKey[1];
-    const val =
+    const value =
       txScope === "blocks" ?
         (block[txKey] || "").toString() :
         (tx[txKey] || "").toString();
-    return R.assoc(key, val, acc);
+    return R.assoc(key, value, accumulator);
   }, {} as FieldMap)(R.keys(fieldMap));
   return R.assoc("tags", tags, hydrated);
 };
@@ -143,7 +143,7 @@ const resolveGqlTxSelect = (
     singleTx = false,
 ): string[] => {
   const select = [];
-  R.keys(edgeFieldMapTx).forEach((keyPath) => {
+  for (const keyPath of R.keys(edgeFieldMapTx)) {
     if (
       R.hasPath(
         singleTx ? keyPath.replace("edges.node.", "") : keyPath,
@@ -152,18 +152,18 @@ const resolveGqlTxSelect = (
     ) {
       select.push(edgeFieldMapTx[keyPath]);
     }
-  });
+  }
   return select;
 };
 
 const resolveGqlBlockSelect = (userFields: any): string[] => {
   const select: string[] = [];
 
-  R.keys(edgeFieldMapBlock).forEach((keyPath) => {
+  for (const keyPath of R.keys(edgeFieldMapBlock)) {
     if (R.hasPath(keyPath as string, userFields)) {
       select.push(edgeFieldMapBlock[keyPath]);
     }
-  });
+  }
 
   return select;
 };
@@ -172,45 +172,45 @@ export const resolvers = {
   Query: {
     transaction: async (
         parent: FieldMap,
-        queryParams: any,
+        queryParameters: any,
         { req, connection }: any,
         info: any,
     ) => {
       const { timestamp, offset } = parseCursor(
-          queryParams.after || newCursor(),
+          queryParameters.after || newCursor(),
       );
       const fieldsWithSubFields = graphqlFields(info);
 
       const fetchSize =
-        Math.min(queryParams.first || DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE) + 1;
+        Math.min(queryParameters.first || DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE) + 1;
 
       const ids: Array<string> = [];
       let minHeight = toLong(0);
       let maxHeight = toLong(topTxIndex);
 
-      if (queryParams.block && queryParams.block.min) {
-        minHeight = toLong(queryParams.block.min).mul(1000);
+      if (queryParameters.block && queryParameters.block.min) {
+        minHeight = toLong(queryParameters.block.min).mul(1000);
       }
 
-      if (queryParams.block && queryParams.block.max) {
-        maxHeight = toLong(queryParams.block.max).mul(1000);
+      if (queryParameters.block && queryParameters.block.max) {
+        maxHeight = toLong(queryParameters.block.max).mul(1000);
       }
 
-      const params: any = {
-        id: queryParams.id || undefined,
+      const parameters: any = {
+        id: queryParameters.id || undefined,
         select: resolveGqlTxSelect(fieldsWithSubFields, true),
       };
       // No selection = no search
-      if (R.isEmpty(params.select)) {
+      if (R.isEmpty(parameters.select)) {
         return { data: { transaction: null } };
       }
       // todo, elide selectors not selected from user
-      if (!params.select.includes("tx_id")) {
-        params.select = R.append("tx_id", params.select);
+      if (!parameters.select.includes("tx_id")) {
+        parameters.select = R.append("tx_id", parameters.select);
       }
 
-      params.select = R.append("tx_index", params.select);
-      const txQuery = generateTransactionQuery(params);
+      parameters.select = R.append("tx_index", parameters.select);
+      const txQuery = generateTransactionQuery(parameters);
 
       const { rows: resultArray } = await cassandraClient.execute(
           txQuery.query,
@@ -225,29 +225,29 @@ export const resolvers = {
       const result = resultArray[0];
 
       if (fieldsWithSubFields.block !== undefined) {
-        let selectParams = [];
+        let selectParameters = [];
         const userSelectKeys = R.keys(fieldsWithSubFields.block);
-        ["id", "timestamp", "height", "previous"].forEach((selectKey) => {
+        for (const selectKey of ["id", "timestamp", "height", "previous"]) {
           if (userSelectKeys.includes(selectKey)) {
             switch (selectKey) {
               case "id": {
-                selectParams = R.append("indep_hash", selectParams);
+                selectParameters = R.append("indep_hash", selectParameters);
                 break;
               }
               case "previous": {
-                selectParams = R.append("previous_block", selectParams);
+                selectParameters = R.append("previous_block", selectParameters);
                 break;
               }
               default: {
-                selectParams = R.append(selectKey, selectParams);
+                selectParameters = R.append(selectKey, selectParameters);
               }
             }
           }
-        });
+        }
 
         const blockQuery = generateDeferedTxBlockQuery(
             result.tx_index.divide(1000),
-            selectParams,
+            selectParameters,
         );
 
         const { rows: blockResult } = await cassandraClient.execute(
@@ -258,11 +258,7 @@ export const resolvers = {
               executionProfile: "gql",
             },
         );
-        if (R.isEmpty(blockResult)) {
-          result.block = null;
-        } else {
-          result.block = blockResult[0];
-        }
+        result.block = R.isEmpty(blockResult) ? null : blockResult[0];
       }
 
       const selectedDeferedKeysUser = [];
@@ -274,25 +270,25 @@ export const resolvers = {
           ),
       );
       if (!R.isEmpty(selectedDeferedKeysUser)) {
-        const selectedDeferedKeysDb = [];
-        selectedDeferedKeysUser.forEach((k) => {
+        const selectedDeferedKeysDatabase = [];
+        for (const k of selectedDeferedKeysUser) {
           switch (k) {
             case "anchor": {
-              selectedDeferedKeysDb.push("last_tx");
+              selectedDeferedKeysDatabase.push("last_tx");
               break;
             }
             case "fee": {
-              selectedDeferedKeysDb.push("reward");
+              selectedDeferedKeysDatabase.push("reward");
               break;
             }
             default: {
-              selectedDeferedKeysDb.push(k);
+              selectedDeferedKeysDatabase.push(k);
             }
           }
-        });
+        }
 
         const deferedTxQ = generateDeferedTxQuery({
-          deferedSelect: selectedDeferedKeysDb,
+          deferedSelect: selectedDeferedKeysDatabase,
           tx_id: result.tx_id,
         });
 
@@ -319,48 +315,48 @@ export const resolvers = {
     },
     transactions: async (
         parent: string,
-        queryParams: QueryTransactionsArgs,
+        queryParameters: QueryTransactionsArguments,
         { req, connection }: any,
         info: any,
     ) => {
       const { timestamp, offset } = parseCursor(
-          queryParams.after || newCursor(),
+          queryParameters.after || newCursor(),
       );
       const fieldsWithSubFields = graphqlFields(info);
 
       const fetchSize =
-        Math.min(queryParams.first || DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE) + 1;
+        Math.min(queryParameters.first || DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE) + 1;
 
       const ids: Array<string> = [];
       let minHeight = toLong(0);
       let maxHeight = toLong(topTxIndex);
 
-      if (queryParams.block && queryParams.block.min) {
-        minHeight = toLong(queryParams.block.min).mul(1000);
+      if (queryParameters.block && queryParameters.block.min) {
+        minHeight = toLong(queryParameters.block.min).mul(1000);
       }
 
-      if (queryParams.block && queryParams.block.max) {
-        maxHeight = toLong(queryParams.block.max).mul(1000);
+      if (queryParameters.block && queryParameters.block.max) {
+        maxHeight = toLong(queryParameters.block.max).mul(1000);
       }
 
       const selectsBlock = R.hasPath("edges.node.block", fieldsWithSubFields);
-      const params: Partial<Omit<QueryParams, "after"> & { before: string }> = {
+      const parameters: Partial<Omit<QueryParameters, "after"> & { before: string }> = {
         limit: fetchSize,
         offset: offset,
-        ids: queryParams.ids || undefined,
-        to: queryParams.recipients || undefined,
-        from: queryParams.owners || undefined,
-        tags: queryParams.tags || undefined,
+        ids: queryParameters.ids || undefined,
+        to: queryParameters.recipients || undefined,
+        from: queryParameters.owners || undefined,
+        tags: queryParameters.tags || undefined,
         blocks: true,
         before: timestamp,
         select: resolveGqlTxSelect(fieldsWithSubFields, false),
         minHeight,
         maxHeight,
-        sortOrder: queryParams.sort || undefined,
+        sortOrder: queryParameters.sort || undefined,
       };
 
       // No selection = no search
-      if (R.isEmpty(params.select) && !selectsBlock) {
+      if (R.isEmpty(parameters.select) && !selectsBlock) {
         return {
           pageInfo: {
             hasNextPage: false,
@@ -370,13 +366,13 @@ export const resolvers = {
       }
 
       // todo, elide selectors not selected from user
-      if (!params.select.includes("tx_id")) {
-        params.select = R.append("tx_id", params.select);
+      if (!parameters.select.includes("tx_id")) {
+        parameters.select = R.append("tx_id", parameters.select);
       }
 
-      params.select = R.append("tx_index", params.select);
+      parameters.select = R.append("tx_index", parameters.select);
 
-      const txQuery = generateTransactionQuery(params);
+      const txQuery = generateTransactionQuery(parameters);
 
       let { rows: result } = await cassandraClient.execute(
           txQuery.query,
@@ -392,34 +388,34 @@ export const resolvers = {
       }
 
       if (selectsBlock) {
-        let selectParams = [];
+        let selectParameters = [];
         // let resultWithBlock = [];
         const userSelectKeys = Object.keys(
             R.path("edges.node.block", fieldsWithSubFields),
         );
-        ["id", "timestamp", "height", "previous"].forEach((selectKey) => {
+        for (const selectKey of ["id", "timestamp", "height", "previous"]) {
           if (userSelectKeys.includes(selectKey)) {
             switch (selectKey) {
               case "id": {
-                selectParams = R.append("indep_hash", selectParams);
+                selectParameters = R.append("indep_hash", selectParameters);
                 break;
               }
               case "previous": {
-                selectParams = R.append("previous_block", selectParams);
+                selectParameters = R.append("previous_block", selectParameters);
                 break;
               }
               default: {
-                selectParams = R.append(selectKey, selectParams);
+                selectParameters = R.append(selectKey, selectParameters);
               }
             }
           }
-        });
+        }
         for (const res of result) {
           const userSelectKeys = R.keys(fieldsWithSubFields.edges.node.block);
 
           const blockQuery = generateDeferedTxBlockQuery(
               res.tx_index.divide(1000),
-              selectParams,
+              selectParameters,
           );
 
           const { rows: blockResult } = await cassandraClient.execute(
@@ -431,11 +427,7 @@ export const resolvers = {
               },
           );
 
-          if (R.isEmpty(blockResult)) {
-            res.block = null;
-          } else {
-            res.block = blockResult[0];
-          }
+          res.block = R.isEmpty(blockResult) ? null : blockResult[0];
         }
       }
 
@@ -448,26 +440,26 @@ export const resolvers = {
           ),
       );
       if (!R.isEmpty(selectedDeferedKeysUser)) {
-        const selectedDeferedKeysDb = [];
-        selectedDeferedKeysUser.forEach((k) => {
+        const selectedDeferedKeysDatabase = [];
+        for (const k of selectedDeferedKeysUser) {
           switch (k) {
             case "anchor": {
-              selectedDeferedKeysDb.push("last_tx");
+              selectedDeferedKeysDatabase.push("last_tx");
               break;
             }
             case "fee": {
-              selectedDeferedKeysDb.push("reward");
+              selectedDeferedKeysDatabase.push("reward");
               break;
             }
             default: {
-              selectedDeferedKeysDb.push(k);
+              selectedDeferedKeysDatabase.push(k);
             }
           }
-        });
+        }
 
         for (const tx of result) {
           const deferedTxQ = generateDeferedTxQuery({
-            deferedSelect: selectedDeferedKeysDb,
+            deferedSelect: selectedDeferedKeysDatabase,
             tx_id: tx.tx_id,
           });
 
@@ -497,7 +489,7 @@ export const resolvers = {
           hasNextPage,
         },
         edges: R.sort(
-          params.select.sort === "HEIGHT_ASC" ?
+          parameters.select.sort === "HEIGHT_ASC" ?
             (sortByTxIndexAsc as any) :
             (sortByTxIndexDesc as any),
           result as any,
@@ -509,50 +501,46 @@ export const resolvers = {
     },
     block: async (
         parent: string,
-        queryParams: QueryBlockArgs,
+        queryParameters: QueryBlockArguments,
         { req, connection }: any,
     ) => {
-      if (queryParams.id) {
-        return (
+      return queryParameters.id ? (
           await generateBlockQuery({
             select: blockFieldMap,
-            id: queryParams.id,
+            id: queryParameters.id,
             offset: 0,
             fetchSize: 100,
           })
-        ).first();
-      } else {
-        return null;
-      }
+        ).first() : null;
     },
     blocks: async (
         parent: FieldMap,
-        queryParams: QueryBlocksArgs,
+        queryParameters: QueryBlocksArguments,
         { req, connection }: any,
         info: any,
     ) => {
       const fieldsWithSubFields = graphqlFields(info);
 
       const { timestamp, offset } = parseCursor(
-          queryParams.after || newCursor(),
+          queryParameters.after || newCursor(),
       );
       const fetchSize =
-        Math.min(queryParams.first || DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE) + 1;
+        Math.min(queryParameters.first || DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE) + 1;
 
       let ids: Array<string> = [];
       let minHeight = toLong(0);
       let maxHeight = toLong(topHeight);
 
-      if (queryParams.ids) {
-        ids = queryParams.ids;
+      if (queryParameters.ids) {
+        ids = queryParameters.ids;
       }
 
-      if (queryParams.height && queryParams.height.min) {
-        minHeight = toLong(queryParams.height.min);
+      if (queryParameters.height && queryParameters.height.min) {
+        minHeight = toLong(queryParameters.height.min);
       }
 
-      if (queryParams.height && queryParams.height.max) {
-        maxHeight = toLong(queryParams.height.max);
+      if (queryParameters.height && queryParameters.height.max) {
+        maxHeight = toLong(queryParameters.height.max);
       }
 
       const select = resolveGqlBlockSelect(fieldsWithSubFields);
@@ -575,7 +563,7 @@ export const resolvers = {
         before: timestamp,
         offset,
         fetchSize,
-        sortOrder: queryParams.sort || undefined,
+        sortOrder: queryParameters.sort || undefined,
       });
 
       let hasNextPage = false;
@@ -713,7 +701,7 @@ export function parseCursor(cursor: string): Cursor {
         Buffer.from(cursor, "base64").toString(),
     ) as [string, number];
     return { timestamp, offset };
-  } catch (error) {
+  } catch {
     throw new Error("invalid cursor");
   }
 }

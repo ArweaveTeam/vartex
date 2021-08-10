@@ -1,6 +1,6 @@
 import got from "got";
-import fs from "fs/promises";
-import path from "path";
+import fs from "node:fs/promises";
+import path from "node:path";
 import { log } from "../utility/log.utility";
 import { grabNode, warmNode, coolNode } from "./node.query";
 import { HTTP_TIMEOUT_SECONDS } from "../constants";
@@ -108,7 +108,7 @@ export async function fetchBlockByHash(
       timeout: HTTP_TIMEOUT_SECONDS * 1000,
       followRedirect: true,
     })) as BlockType;
-  } catch (error) {
+  } catch {
     coolNode(tryNode);
   }
 
@@ -129,7 +129,7 @@ export async function currentBlock(): Promise<BlockType | undefined> {
       resolveBodyOnly: true,
       timeout: 15 * 1000,
     });
-  } catch (error) {
+  } catch {
     coolNode(tryNode);
     return undefined;
   }

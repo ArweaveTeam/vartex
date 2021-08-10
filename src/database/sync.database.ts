@@ -58,7 +58,7 @@ export const SIGINT = false;
 export let SIGKILL = false;
 const PARALLEL = (isNaN as any)(process.env["PARALLEL"])
   ? 36
-  : parseInt(process.env["PARALLEL"] || "36");
+  : Number.parseInt(process.env["PARALLEL"] || "36");
 
 export let topHash = "";
 export let topHeight: CassandraTypes.Long = toLong(0);
@@ -68,9 +68,9 @@ const developmentSyncLength: number | undefined =
   !process.env["DEVELOPMENT_SYNC_LENGTH"] ||
   R.isEmpty(process.env["DEVELOPMENT_SYNC_LENGTH"])
     ? undefined
-    : parseInt(process.env["DEVELOPMENT_SYNC_LENGTH"] as string);
+    : Number.parseInt(process.env["DEVELOPMENT_SYNC_LENGTH"] as string);
 
-if (developmentSyncLength === NaN) {
+if (developmentSyncLength === Number.NaN) {
   console.error("Development sync range variable produced, illegal value NaN");
   process.exit(1);
 }
@@ -94,11 +94,7 @@ const txQueue = new PriorityQueue(function (
   a: { txIndex: CassandraTypes.Long },
   b: { txIndex: CassandraTypes.Long }
 ) {
-  if (a.txIndex.equals(0) || b.txIndex.equals(0)) {
-    return -1;
-  } else {
-    return a.txIndex.compare(b.txIndex);
-  }
+  return a.txIndex.equals(0) || b.txIndex.equals(0) ? -1 : a.txIndex.compare(b.txIndex);
 });
 
 const blockQueueState: BlockQueueState = {
@@ -149,15 +145,9 @@ const processBlockQueue = (
       }
 
       queueSource.sortQueue();
-      if (
-        !queueSource.isEmpty() &&
+      queueState.nextHeight = !queueSource.isEmpty() &&
         queueSource.peek().nextHeight &&
-        peek.height.lt(queueSource.peek().nextHeight)
-      ) {
-        queueState.nextHeight = toLong(queueSource.peek().nextHeight);
-      } else {
-        queueState.nextHeight = toLong(-1);
-      }
+        peek.height.lt(queueSource.peek().nextHeight) ? toLong(queueSource.peek().nextHeight) : toLong(-1);
 
       if (queueSource.isEmpty() && txQueue.isEmpty()) {
         log.info("import queues have been consumed");
@@ -238,7 +228,7 @@ async function resolveFork(previousBlock: any): Promise<void> {
         );
       },
 
-      function (err, res) {
+      function (error, res) {
         isPaused = false;
         log.info(
           "fork diverges at " +
@@ -342,25 +332,21 @@ const detectFirstRun = async (): Promise<boolean> => {
     `SELECT height
      FROM ${KEYSPACE}.block LIMIT 1`
   );
-  if (queryResponse && queryResponse.rowLength > 0) {
-    return false;
-  } else {
-    return true;
-  }
+  return queryResponse && queryResponse.rowLength > 0 ? false : true;
 };
 
 const findMissingBlocks = (
   hashList: string[],
   gauge: any
 ): Promise<UnsyncedBlock[]> => {
-  const hashListObj = hashList.reduce((acc, hash, height) => {
-    acc[height] = { height, hash };
-    return acc;
+  const hashListObject = hashList.reduce((accumulator, hash, height) => {
+    accumulator[height] = { height, hash };
+    return accumulator;
   }, {});
   gauge.enable();
   log.info("[database] Looking for missing blocks...");
   return new Promise(
-    (resolve: (val: any) => void, reject: (err: string) => void) => {
+    (resolve: (value: any) => void, reject: (error: string) => void) => {
       cassandraClient.eachRow(
         `SELECT height, indep_hash, timestamp, txs
          FROM ${KEYSPACE}.block`,
@@ -375,7 +361,7 @@ const findMissingBlocks = (
           if (SIGINT || SIGKILL) {
             process.exit(1);
           }
-          const matchingRow = hashListObj[row.height];
+          const matchingRow = hashListObject[row.height];
 
           if (
             matchingRow &&
@@ -383,30 +369,30 @@ const findMissingBlocks = (
             R.equals(matchingRow["height"], row.height)
           ) {
             // log.info('DEQUEUEING' + row.height);
-            delete hashListObj[row.height];
+            delete hashListObject[row.height];
           }
         },
-        async function (err, res) {
+        async function (error, res) {
           gauge.disable();
-          if (err) {
-            reject((err || "").toString());
+          if (error) {
+            reject((error || "").toString());
           } else {
-            const ret = R.pipe(
+            const returnValue = R.pipe(
               R.values,
               R.sortBy(R.prop("height")),
               (missingBlocksList) =>
-                missingBlocksList.reduce((acc, val, index) => {
+                missingBlocksList.reduce((accumulator, value, index) => {
                   // adding .next to each unsynced blocked
                   const nextHeight =
                     index + 1 < missingBlocksList.length
                       ? missingBlocksList[index + 1]
                       : -1;
-                  (val as any)["next"] = nextHeight;
-                  acc.push(val);
-                  return acc;
+                  (value as any)["next"] = nextHeight;
+                  accumulator.push(value);
+                  return accumulator;
                 }, [])
-            )(hashListObj);
-            resolve(ret);
+            )(hashListObject);
+            resolve(returnValue);
           }
         }
       );
@@ -442,7 +428,7 @@ export async function startSync({ isTesting = false }) {
               storeBlock({
                 height: gap,
                 next:
-                  index + 1 < blockGap.length ? blockGap[index + 1] : 99999999,
+                  index + 1 < blockGap.length ? blockGap[index + 1] : 99_999_999,
               })
             )
           )
@@ -470,7 +456,7 @@ export async function startSync({ isTesting = false }) {
            FROM ${KEYSPACE}.tx_id_gql_desc LIMIT 1`
         )
       ).rows[0].tx_index;
-    } catch (error) {
+    } catch {
       // console.error(error);
     }
   }
@@ -701,7 +687,7 @@ export async function processAns(id: string, height: number, retry = true) {
 
     await cacheANSEntries(ansTxs);
     await processANSTransaction(ansTxs, height);
-  } catch (error) {
+  } catch {
     if (retry) {
       await processAns(id, height, false);
     } else {
@@ -717,7 +703,7 @@ export async function processANSTransaction(
   ansTxs: Array<DataItemJson>,
   height: number
 ) {
-  for (let i = 0; i < ansTxs.length; i++) {
+  for (let index = 0; index < ansTxs.length; index++) {
     // const ansTx = ansTxs[i];
     // const { ansTags, input } = serializeAnsTransaction(ansTx, height);
     // streams.transaction.cache.write(input);

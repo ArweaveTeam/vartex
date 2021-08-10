@@ -20,8 +20,7 @@ export async function streamAndCacheAns(id: string): Promise<boolean> {
 
     const ansTxsConverted: Array<DataItemJson> = [];
 
-    for (let i = 0; i < ansTxs.length; i++) {
-      const ansTx = ansTxs[i];
+    for (const ansTx of ansTxs) {
       const newAnsTx: DataItemJson = {
         id: ansTx.id,
         owner: ansTx.owner,

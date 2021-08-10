@@ -1,5 +1,5 @@
-import { existsSync } from "fs";
-import fs from "fs/promises";
+import { existsSync } from "node:fs";
+import fs from "node:fs/promises";
 import { types as CassandraTypes } from "cassandra-driver";
 import * as R from "rambda";
 import rwc from "random-weighted-choice";
@@ -8,15 +8,15 @@ import { log } from "../utility/log.utility";
 import { getChunk } from "./chunk.query";
 import { HTTP_TIMEOUT_SECONDS } from "../constants";
 
-let tmpNodes = ["http://lon-2.eu-west-1.arweave.net:1984"];
+let temporaryNodes = ["http://lon-2.eu-west-1.arweave.net:1984"];
 try {
-  tmpNodes = process.env.ARWEAVE_NODES
+  temporaryNodes = process.env.ARWEAVE_NODES
   ? JSON.parse(process.env.ARWEAVE_NODES)
   : ["http://lon-2.eu-west-1.arweave.net:1984"];
-} catch (e) {
+} catch {
   console.error("[node] invalid list of nodes.");
 }
-export const NODES = tmpNodes;
+export const NODES = temporaryNodes;
 
 type WeightedNode = { id: string; weight: number };
 
@@ -31,7 +31,7 @@ let nodeTemperatures: WeightedNode[] =
 const syncNodeTemperatures = () => {
   nodeTemperatures = NODES.map((url: string) => {
     const previousWeight = nodeTemperatures.find(
-        (i: WeightedNode) => i.id === url,
+        (index: WeightedNode) => index.id === url,
     );
     return {
       id: url,
@@ -69,19 +69,19 @@ export function grabNode() {
 }
 
 export function warmNode(url: string) {
-  const item = nodeTemperatures.find((i: WeightedNode) => i.id === url);
+  const item = nodeTemperatures.find((index: WeightedNode) => index.id === url);
   if (item) {
     item["weight"] = Math.max(item["weight"] + 1, 99);
   }
 }
 
 export function coolNode(url: string, kickIfLow = false) {
-  const item = nodeTemperatures.find((i: WeightedNode) => i.id === url);
+  const item = nodeTemperatures.find((index: WeightedNode) => index.id === url);
   if (item) {
     if (kickIfLow && item["weight"] < 2) {
       log.info(`[network] peer ${url} kicked out because of unresponsiveness`);
-      nodeTemperatures = R.reject((temp: WeightedNode) =>
-        R.equals(R.prop("id", temp), url),
+      nodeTemperatures = R.reject((temporary: WeightedNode) =>
+        R.equals(R.prop("id", temporary), url),
       )(nodeTemperatures) as WeightedNode[];
     }
     item["weight"] = Math.min(item["weight"] - 1, 1);
@@ -128,7 +128,7 @@ export async function getNodeInfo({
       queue_length: body.queue_length,
       node_state_latency: body.node_state_latency,
     };
-  } catch (error) {
+  } catch {
     coolNode(tryNode, true);
     return new Promise((res) => setTimeout(res, 10 + 2 * retry)).then(
         async () => {
@@ -151,7 +151,7 @@ export async function getNodeInfo({
               );
               return await getNodeInfo({ retry: 0, maxRetry });
             } else {
-              return undefined;
+              return;
             }
           }
         },
@@ -173,7 +173,7 @@ export async function getHashList({
     return fs.readFile(hashListCachePath).then((hashListBuf) => {
       try {
         return JSON.parse(hashListBuf.toString());
-      } catch (e) {
+      } catch {
         console.error("[node] invalid hash_list from cache");
         return [];
       }

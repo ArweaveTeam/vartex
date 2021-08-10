@@ -44,7 +44,7 @@ export async function getTransaction({
       responseType: "json",
       resolveBodyOnly: true,
     });
-  } catch (error) {
+  } catch {
     coolNode(tryNode);
     return new Promise((res) => setTimeout(res, 10 + 2 * retry)).then(() => {
       if (retry < 100) {
@@ -75,7 +75,7 @@ export async function getTxOffset({
       responseType: "json",
       resolveBodyOnly: true,
     });
-  } catch (error) {
+  } catch {
     coolNode(tryNode);
     return new Promise((res) => setTimeout(res, 10 + 2 * retry)).then(() => {
       if (retry < 100) {
@@ -101,8 +101,7 @@ export function toB64url(input: string): Base64UrlEncodedString {
 }
 
 export function tagValue(tags: Array<Tag>, name: string): string {
-  for (let i = 0; i < tags.length; i++) {
-    const tag = tags[i];
+  for (const tag of tags) {
     if (fromB64Url(tag.name).toString().toLowerCase() === name.toLowerCase()) {
       return fromB64Url(tag.value).toString();
     }
@@ -114,8 +113,7 @@ export function tagValue(tags: Array<Tag>, name: string): string {
 export function tagToUTF8(tags: Array<Tag>): Array<Tag> {
   const conversion: Array<Tag> = [];
 
-  for (let i = 0; i < tags.length; i++) {
-    const tag = tags[i];
+  for (const tag of tags) {
     conversion.push({
       name: fromB64Url(tag.name).toString(),
       value: fromB64Url(tag.value).toString(),
@@ -128,8 +126,7 @@ export function tagToUTF8(tags: Array<Tag>): Array<Tag> {
 export function tagToB64(tags: Array<TagFilter>): Array<TagFilter> {
   const conversion: Array<TagFilter> = [];
 
-  for (let i = 0; i < tags.length; i++) {
-    const tag = tags[i];
+  for (const tag of tags) {
     conversion.push({
       name: toB64url(tag.name),
       values: tag.values.map((v) => toB64url(v)),

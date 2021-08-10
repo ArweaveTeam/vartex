@@ -8,16 +8,16 @@ import {
 import { topHash, topHeight } from "../database/sync.database";
 
 export async function blockByHeightRoute(
-    req: Request,
+    request: Request,
     res: Response,
-    next: (err?: string) => void,
+    next: (error?: string) => void,
 ) {
-  if (!req.params.height) {
+  if (!request.params.height) {
     res.status(503);
     return next("Height value was not specified");
   } else {
     try {
-      const height = req.params.height;
+      const height = request.params.height;
       const { block_hash } = await blockHeightToHashMapper.get({
         block_height: height,
       });
@@ -33,7 +33,7 @@ export async function blockByHeightRoute(
               "poa",
               R.pipe(R.dissoc("block_hash"), R.dissoc("block_height"))(poa),
           ),
-          (ret) => res.json(ret),
+          (returnValue) => res.json(returnValue),
       )(blockResult);
     } catch (error) {
       // Passes errors into the error handler
@@ -43,16 +43,16 @@ export async function blockByHeightRoute(
 }
 
 export async function blockByHashRoute(
-    req: Request,
+    request: Request,
     res: Response,
-    next: (err?: string) => void,
+    next: (error?: string) => void,
 ) {
-  if (!req.params.hash) {
+  if (!request.params.hash) {
     res.status(503);
     return next("Height value was not specified");
   } else {
     try {
-      const hash = req.params.hash;
+      const hash = request.params.hash;
       const blockResult = await blockMapper.get({
         indep_hash: hash,
       });
@@ -75,7 +75,7 @@ export async function blockByHashRoute(
               "poa",
               R.pipe(R.dissoc("block_hash"), R.dissoc("block_height"))(poa),
           ),
-          (ret) => res.json(ret),
+          (returnValue) => res.json(returnValue),
       )(blockResult);
     } catch (error) {
       // Passes errors into the error handler
@@ -85,9 +85,9 @@ export async function blockByHashRoute(
 }
 
 export async function blockCurrentRoute(
-    req: Request,
+    request: Request,
     res: Response,
-    next: (err?: string) => void,
+    next: (error?: string) => void,
 ) {
   try {
     const { block_hash } = await blockHeightToHashMapper.get({
@@ -114,7 +114,7 @@ export async function blockCurrentRoute(
             "poa",
             R.pipe(R.dissoc("block_hash"), R.dissoc("block_height"))(poa),
         ),
-        (ret) => res.json(ret),
+        (returnValue) => res.json(returnValue),
     )(blockResult);
   } catch (error) {
     return next(error);

@@ -5,9 +5,9 @@ import { KEYSPACE } from "../constants.js";
 import { cassandraClient } from "../database/cassandra.database.js";
 
 export async function hashListRoute(
-    req: Request,
+    request: Request,
     res: Response,
-    next: (err?: string) => void,
+    next: (error?: string) => void,
 ) {
   res.writeHead(200, {
     "Content-Type": "application/json",

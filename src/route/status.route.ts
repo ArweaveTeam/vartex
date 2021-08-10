@@ -3,9 +3,9 @@ import { topHeight } from "../database/sync.database.js";
 import { toLong } from "../database/cassandra.database.js";
 import { getNodeInfo } from "../query/node.query.js";
 
-export const start = Number(new Date());
+export const start = Date.now();
 
-export async function statusRoute(req: Request, res: Response) {
+export async function statusRoute(request: Request, res: Response) {
   try {
     const info = await getNodeInfo({ maxRetry: 1 });
     const delta = toLong(info.height).sub(topHeight).toString();

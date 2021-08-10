@@ -1,4 +1,4 @@
-import { createWriteStream } from "fs";
+import { createWriteStream } from "node:fs";
 import { dir, remove } from "fs-jetpack";
 import { types as CassandraTypes } from "cassandra-driver";
 import { cacheFolder } from "./file.caching";

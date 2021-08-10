@@ -15,7 +15,7 @@ export type TxSortOrder = "HEIGHT_ASC" | "HEIGHT_DESC";
 
 process.env.NODE_ENV !== "test" && config();
 
-export interface QueryParams {
+export interface QueryParameters {
   to?: string[];
   from?: string[];
   id?: string;
@@ -34,33 +34,33 @@ export interface QueryParams {
   maxHeight?: CassandraTypes.Long;
 }
 
-export function generateTransactionQuery(params: QueryParams): any {
+export function generateTransactionQuery(parameters: QueryParameters): any {
   let table = "tx_id_gql_desc";
 
   table =
-    params.sortOrder === "HEIGHT_ASC" ? "tx_id_gql_asc" : "tx_id_gql_desc";
+    parameters.sortOrder === "HEIGHT_ASC" ? "tx_id_gql_asc" : "tx_id_gql_desc";
 
-  const cql = Select().table(table, KEYSPACE).field(params.select).filtering();
+  const cql = Select().table(table, KEYSPACE).field(parameters.select).filtering();
 
-  if (params.id !== undefined) {
-    cql.where("tx_id = ?", params.id);
+  if (parameters.id !== undefined) {
+    cql.where("tx_id = ?", parameters.id);
     return cql.build();
-  } else if (params.ids && Array.isArray(params.ids)) {
+  } else if (parameters.ids && Array.isArray(parameters.ids)) {
     cql.where.apply(
         cql,
         R.concat(
             [
-              `tx_id IN ( ${R.range(0, params.ids.length)
+              `tx_id IN ( ${R.range(0, parameters.ids.length)
                   .map(() => "?")
                   .join(", ")} )`,
             ],
-            params.ids,
+            parameters.ids,
         ),
     );
   }
 
-  if (Array.isArray(params.tags) && !R.isEmpty(params.tags)) {
-    for (const { name, values = "" } of params.tags) {
+  if (Array.isArray(parameters.tags) && !R.isEmpty(parameters.tags)) {
+    for (const { name, values = "" } of parameters.tags) {
       if (Array.isArray(values)) {
         for (const value of values) {
           cql.where(
@@ -79,12 +79,12 @@ export function generateTransactionQuery(params: QueryParams): any {
     }
   }
 
-  if (params.since) {
+  if (parameters.since) {
     cql.where(
         "block_timestamp < ?",
         CassandraTypes.Long.fromNumber(
             Math.floor(
-                CassandraTypes.TimeUuid.fromString(params.since).getDate().valueOf() /
+                CassandraTypes.TimeUuid.fromString(parameters.since).getDate().valueOf() /
             1000,
             ),
         ),
@@ -95,8 +95,8 @@ export function generateTransactionQuery(params: QueryParams): any {
   //   cql.where('block_height >= ?', CassandraTypes.Long.fromNumber(0));
   // }
 
-  if (params.to) {
-    cql.where("target = ?", params.to);
+  if (parameters.to) {
+    cql.where("target = ?", parameters.to);
   }
 
   // if (params.before) {
@@ -105,24 +105,24 @@ export function generateTransactionQuery(params: QueryParams): any {
 
   cql.where(
       "tx_index >= ?",
-    params.sortOrder === "HEIGHT_ASC" ?
-      params.minHeight.add(params.offset).toString() :
-      params.minHeight.toString(),
+    parameters.sortOrder === "HEIGHT_ASC" ?
+      parameters.minHeight.add(parameters.offset).toString() :
+      parameters.minHeight.toString(),
   );
 
   cql.where(
       "tx_index <= ?",
-    params.sortOrder === "HEIGHT_DESC" ?
-      params.maxHeight.sub(params.offset).toString() :
-      params.maxHeight.toString(),
+    parameters.sortOrder === "HEIGHT_DESC" ?
+      parameters.maxHeight.sub(parameters.offset).toString() :
+      parameters.maxHeight.toString(),
   );
 
-  cql.limit(params.limit);
+  cql.limit(parameters.limit);
 
   return cql.build();
 }
 
-export interface BlockQueryParams {
+export interface BlockQueryParameters {
   id?: string;
   ids?: string[];
   select?: any;
@@ -134,7 +134,7 @@ export interface BlockQueryParams {
   sortOrder?: TxSortOrder;
 }
 
-export function generateBlockQuery(params: BlockQueryParams): any {
+export function generateBlockQuery(parameters: BlockQueryParameters): any {
   const {
     id,
     ids,
@@ -144,11 +144,11 @@ export function generateBlockQuery(params: BlockQueryParams): any {
     fetchSize,
     minHeight,
     maxHeight,
-  } = params;
+  } = parameters;
 
   const cql = Select()
       .table(
-      params.sortOrder === "HEIGHT_ASC" ? "block_gql_asc" : "block_gql_desc",
+      parameters.sortOrder === "HEIGHT_ASC" ? "block_gql_asc" : "block_gql_desc",
       KEYSPACE,
       )
       .field(
@@ -164,11 +164,11 @@ export function generateBlockQuery(params: BlockQueryParams): any {
         cql,
         R.concat(
             [
-              `indep_hash IN ( ${R.range(0, params.ids.length)
+              `indep_hash IN ( ${R.range(0, parameters.ids.length)
                   .map(() => "?")
                   .join(", ")} )`,
             ],
-            params.ids,
+            parameters.ids,
         ),
     );
   }
@@ -179,14 +179,14 @@ export function generateBlockQuery(params: BlockQueryParams): any {
 
   cql.where(
       "height >= ?",
-    params.sortOrder === "HEIGHT_ASC" ?
+    parameters.sortOrder === "HEIGHT_ASC" ?
       minHeight.add(offset).toString() :
       minHeight.toString(),
   );
 
   cql.where(
       "height <= ?",
-    params.sortOrder === "HEIGHT_DESC" ?
+    parameters.sortOrder === "HEIGHT_DESC" ?
       (maxHeight as any).sub(offset).toString() :
       maxHeight.toString(),
   );
@@ -196,26 +196,26 @@ export function generateBlockQuery(params: BlockQueryParams): any {
   return cql.build();
 }
 
-export interface DeferedBlockQueryParams {
+export interface DeferedBlockQueryParameters {
   indep_hash: string;
   deferedSelect: string[];
 }
 
 export function generateDeferedBlockQuery(
-    params: DeferedBlockQueryParams,
+    parameters: DeferedBlockQueryParameters,
 ): any {
   return Select()
       .table("block", KEYSPACE)
-      .where("indep_hash = ?", params.indep_hash)
-      .field(params.deferedSelect)
+      .where("indep_hash = ?", parameters.indep_hash)
+      .field(parameters.deferedSelect)
       .build();
 }
 
-export function generateDeferedTxQuery(params: any): any {
+export function generateDeferedTxQuery(parameters: any): any {
   return Select()
       .table("transaction", KEYSPACE)
-      .where("tx_id = ?", params.tx_id)
-      .field(params.deferedSelect)
+      .where("tx_id = ?", parameters.tx_id)
+      .field(parameters.deferedSelect)
       .build();
 }
 
@@ -237,7 +237,7 @@ export function generateDeferedTxBlockQuery(
 
 export function generateTagQuery(tags: TagFilter[]) {
   const cql = Select().table("tx_tag", KEYSPACE).field("tx_id").filtering();
-  tags.forEach((tag) => {
+  for (const tag of tags) {
     cql.where("name = ?", tag.name.toString());
     if (Array.isArray(tag.values)) {
       cql.where.apply(
@@ -254,6 +254,6 @@ export function generateTagQuery(tags: TagFilter[]) {
     } else {
       cql.where("value = ?", (tag.values as any).toString());
     }
-  });
+  }
   return cql.build();
 }

@@ -2,8 +2,8 @@ import Ar from "arweave/node/ar";
 import { types as CassandraTypes } from "cassandra-driver";
 import * as B64js from "base64-js";
 import { base32 } from "rfc4648";
-import crypto, { createHash } from "crypto";
-import { Readable, PassThrough, Transform } from "stream";
+import crypto, { createHash } from "node:crypto";
+import { Readable, PassThrough, Transform } from "node:stream";
 import { Tag } from "../types/arweave.types";
 
 const ar = new ((Ar as any).default as typeof Ar)();
@@ -24,7 +24,7 @@ export class Base64DUrlecode extends Transform {
     this.bytesProcessed = 0;
   }
 
-  _transform(chunk: Buffer, encoding: any, cb: () => void) {
+  _transform(chunk: Buffer, encoding: any, callback: () => void) {
     const conbinedChunk =
       this.extra +
       chunk
@@ -44,15 +44,15 @@ export class Base64DUrlecode extends Transform {
         "base64",
     );
     this.push(buf);
-    cb();
+    callback();
   }
 
-  _flush(cb: () => void) {
-    if (this.extra.length) {
+  _flush(callback: () => void) {
+    if (this.extra.length > 0) {
       this.push(Buffer.from(this.extra, "base64"));
     }
 
-    cb();
+    callback();
   }
 }
 
@@ -132,7 +132,7 @@ export async function streamToString(stream: Readable): Promise<string> {
 export function bufferToJson<T = any | undefined>(input: Buffer): T {
   try {
     return JSON.parse(input.toString("utf8"));
-  } catch (e) {
+  } catch {
     console.error(`[encoding] unable to convert buffer to JSON ${input.toString("utf8")}`);
     return undefined;
   }
@@ -195,7 +195,7 @@ export function utf8DecodeTag(
       value = valueBuffer.toString("utf8");
     }
     // eslint-disable-next-line no-empty
-  } catch (error) {}
+  } catch {}
   return {
     name,
     value,

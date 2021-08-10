@@ -42,7 +42,7 @@ try {
   contactPoints = process.env.CASSANDRA_CONTACT_POINTS
   ? JSON.parse(process.env.CASSANDRA_CONTACT_POINTS)
   : ["localhost:9042"];
-} catch (e) {
+} catch {
   console.error("[cassandra] Invalid array of contact points.");
 }
 
@@ -63,13 +63,13 @@ export const cassandraClient = new cassandra.Client({
     defunctReadTimeoutThreshold: 64,
     keepAlive: true,
     keepAliveDelay: 0,
-    readTimeout: 30000,
+    readTimeout: 30_000,
     tcpNoDelay: true,
-    coalescingThreshold: 65536,
+    coalescingThreshold: 65_536,
   },
   protocolOptions: {
     maxSchemaAgreementWaitSeconds: process.env["DB_TIMEOUT"] ?
-      parseInt(process.env["DB_TIMEOUT"]) :
+      Number.parseInt(process.env["DB_TIMEOUT"]) :
       30,
   },
   profiles: [
@@ -84,7 +84,7 @@ export const cassandraClient = new cassandra.Client({
       serialConsistency: cassandra.types.consistencies.serial,
     }),
     new cassandra.ExecutionProfile("full", {
-      readTimeout: 15000,
+      readTimeout: 15_000,
       consistency: cassandra.types.consistencies.all,
       serialConsistency: cassandra.types.consistencies.serial,
       graphOptions: {
@@ -160,39 +160,35 @@ const blockKeys = [
   "weave_size",
 ];
 
-const transformPoaKeys = (obj: any): Poa => {
-  const poa = obj["poa"] ? obj["poa"] : {};
-  const poaObj = {} as Poa;
-  poaObj["option"] = poa["option"] || "";
-  poaObj["tx_path"] = poa["tx_path"] || "";
-  poaObj["data_path"] = poa["data_path"] || "";
-  poaObj["chunk"] = poa["chunk"] || "";
-  poaObj["block_hash"] = obj["indep_hash"] || "";
-  poaObj["block_height"] = toLong(obj["height"]);
-  return poaObj;
+const transformPoaKeys = (object: any): Poa => {
+  const poa = object["poa"] ? object["poa"] : {};
+  const poaObject = {} as Poa;
+  poaObject["option"] = poa["option"] || "";
+  poaObject["tx_path"] = poa["tx_path"] || "";
+  poaObject["data_path"] = poa["data_path"] || "";
+  poaObject["chunk"] = poa["chunk"] || "";
+  poaObject["block_hash"] = object["indep_hash"] || "";
+  poaObject["block_height"] = toLong(object["height"]);
+  return poaObject;
 };
 
 // note for optimization reasons
 // we may store the data differently than we serve it (eg. bigint->string)
-const transformBlockKey = (key: string, obj: any) => {
+const transformBlockKey = (key: string, object: any) => {
   switch (key) {
     case "txs_count": {
-      if (obj.txs) {
-        return obj.txs.length;
-      } else {
-        return 0;
-      }
+      return object.txs ? object.txs.length : 0;
     }
 
     case "txs":
     case "tx_tree": {
-      const txs = obj[key] && Array.isArray(obj[key]) ? obj[key] : [];
+      const txs = object[key] && Array.isArray(object[key]) ? object[key] : [];
       return txs;
     }
     case "tags": {
       return (
-        !R.isEmpty(obj.tags) &&
-        (obj.tags || []).map(({ name, value }) =>
+        !R.isEmpty(object.tags) &&
+        (object.tags || []).map(({ name, value }) =>
           CassandraTypes.Tuple.fromArray([name, value]),
         )
       );
@@ -205,7 +201,7 @@ const transformBlockKey = (key: string, obj: any) => {
     case "reward_pool":
     case "timestamp":
     case "weave_size": {
-      return toLong(obj[key]);
+      return toLong(object[key]);
     }
     case "cumulative_diff":
     case "hash":
@@ -216,8 +212,8 @@ const transformBlockKey = (key: string, obj: any) => {
     case "reward_addr":
     case "tx_root":
     case "wallet_list": {
-      if (obj[key] || isNumeric(obj[key])) {
-        return typeof obj[key] === "string" ? obj[key] : obj[key].toString();
+      if (object[key] || isNumeric(object[key])) {
+        return typeof object[key] === "string" ? object[key] : object[key].toString();
       } else {
         return "";
       }
@@ -260,11 +256,7 @@ const transformTxKey = (
       );
     }
     case "tag_count": {
-      if (txData.tags) {
-        return txData.tags.length;
-      } else {
-        return 0;
-      }
+      return txData.tags ? txData.tags.length : 0;
     }
 
     case "tx_id": {
@@ -300,13 +292,13 @@ const transformTxKey = (
   }
 };
 
-const transformTxOffsetKeys = (txObj: any): TxOffset => {
-  const txOffset = txObj["tx_offset"] ? txObj["tx_offset"] : {};
-  const txOffsetObj = {} as TxOffset;
-  txOffsetObj["tx_id"] = txObj["id"] || "";
-  txOffsetObj["size"] = toLong(txOffset["size"] || 0);
-  txOffsetObj["offset"] = toLong(txOffset["offset"] || -1);
-  return txOffsetObj;
+const transformTxOffsetKeys = (txObject: any): TxOffset => {
+  const txOffset = txObject["tx_offset"] ? txObject["tx_offset"] : {};
+  const txOffsetObject = {} as TxOffset;
+  txOffsetObject["tx_id"] = txObject["id"] || "";
+  txOffsetObject["size"] = toLong(txOffset["size"] || 0);
+  txOffsetObject["offset"] = toLong(txOffset["offset"] || -1);
+  return txOffsetObject;
 };
 
 interface Tag {
@@ -323,22 +315,22 @@ type UpstreamTag = { name: string; value: string };
 
 const transformTag = (
     tag: UpstreamTag,
-    txObj: any,
+    txObject: any,
     blockHeight: CassandraTypes.Long,
     txIndex: CassandraTypes.Long,
     index: number,
     nextIndex?: number,
 ): Tag => {
-  const tagObj = {} as Tag;
-  tagObj["partition_id"] = getTxTagPartitionName(blockHeight);
-  tagObj["bucket_id"] = getTxTagBucketName(blockHeight);
-  tagObj["tag_index"] = index;
-  tagObj["next_tag_index"] = nextIndex || undefined;
-  tagObj["tx_index"] = txIndex;
-  tagObj["tx_id"] = txObj["id"];
-  tagObj["name"] = tag.name || "";
-  tagObj["value"] = tag.value || "";
-  return tagObj;
+  const tagObject = {} as Tag;
+  tagObject["partition_id"] = getTxTagPartitionName(blockHeight);
+  tagObject["bucket_id"] = getTxTagBucketName(blockHeight);
+  tagObject["tag_index"] = index;
+  tagObject["next_tag_index"] = nextIndex || undefined;
+  tagObject["tx_index"] = txIndex;
+  tagObject["tx_id"] = txObject["id"];
+  tagObject["name"] = tag.name || "";
+  tagObject["value"] = tag.value || "";
+  return tagObject;
 };
 
 const poaInsertQuery = `INSERT INTO ${KEYSPACE}.poa (${poaKeys.join(
@@ -395,15 +387,15 @@ export const makeTxImportQuery = (
 ) => () => {
   let dataSize: CassandraTypes.Long | undefined;
   const nonNilTxKeys: string[] = [];
-  const txInsertParams: { [k: string]: any } = transactionKeys.reduce(
+  const txInsertParameters: { [k: string]: any } = transactionKeys.reduce(
       (paramz: Array<any>, key: string) => {
-        const nextVal = transformTxKey(key, txIndex, tx, blockData);
+        const nextValue = transformTxKey(key, txIndex, tx, blockData);
 
         if (key === "data_size") {
-          dataSize = nextVal;
+          dataSize = nextValue;
         }
-        if (nextVal && !R.isEmpty(nextVal)) {
-          paramz.push(nextVal);
+        if (nextValue && !R.isEmpty(nextValue)) {
+          paramz.push(nextValue);
           nonNilTxKeys.push(key);
         }
 
@@ -416,7 +408,7 @@ export const makeTxImportQuery = (
     [
       cassandraClient.execute(
         transactionInsertQuery(nonNilTxKeys),
-        txInsertParams,
+        txInsertParameters,
         { prepare: true, executionProfile: "full" }
       ),
 
@@ -531,11 +523,11 @@ export const makeTxImportQuery = (
 
 export const makeBlockImportQuery = (input: any) => () => {
   const nonNilBlockKeys: string[] = [];
-  const blockInsertParams = blockKeys.reduce(
+  const blockInsertParameters = blockKeys.reduce(
       (paramz: Array<any>, key: string) => {
-        const nextVal = transformBlockKey(key, input);
-        if (nextVal && !R.isEmpty(nextVal)) {
-          paramz.push(nextVal);
+        const nextValue = transformBlockKey(key, input);
+        if (nextValue && !R.isEmpty(nextValue)) {
+          paramz.push(nextValue);
           nonNilBlockKeys.push(key);
         }
 
@@ -581,7 +573,7 @@ export const makeBlockImportQuery = (input: any) => () => {
     ),
     cassandraClient.execute(
         blockInsertQuery(nonNilBlockKeys),
-        blockInsertParams,
+        blockInsertParameters,
         { prepare: true, executionProfile: "full" },
     ),
   ]);
@@ -596,9 +588,5 @@ export const getMaxHeightBlock = async (): Promise<
   );
 
   const row = response.rows[0];
-  if (row) {
-    return [row["indep_hash"], row["height"]];
-  } else {
-    return ["", toLong(-1)];
-  }
+  return row ? [row["indep_hash"], row["height"]] : ["", toLong(-1)];
 };

@@ -101,7 +101,7 @@ DEVELOPMENT_SYNC_LENGTH=100
 You can test if the server and the GraphQL queries are working properly by navigating to.
 
 ```bash
-http://localhost:3000/graphql
+http://localhost:1248/graphql
 ```
 
 This webpage should look similar to.

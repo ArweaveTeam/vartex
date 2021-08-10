@@ -433,11 +433,11 @@ export async function startSync({ isTesting = false }) {
         const doneSignal = new Promise((resolve) => {
           doneSignalResolve = resolve;
         });
-        (fork as any)((error) => console.error(error))(() => {
+        fork((error) => console.error(error))(() => {
           doneSignalResolve();
           console.log('Block repair done!');
         })(
-          parallel(PARALLEL)(
+          (parallel as any)(PARALLEL)(
             blockGap.map((gap, index) =>
               storeBlock({
                 height: gap,

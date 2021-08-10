@@ -1,4 +1,5 @@
 import * as R from "rambda";
+import express from "express";
 import net from "net";
 import path from "path";
 import killPort from "kill-port";
@@ -192,4 +193,45 @@ export async function runGatewayOnce({
       resolve(logs.join(" "));
     };
   });
+}
+
+export async function setupTestNode({ mockBlocks }) {
+  const app = express();
+
+  app.get("/hash_list", function (req, res) {
+    res.status(200).json(R.reverse(R.pluck("indep_hash", mockBlocks)));
+  });
+
+  app.get("/info", function (req, res) {
+    res.status(200).json(lastBlock);
+  });
+
+  app.get("/block/height/:id", function (req, res) {
+    const match = R.find(R.propEq("height", parseInt(req.params.id)))(
+      mockBlocks
+    );
+    if (match) {
+      res.status(200).json(match);
+    } else {
+      res.status(404);
+    }
+  });
+
+  app.get("/block/hash/:id", function (req, res) {
+    const match = R.find(R.propEq("indep_hash", req.params.id))(mockBlocks);
+
+    if (match) {
+      res.status(200).json(match);
+    } else {
+      res.status(404);
+    }
+  });
+
+  app.get("*", function (req, res) {
+    console.error(req);
+    res.status(404);
+  });
+
+  srv = app.listen(PORT);
+  return { app, srv };
 }

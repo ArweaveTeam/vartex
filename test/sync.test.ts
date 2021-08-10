@@ -5,7 +5,6 @@ import fs from "fs/promises";
 import { jest } from "@jest/globals";
 import util from "util";
 import got from "got";
-import express from "express";
 import killPort from "kill-port";
 import * as helpers from "./helpers";
 
@@ -30,7 +29,7 @@ let srv: any;
 let proc: any;
 let client: any;
 
-describe("integration suite", function () {
+describe("database sync test suite", function () {
   jest.setTimeout(60000);
   beforeAll(async function () {
     await helpers.waitForCassandra();
@@ -38,43 +37,7 @@ describe("integration suite", function () {
       contactPoints: ["localhost:9042"],
       localDataCenter: "datacenter1",
     });
-    app = express();
-    app.get("/hash_list", function (req, res) {
-      res.status(200).json(R.reverse(R.pluck("indep_hash", mockBlocks)));
-    });
-
-    app.get("/info", function (req, res) {
-      res.status(200).json(lastBlock);
-    });
-
-    app.get("/block/height/:id", function (req, res) {
-      const match = R.find(R.propEq("height", parseInt(req.params.id)))(
-        mockBlocks
-      );
-      if (match) {
-        res.status(200).json(match);
-      } else {
-        res.status(404);
-      }
-    });
-
-    app.get("/block/hash/:id", function (req, res) {
-      const match = R.find(R.propEq("indep_hash", req.params.id))(mockBlocks);
-      // console.error(req.params.id, req.params.id, match);
-      if (match) {
-        res.status(200).json(match);
-      } else {
-        res.status(404);
-      }
-    });
-
-    app.get("*", function (req, res) {
-      console.error(req);
-      res.status(404);
-      // res.status(200).json(R.pluck('indep_hash', mockBlocks));
-    });
-
-    srv = app.listen(PORT);
+    const { srv, app } = await helpers.setupTestNode({ mockBlocks });
   });
 
   afterAll(async () => {

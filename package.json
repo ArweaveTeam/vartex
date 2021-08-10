@@ -20,7 +20,8 @@
     ".": "./src"
   },
   "scripts": {
-    "test": "yarn run gql && node --experimental-vm-modules node_modules/jest/bin/jest.js --verbose false --ci --forceExit --runInBand --detectOpenHandles test/*",
+    "test:gql": "yarn run gql && node --experimental-vm-modules node_modules/jest/bin/jest.js --verbose false --ci --forceExit --runInBand --detectOpenHandles test/gql.test.ts",
+    "test:sync": "yarn run gql && node --experimental-vm-modules node_modules/jest/bin/jest.js --verbose false --ci --forceExit --runInBand --detectOpenHandles test/sync.test.ts",
     "lint": "eslint src/**/*.ts",
     "gql": "node_modules/@graphql-codegen/cli/bin.js --config codegen.yml",
     "prestart": "yarn run gql && yarn run migrate:init",

@@ -1,7 +1,10 @@
-name: 'CI Test+Lint'
+name: "CI Test+Lint"
 on:
   pull_request:
+    branches: ["**"]
   push:
+    branches:
+      - main
 jobs:
   test:
     runs-on: ubuntu-20.04
@@ -13,7 +16,7 @@ jobs:
       - uses: cachix/cachix-action@v10
         with:
           name: arweave-gateway-cassandra
-          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+          authToken: "${{ secrets.CACHIX_AUTH_TOKEN }}"
       - name: test
         run: |
           sudo mkdir -p /var/lib/cassandra/data/data
@@ -30,6 +33,6 @@ jobs:
       - uses: cachix/cachix-action@v10
         with:
           name: arweave-gateway-cassandra
-          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+          authToken: "${{ secrets.CACHIX_AUTH_TOKEN }}"
       - name: lint
         run: nix-shell --pure nix/lint.nix

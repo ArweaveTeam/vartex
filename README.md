@@ -1,4 +1,4 @@
-# Vartex
+<img src="https://raw.githubusercontent.com/ArweaveTeam/vartex/main/docs/logo.png"></img>
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 

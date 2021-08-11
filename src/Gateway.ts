@@ -67,7 +67,7 @@ export function start(): void {
 
   // graphql endpoints
   const graphqlServer = graphServer({ introspection: true });
-  Promise.all([graphqlServer.start()]).then(() => {
+  graphqlServer.start().then(() => {
     (graphqlServer as any).applyMiddleware({
       app,
       path: "/graphql",

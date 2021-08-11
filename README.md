@@ -1,4 +1,4 @@
-# Vartex
+<img src="https://raw.githubusercontent.com/ArweaveTeam/vartex/main/docs/logo.png"></img>
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 
@@ -101,7 +101,7 @@ DEVELOPMENT_SYNC_LENGTH=100
 You can test if the server and the GraphQL queries are working properly by navigating to.
 
 ```bash
-http://localhost:3000/graphql
+http://localhost:1248/graphql
 ```
 
 This webpage should look similar to.

@@ -1,5 +1,5 @@
-import { existsSync, mkdirSync, readdirSync, unlinkSync } from 'fs';
-import { join } from 'path';
+import { existsSync, mkdirSync, readdirSync, unlinkSync } from "node:fs";
+import { join } from "node:path";
 
 export function mkdir(path: string) {
   if (!existsSync(path)) {

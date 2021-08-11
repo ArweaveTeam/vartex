@@ -1,17 +1,17 @@
-import { readFileSync } from 'fs';
+import { readFileSync } from "node:fs";
 import {
   ApolloServer,
   ApolloServerExpressConfig,
   ExpressContext,
   gql,
-} from 'apollo-server-express';
+} from "apollo-server-express";
 // import {connection} from '../database/connection.database';
-import { resolvers } from './resolver.graphql.js';
+import { resolvers } from "./resolver.graphql.js";
 
-const typeDefs = gql(readFileSync(`${process.cwd()}/types.graphql`, 'utf8'));
+const typeDefs = gql(readFileSync(`${process.cwd()}/types.graphql`, "utf8"));
 
 export function graphServer(
-  opts: ApolloServerExpressConfig = {}
+    options: ApolloServerExpressConfig = {},
 ): ApolloServer<ExpressContext> {
   const graphServer = new (ApolloServer as any)({
     typeDefs,
@@ -19,18 +19,18 @@ export function graphServer(
     debug: true,
     playground: {
       settings: {
-        'schema.polling.enable': false,
-        'request.credentials': 'include',
+        "schema.polling.enable": false,
+        "request.credentials": "include",
       },
     },
-    context: (ctx) => {
+    context: (context) => {
       return {
-        req: ctx.req,
+        req: context.req,
         conection: {},
         // connection,
       };
     },
-    ...opts,
+    ...options,
   });
   return graphServer;
 }

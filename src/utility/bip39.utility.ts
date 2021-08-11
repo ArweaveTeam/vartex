@@ -1,21 +1,21 @@
-import {createHash} from 'crypto';
-import {entropyToMnemonic} from 'bip39';
+import { createHash } from "node:crypto";
+import { entropyToMnemonic } from "bip39";
 
 export function stringToBip39(input: string) {
-  const hash = createHash('sha256')
+  const hash = createHash("sha256")
       .update(input)
-      .digest('hex');
+      .digest("hex");
 
   return entropyToMnemonic(hash)
       .replace(
-          new RegExp(' ', 'g'),
-          '.',
+          new RegExp(" ", "g"),
+          ".",
       );
 }
 
 
 export function stringToHash(input: string) {
-  return createHash('sha256')
+  return createHash("sha256")
       .update(input)
-      .digest('hex');
+      .digest("hex");
 }

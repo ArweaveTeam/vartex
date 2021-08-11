@@ -1,12 +1,17 @@
-import { types as CassandraTypes } from 'cassandra-driver';
+import { types as CassandraTypes } from "cassandra-driver";
 
 export type ImportQueue = { [v: string]: any };
 
-export interface QueueState {
+export interface BlockQueueState {
   isProcessing: boolean;
   isStarted: boolean;
-  lastPrio?: CassandraTypes.Long;
-  importedHeights?: any;
+  nextHeight: CassandraTypes.Long;
+}
+
+export interface TxQueueState {
+  isProcessing: boolean;
+  isStarted: boolean;
+  nextTxIndex: CassandraTypes.Long;
 }
 
 export interface Poa {

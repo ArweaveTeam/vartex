@@ -15,7 +15,7 @@ pkgs.mkShell {
   shellHook = ''
     ${pkgs.cassandraShellHook}
     yarn install
-    yarn test || exit 1
+    yarn test:sync || exit 1
   '';
 
 }

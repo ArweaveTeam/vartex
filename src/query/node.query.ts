@@ -65,10 +65,12 @@ export function coolNode(url: string, kickIfLow = false) {
   const item = nodeTemperatures.find((index: WeightedNode) => index.id === url);
   if (item) {
     if (kickIfLow && item["weight"] < 2) {
-      log.info(`[network] peer ${url} kicked out because of unresponsiveness`);
-      nodeTemperatures = R.reject((temporary: WeightedNode) =>
-        R.equals(R.prop("id", temporary), url)
-      )(nodeTemperatures) as WeightedNode[];
+      log.info(
+        `[network] peer ${url} is not responding well, if at all, consider removing this node from your list of peers`
+      );
+      // nodeTemperatures = R.reject((temporary: WeightedNode) =>
+      //   R.equals(R.prop("id", temporary), url)
+      // )(nodeTemperatures) as WeightedNode[];
     }
     item["weight"] = Math.min(item["weight"] - 1, 1);
   }

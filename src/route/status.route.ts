@@ -7,7 +7,7 @@ export const start = Date.now();
 
 export async function statusRoute(request: Request, response: Response) {
   try {
-    const info = await getNodeInfo({ maxRetry: 1 });
+    const info = await getNodeInfo({ maxRetry: 100 });
     const delta = toLong(info.height).sub(topHeight).toString();
 
     return response.status(200).send({

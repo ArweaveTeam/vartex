@@ -8,11 +8,11 @@ import { log } from "../utility/log.utility";
 import { getChunk } from "./chunk.query";
 import { HTTP_TIMEOUT_SECONDS } from "../constants";
 
-let temporaryNodes = ["http://lon-2.eu-west-1.arweave.net:1984"];
+let temporaryNodes = [];
 try {
   temporaryNodes = process.env.ARWEAVE_NODES
     ? JSON.parse(process.env.ARWEAVE_NODES)
-    : ["http://lon-2.eu-west-1.arweave.net:1984"];
+    : ["http://lon-4.eu-west-1.arweave.net:1984"];
 } catch {
   console.error("[node] invalid list of nodes.");
 }
@@ -20,13 +20,7 @@ export const NODES = temporaryNodes;
 
 type WeightedNode = { id: string; weight: number };
 
-let nodeTemperatures: WeightedNode[] =
-  process.env.NODE_ENV === "test"
-    ? []
-    : [
-        { id: "https://arweave.net", weight: 2 },
-        { id: "http://lon-2.eu-west-1.arweave.net:1984", weight: 2 },
-      ];
+let nodeTemperatures: WeightedNode[] = [];
 
 const syncNodeTemperatures = () => {
   nodeTemperatures = NODES.map((url: string) => {

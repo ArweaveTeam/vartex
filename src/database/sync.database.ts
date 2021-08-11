@@ -129,13 +129,13 @@ const processBlockQueue = (
 
   queueSource.sortQueue();
   const peek = !queueSource.isEmpty() && queueSource.peek();
-
   if (
     (CassandraTypes.Long.isLong(peek.height) && isPollingStarted) ||
     (CassandraTypes.Long.isLong(peek.height) &&
       (queueState.nextHeight.lt(1) ||
         peek.height.lt(1) ||
-        peek.height.lessThanOrEqual(queueState.nextHeight)))
+        peek.height.lessThanOrEqual(queueState.nextHeight) ||
+        queueSource.hasNoneLt(queueState.nextHeight)))
   ) {
     queueState.isProcessing = true;
 
@@ -601,13 +601,28 @@ export function storeBlock({
             );
           })
         );
+
+        const integrity = await putCache(
+          newSyncBlock.indep_hash,
+          JSON.stringify({
+            block: newSyncBlock,
+            height: newSyncBlockHeight.toString(),
+            nextHeight: `${next ? next : newSyncBlockHeight.add(1).toString()}`,
+          })
+        );
+
         blockQueue.enqueue({
-          callback: makeBlockImportQuery(newSyncBlock),
+          callback: async () => {
+            const { block } = JSON.parse(await getCache(integrity));
+            await makeBlockImportQuery(block)();
+            await rmCache(block.indep_hash);
+          },
           height: newSyncBlockHeight,
           txCount: newSyncBlock.txs ? newSyncBlock.txs.length : 0,
           nextHeight: toLong(next),
           type: "block",
         });
+
         return;
       } else {
         await new Promise((resolve) => setTimeout(resolve, 100));

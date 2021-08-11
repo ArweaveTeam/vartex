@@ -38,10 +38,11 @@ export function grabNode() {
   R.isEmpty(nodeTemperatures) && syncNodeTemperatures();
   const randomWeightedNode = rwc(nodeTemperatures);
   if (!randomWeightedNode) {
-    if (process.env.NODE_ENV === "test") {
-      return nodeTemperatures[0].id;
+    if (R.isEmpty(nodeTemperatures)) {
+      throw new Error("No more peers were found");
+    } else {
+      nodeTemperatures[0];
     }
-    throw new Error("No more peers were found");
   }
   return randomWeightedNode.startsWith("http")
     ? randomWeightedNode

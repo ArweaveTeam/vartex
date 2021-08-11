@@ -36,12 +36,13 @@ const syncNodeTemperatures = () => {
 
 export function grabNode() {
   R.isEmpty(nodeTemperatures) && syncNodeTemperatures();
-  const randomWeightedNode = rwc(nodeTemperatures);
+  let randomWeightedNode = rwc(nodeTemperatures);
+
   if (!randomWeightedNode) {
     if (R.isEmpty(nodeTemperatures)) {
       throw new Error("No more peers were found");
     } else {
-      nodeTemperatures[0];
+      randomWeightedNode = nodeTemperatures[0].id;
     }
   }
   return randomWeightedNode.startsWith("http")

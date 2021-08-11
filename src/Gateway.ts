@@ -1,4 +1,6 @@
 import "colors";
+import exitHook from "exit-hook";
+import killPort from "kill-port";
 import express, { Express, Request, Response } from "express";
 import gpmeImport from "graphql-playground-middleware-express";
 import { config } from "dotenv";
@@ -92,13 +94,15 @@ export function start(): void {
     })
   );
 
-  app.listen(process.env.PORT || 3000, () => {
-    log.info(`[app] Started on http://localhost:${process.env.PORT || 3000}`);
+  app.listen(process.env.PORT || 1248, () => {
+    log.info(`[app] Started on http://localhost:${process.env.PORT || 1248}`);
     log.info(`[app] - Parallel: ${process.env.PARALLEL}`);
     log.info(
       `[app] - Nodes: ${JSON.parse(process.env.ARWEAVE_NODES).join(", ")}`
     );
   });
 }
+
+exitHook(() => killPort(process.env.PORT || 1248));
 
 start();

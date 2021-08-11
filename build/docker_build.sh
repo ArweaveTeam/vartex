@@ -2,5 +2,5 @@
 set -e
 export PATH=$PATH:$HOME/.local/bin
 
-cp .env.example .env
+cp .env.koii .env
 docker build -f Dockerfile -t koii_vartex_gateway:latest .

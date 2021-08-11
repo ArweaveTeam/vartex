@@ -1,21 +1,21 @@
-import * as R from 'rambda';
-import { types as CassandraTypes } from 'cassandra-driver';
-import * as Constants from '../database/constants.database';
-import { config } from 'dotenv';
-import { KEYSPACE } from '../constants';
-import { indices } from '../utility/order.utility';
-import { ISO8601DateTimeString } from '../utility/encoding.utility';
-import { TagFilter } from './types';
-import { toB64url } from '../query/transaction.query';
-import { default as cqlBuilder } from '@ridi/cql-builder';
+import * as R from "rambda";
+import { types as CassandraTypes } from "cassandra-driver";
+import * as Constants from "../database/constants.database";
+import { config } from "dotenv";
+import { KEYSPACE } from "../constants";
+import { indices } from "../utility/order.utility";
+import { ISO8601DateTimeString } from "../utility/encoding.utility";
+import { TagFilter } from "./types";
+import { toB64url } from "../query/transaction.query";
+import { default as cqlBuilder } from "@ridi/cql-builder";
 
 const { Insert, Select, Update, Delete, CqlBuilderError } = cqlBuilder;
 
-export type TxSortOrder = 'HEIGHT_ASC' | 'HEIGHT_DESC';
+export type TxSortOrder = "HEIGHT_ASC" | "HEIGHT_DESC";
 
-process.env.NODE_ENV !== 'test' && config();
+process.env.NODE_ENV !== "test" && config();
 
-export interface QueryParams {
+export interface QueryParameters {
   to?: string[];
   from?: string[];
   id?: string;
@@ -27,65 +27,69 @@ export interface QueryParams {
   since?: string;
   before?: string;
   sortOrder?: TxSortOrder;
-  status?: 'any' | 'confirmed' | 'pending';
+  status?: "any" | "confirmed" | "pending";
   tags?: TagFilter[];
   pendingMinutes?: number;
   minHeight?: CassandraTypes.Long;
   maxHeight?: CassandraTypes.Long;
 }
 
-export function generateTransactionQuery(params: QueryParams): any {
-  let table = 'tx_id_gql_desc';
+export function generateTransactionQuery(parameters: QueryParameters): any {
+  let table = "tx_id_gql_desc";
 
   table =
-    params.sortOrder === 'HEIGHT_ASC' ? 'tx_id_gql_asc' : 'tx_id_gql_desc';
+    parameters.sortOrder === "HEIGHT_ASC" ? "tx_id_gql_asc" : "tx_id_gql_desc";
 
-  const cql = Select().table(table, KEYSPACE).field(params.select).filtering();
+  const cql = Select()
+    .table(table, KEYSPACE)
+    .field(parameters.select)
+    .filtering();
 
-  if (params.id !== undefined) {
-    cql.where('tx_id = ?', params.id);
+  if (parameters.id !== undefined) {
+    cql.where("tx_id = ?", parameters.id);
     return cql.build();
-  } else if (params.ids && Array.isArray(params.ids)) {
+  } else if (parameters.ids && Array.isArray(parameters.ids)) {
     cql.where.apply(
       cql,
       R.concat(
         [
-          `tx_id IN ( ${R.range(0, params.ids.length)
-            .map(() => '?')
-            .join(', ')} )`,
+          `tx_id IN ( ${R.range(0, parameters.ids.length)
+            .map(() => "?")
+            .join(", ")} )`,
         ],
-        params.ids
+        parameters.ids
       )
     );
   }
 
-  if (Array.isArray(params.tags) && !R.isEmpty(params.tags)) {
-    for (const { name, values = '' } of params.tags) {
+  if (Array.isArray(parameters.tags) && !R.isEmpty(parameters.tags)) {
+    for (const { name, values = "" } of parameters.tags) {
       if (Array.isArray(values)) {
         for (const value of values) {
           cql.where(
-            `tags CONTAINS (?, ?)`,
-            toB64url(name || ''),
-            toB64url(value || '')
+            "tags CONTAINS (?, ?)",
+            toB64url(name || ""),
+            toB64url(value || "")
           );
         }
       } else {
         cql.where(
-          `tags CONTAINS (?, ?)`,
-          toB64url(name || ''),
-          toB64url(values || '')
+          "tags CONTAINS (?, ?)",
+          toB64url(name || ""),
+          toB64url(values || "")
         );
       }
     }
   }
 
-  if (params.since) {
+  if (parameters.since) {
     cql.where(
-      'block_timestamp < ?',
+      "block_timestamp < ?",
       CassandraTypes.Long.fromNumber(
         Math.floor(
-          CassandraTypes.TimeUuid.fromString(params.since).getDate().valueOf() /
-            1000
+          CassandraTypes.TimeUuid.fromString(parameters.since)
+            .getDate()
+            .valueOf() / 1000
         )
       )
     );
@@ -95,8 +99,8 @@ export function generateTransactionQuery(params: QueryParams): any {
   //   cql.where('block_height >= ?', CassandraTypes.Long.fromNumber(0));
   // }
 
-  if (params.to) {
-    cql.where('target = ?', params.to);
+  if (parameters.to) {
+    cql.where("target = ?", parameters.to);
   }
 
   // if (params.before) {
@@ -104,25 +108,25 @@ export function generateTransactionQuery(params: QueryParams): any {
   // }
 
   cql.where(
-    'tx_index >= ?',
-    params.sortOrder === 'HEIGHT_ASC'
-      ? params.minHeight.add(params.offset).toString()
-      : params.minHeight.toString()
+    "tx_index >= ?",
+    parameters.sortOrder === "HEIGHT_ASC"
+      ? parameters.minHeight.add(parameters.offset).toString()
+      : parameters.minHeight.toString()
   );
 
   cql.where(
-    'tx_index <= ?',
-    params.sortOrder === 'HEIGHT_DESC'
-      ? params.maxHeight.sub(params.offset).toString()
-      : params.maxHeight.toString()
+    "tx_index <= ?",
+    parameters.sortOrder === "HEIGHT_DESC"
+      ? parameters.maxHeight.sub(parameters.offset).toString()
+      : parameters.maxHeight.toString()
   );
 
-  cql.limit(params.limit);
+  cql.limit(parameters.limit);
 
   return cql.build();
 }
 
-export interface BlockQueryParams {
+export interface BlockQueryParameters {
   id?: string;
   ids?: string[];
   select?: any;
@@ -134,7 +138,7 @@ export interface BlockQueryParams {
   sortOrder?: TxSortOrder;
 }
 
-export function generateBlockQuery(params: BlockQueryParams): any {
+export function generateBlockQuery(parameters: BlockQueryParameters): any {
   const {
     id,
     ids,
@@ -144,49 +148,50 @@ export function generateBlockQuery(params: BlockQueryParams): any {
     fetchSize,
     minHeight,
     maxHeight,
-  } = params;
+    sortOrder,
+  } = parameters;
 
   const cql = Select()
     .table(
-      params.sortOrder === 'HEIGHT_ASC' ? 'block_gql_asc' : 'block_gql_desc',
+      sortOrder === "HEIGHT_ASC" ? "block_gql_asc" : "block_gql_desc",
       KEYSPACE
     )
     .field(
-      select.includes('indep_hash') ? select : R.append('indep_hash', select)
+      select.includes("indep_hash") ? select : R.append("indep_hash", select)
     )
     .filtering();
 
   // const query = connection.queryBuilder().select(select).from('blocks');
   if (id) {
-    cql.where('indep_hash = ?', id);
+    cql.where("indep_hash = ?", id);
   } else if (ids && Array.isArray(ids) && !R.isEmpty(ids)) {
     cql.where.apply(
       cql,
       R.concat(
         [
-          `indep_hash IN ( ${R.range(0, params.ids.length)
-            .map(() => '?')
-            .join(', ')} )`,
+          `indep_hash IN ( ${R.range(0, ids.length)
+            .map(() => "?")
+            .join(", ")} )`,
         ],
-        params.ids
+        ids
       )
     );
   }
 
   if (before) {
-    cql.where('timestamp < ?', before);
+    cql.where("timestamp < ?", before);
   }
 
   cql.where(
-    'height >= ?',
-    params.sortOrder === 'HEIGHT_ASC'
+    "height >= ?",
+    sortOrder === "HEIGHT_ASC"
       ? minHeight.add(offset).toString()
       : minHeight.toString()
   );
 
   cql.where(
-    'height <= ?',
-    params.sortOrder === 'HEIGHT_DESC'
+    "height <= ?",
+    sortOrder === "HEIGHT_DESC"
       ? (maxHeight as any).sub(offset).toString()
       : maxHeight.toString()
   );
@@ -196,26 +201,26 @@ export function generateBlockQuery(params: BlockQueryParams): any {
   return cql.build();
 }
 
-export interface DeferedBlockQueryParams {
+export interface DeferedBlockQueryParameters {
   indep_hash: string;
   deferedSelect: string[];
 }
 
 export function generateDeferedBlockQuery(
-  params: DeferedBlockQueryParams
+  parameters: DeferedBlockQueryParameters
 ): any {
   return Select()
-    .table('block', KEYSPACE)
-    .where('indep_hash = ?', params.indep_hash)
-    .field(params.deferedSelect)
+    .table("block", KEYSPACE)
+    .where("indep_hash = ?", parameters.indep_hash)
+    .field(parameters.deferedSelect)
     .build();
 }
 
-export function generateDeferedTxQuery(params: any): any {
+export function generateDeferedTxQuery(parameters: any): any {
   return Select()
-    .table('transaction', KEYSPACE)
-    .where('tx_id = ?', params.tx_id)
-    .field(params.deferedSelect)
+    .table("transaction", KEYSPACE)
+    .where("tx_id = ?", parameters.tx_id)
+    .field(parameters.deferedSelect)
     .build();
 }
 
@@ -224,36 +229,36 @@ export function generateDeferedTxBlockQuery(
   fieldSelect: any
 ): any {
   return Select()
-    .table('block_gql_asc', KEYSPACE)
+    .table("block_gql_asc", KEYSPACE)
     .field(fieldSelect)
-    .where('height = ?', height)
+    .where("height = ?", height)
     .where(
-      'partition_id = ?',
+      "partition_id = ?",
       Constants.getGqlBlockHeightAscPartitionName(height)
     )
-    .where('bucket_id = ?', Constants.getGqlBlockHeightAscBucketName(height))
+    .where("bucket_id = ?", Constants.getGqlBlockHeightAscBucketName(height))
     .build();
 }
 
 export function generateTagQuery(tags: TagFilter[]) {
-  const cql = Select().table('tx_tag', KEYSPACE).field('tx_id').filtering();
-  tags.forEach((tag) => {
-    cql.where('name = ?', tag.name.toString());
+  const cql = Select().table("tx_tag", KEYSPACE).field("tx_id").filtering();
+  for (const tag of tags) {
+    cql.where("name = ?", tag.name.toString());
     if (Array.isArray(tag.values)) {
       cql.where.apply(
         cql,
         R.concat(
           [
             `value IN ( ${R.range(0, tag.values.length)
-              .map(() => '?')
-              .join(', ')} )`,
+              .map(() => "?")
+              .join(", ")} )`,
           ],
           tag.values
         )
       );
     } else {
-      cql.where('value = ?', (tag.values as any).toString());
+      cql.where("value = ?", (tag.values as any).toString());
     }
-  });
+  }
   return cql.build();
 }

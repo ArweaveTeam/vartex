@@ -1,49 +1,51 @@
-import * as R from 'rambda';
-import Fluture, { fork, parallel } from 'fluture/index.js';
-import PriorityQueue from '../utility/priority.queue';
-import pWaitFor from 'p-wait-for';
-import { DataItemJson } from 'arweave-bundles';
-import Gauge from 'gauge';
-import GaugeThemes from 'gauge/themes';
-import { config } from 'dotenv';
-import { types as CassandraTypes } from 'cassandra-driver';
-import { IPC_DATA, KEYSPACE, POLLTIME_DELAY_SECONDS } from '../constants';
-import { MAX_TX_PER_BLOCK } from './constants.database';
-import { log } from '../utility/log.utility';
-import { ansBundles } from '../utility/ans.utility';
-import { mkdir } from '../utility/file.utility';
-import { sleep } from '../utility/sleep.utility';
-import { getHashList, getNodeInfo } from '../query/node.query';
+import * as R from "rambda";
+import Fluture, { fork, parallel } from "fluture/index.js";
+import PriorityQueue from "../utility/priority.queue";
+import pWaitFor from "p-wait-for";
+import { DataItemJson } from "arweave-bundles";
+import Gauge from "gauge";
+import GaugeThemes from "gauge/themes";
+import { config } from "dotenv";
+import { types as CassandraTypes } from "cassandra-driver";
+import { KEYSPACE, POLLTIME_DELAY_SECONDS } from "../constants";
+import { MAX_TX_PER_BLOCK } from "./constants.database";
+import { log } from "../utility/log.utility";
+import { ansBundles } from "../utility/ans.utility";
+import { mkdir } from "../utility/file.utility";
 import {
-  getBlock as queryGetBlock,
+  getDataFromChunks,
+  getHashList,
+  getNodeInfo,
+} from "../query/node.query";
+import {
   fetchBlockByHash,
-} from '../query/block.query';
+  getBlock as queryGetBlock,
+} from "../query/block.query";
 import {
   getTransaction,
   getTxOffset,
   tagValue,
   Tag,
-} from '../query/transaction.query';
-import { getDataFromChunks } from '../query/node.query';
+} from "../query/transaction.query";
 import {
   DeleteRowData,
   ImportQueue,
   UnsyncedBlock,
-  QueueState,
-} from '../types/cassandra.types';
+  TxQueueState,
+  BlockQueueState,
+} from "../types/cassandra.types";
 import {
   cassandraClient,
   getMaxHeightBlock,
   makeBlockImportQuery,
   makeTxImportQuery,
   toLong,
-} from './cassandra.database';
-import { blockMapper, blockHeightToHashMapper } from './mapper.database';
-import * as Dr from './doctor.database';
-import { cacheANSEntries } from '../caching/ans.entry.caching';
+} from "./cassandra.database";
+import * as Dr from "./doctor.database";
+import { cacheANSEntries } from "../caching/ans.entry.caching";
 
-process.env.NODE_ENV !== 'test' && config();
-mkdir('cache');
+process.env.NODE_ENV !== "test" && config();
+mkdir("cache");
 
 const trackerTheme = GaugeThemes.newTheme(
   GaugeThemes({
@@ -52,31 +54,32 @@ const trackerTheme = GaugeThemes.newTheme(
   })
 );
 
-export let SIGINT: boolean = false;
-export let SIGKILL: boolean = false;
-const PARALLEL = (isNaN as any)(process.env['PARALLEL'])
+export const SIGINT = false;
+export let SIGKILL = false;
+const PARALLEL = (Number.isNaN as any)(process.env["PARALLEL"])
   ? 36
-  : parseInt(process.env['PARALLEL'] || '36');
+  : Number.parseInt(process.env["PARALLEL"] || "36");
 
-export let topHash: string = '';
+export let topHash = "";
 export let topHeight: CassandraTypes.Long = toLong(0);
 export let topTxIndex: CassandraTypes.Long = toLong(0);
 
 const developmentSyncLength: number | undefined =
-  !process.env['DEVELOPMENT_SYNC_LENGTH'] ||
-  R.isEmpty(process.env['DEVELOPMENT_SYNC_LENGTH'])
+  !process.env["DEVELOPMENT_SYNC_LENGTH"] ||
+  R.isEmpty(process.env["DEVELOPMENT_SYNC_LENGTH"])
     ? undefined
-    : parseInt(process.env['DEVELOPMENT_SYNC_LENGTH'] as string);
+    : Number.parseInt(process.env["DEVELOPMENT_SYNC_LENGTH"] as string);
 
-if (developmentSyncLength === NaN) {
-  console.error('Development sync range variable produced, illegal value NaN');
+// eslint-disable-next-line use-isnan
+if (developmentSyncLength === Number.NaN) {
+  console.error("Development sync range variable produced, illegal value NaN");
   process.exit(1);
 }
 
-let isQueueProcessorStarted = false;
+const isQueueProcessorStarted = false;
 let isPollingStarted = false;
-let isSyncing: boolean = true;
-let isPaused: boolean = false;
+const isSyncing = true;
+let isPaused = false;
 export const togglePause = (): void => {
   isPaused = !isPaused;
 };
@@ -92,85 +95,49 @@ const txQueue = new PriorityQueue(function (
   a: { txIndex: CassandraTypes.Long },
   b: { txIndex: CassandraTypes.Long }
 ) {
-  if (a.txIndex.equals(0) || b.txIndex.equals(0)) {
-    return -1;
-  } else {
-    return a.txIndex.compare(b.txIndex);
-  }
+  return a.txIndex.equals(0) || b.txIndex.equals(0)
+    ? -1
+    : a.txIndex.compare(b.txIndex);
 });
 
-// const txQueue: ImportQueue = {};
-// const tagsQueue: ImportQueue = {};
-const blockQueueState: QueueState = {
+const blockQueueState: BlockQueueState = {
   isProcessing: false,
   isStarted: false,
-  lastPrio: toLong(-1),
+  nextHeight: toLong(-1),
 };
-const txQueueState: QueueState = {
+const txQueueState: TxQueueState = {
   isProcessing: false,
   isStarted: false,
-  lastPrio: toLong(-1),
-  importedHeights: {},
+  nextTxIndex: toLong(-1),
 };
 
-const tagsQueueState: QueueState = { isProcessing: false, isStarted: false };
+// const tagsQueueState: QueueState = { isProcessing: false, isStarted: false };
 
-const createQueue = (
-  queueSource: Record<string, any>,
-  queueState: QueueState
-) => (): void => {
-  if (queueState.isProcessing) return;
-
-  const items: string[] = R.keys(queueSource);
-  if (items.length > 0) {
-    // name could be misleading as this can be a batch of db-batches
-    const batchPrio = items.sort()[0];
-    queueState.isProcessing = true;
-    const batch = queueSource[batchPrio]();
-    (Array.isArray(batch) ? Promise.all(batch) : batch)
-      .then(function (ret: any) {
-        delete (queueSource as any)[batchPrio];
-        queueState.isProcessing = false;
-      })
-      .catch(function (err: any) {
-        console.error('FATAL', err);
-        process.exit(1);
-      });
-  }
-};
-
-const processBlockQueue = (queueSource: any, queueState: QueueState): void => {
+const processBlockQueue = (
+  queueSource: any,
+  queueState: BlockQueueState
+): void => {
   // console.log(
   //   !txQueue.hasNoneLt(queueState.lastPrio ? toLong(0) : queueState.lastPrio),
   //   queueSource.isEmpty(),
   //   isPaused,
   //   queueState.isProcessing
   // );
-  if (
-    !txQueue.hasNoneLt(queueState.lastPrio ? toLong(0) : queueState.lastPrio) ||
-    queueSource.isEmpty() ||
-    isPaused ||
-    queueState.isProcessing
-  ) {
+  if (queueSource.isEmpty() || isPaused || queueState.isProcessing) {
     return;
   }
+
   queueSource.sortQueue();
-  const nextHeight = queueState.lastPrio
-    ? queueState.lastPrio.add(1)
-    : toLong(0);
   const peek = !queueSource.isEmpty() && queueSource.peek();
 
   if (
     (CassandraTypes.Long.isLong(peek.height) && isPollingStarted) ||
     (CassandraTypes.Long.isLong(peek.height) &&
-    peek.height.equals(nextHeight) &&
-    txQueueState.importedHeights[queueState.lastPrio.toString()]
-      ? txQueueState.importedHeights[queueState.lastPrio.toString()] ===
-        peek.txCount
-      : true)
+      (queueState.nextHeight.lt(1) ||
+        peek.height.lt(1) ||
+        peek.height.lessThanOrEqual(queueState.nextHeight)))
   ) {
     queueState.isProcessing = true;
-    queueState.lastPrio = peek.height;
 
     peek.callback().then(() => {
       queueSource.pop();
@@ -180,14 +147,22 @@ const processBlockQueue = (queueSource: any, queueState: QueueState): void => {
         topHeight = peek.height;
       }
 
+      queueSource.sortQueue();
+      queueState.nextHeight =
+        !queueSource.isEmpty() &&
+        queueSource.peek().nextHeight &&
+        peek.height.lt(queueSource.peek().nextHeight)
+          ? toLong(queueSource.peek().nextHeight)
+          : toLong(-1);
+
       if (queueSource.isEmpty() && txQueue.isEmpty()) {
-        log.info('import queues have been consumed');
+        log.info("import queues have been consumed");
       }
     });
   }
 };
 
-const processTxQueue = (queueSource: any, queueState: QueueState): void => {
+const processTxQueue = (queueSource: any, queueState: TxQueueState): void => {
   if (queueSource.isEmpty() || isPaused || queueState.isProcessing) {
     return;
   }
@@ -196,11 +171,11 @@ const processTxQueue = (queueSource: any, queueState: QueueState): void => {
 
   if (CassandraTypes.Long.isLong(peek.txIndex)) {
     queueState.isProcessing = true;
-    queueState.lastPrio = peek.txIndex;
-    const currentImportCnt = queueState.importedHeights[peek.height.toString()];
-    queueState.importedHeights[peek.height.toString()] = currentImportCnt
-      ? 1
-      : currentImportCnt;
+    queueState.nextTxIndex = peek.nextTxIndex;
+    // const currentImportCnt = queueState.importedHeights[peek.height.toString()];
+    // queueState.importedHeights[peek.height.toString()] = currentImportCnt
+    //   ? 1
+    //   : currentImportCnt;
     peek.callback().then(() => {
       queueSource.pop();
       queueState.isProcessing = false;
@@ -210,7 +185,7 @@ const processTxQueue = (queueSource: any, queueState: QueueState): void => {
       }
 
       if (queueSource.isEmpty() && blockQueue.isEmpty()) {
-        log.info('import queues have been consumed');
+        log.info("import queues have been consumed");
       }
     });
   }
@@ -242,25 +217,29 @@ async function resolveFork(previousBlock: any): Promise<void> {
 
   if (blockQueryResult.rowLength > 0) {
     cassandraClient.eachRow(
-      `SELECT height,indep_hash FROM ${KEYSPACE}.block WHERE height>${blockQueryResult.rows[0].height.toString()} ALLOW FILTERING`,
+      `SELECT height, indep_hash
+       FROM ${KEYSPACE}.block
+       WHERE height > ${blockQueryResult.rows[0].height.toString()} ALLOW FILTERING`,
       [],
       {
         autoPage: true,
         prepare: false,
-        executionProfile: 'fast',
+        executionProfile: "fast",
       },
       async function (n, row) {
         await cassandraClient.execute(
-          `DELETE FROM ${KEYSPACE}.block WHERE indep_hash='${row.indep_hash}'`
+          `DELETE
+           FROM ${KEYSPACE}.block
+           WHERE indep_hash = '${row.indep_hash}'`
         );
       },
 
-      function (err, res) {
+      function (error, result) {
         isPaused = false;
         log.info(
-          'fork diverges at ' +
+          "fork diverges at " +
             blockQueryResult.rows[0].height.toString() +
-            ' waiting for missing blocks to be imported...'
+            " waiting for missing blocks to be imported..."
         );
       }
     );
@@ -269,10 +248,11 @@ async function resolveFork(previousBlock: any): Promise<void> {
     blockQueue.enqueue({
       callback: blockQueryCallback,
       height:
-        pprevBlock.height !== null && !isNaN(pprevBlock.height)
+        pprevBlock.height !== null && !Number.isNaN(pprevBlock.height)
           ? toLong(pprevBlock.height)
           : toLong(0),
-      type: 'block',
+      type: "block",
+      nextHeight: toLong(-1),
       txCount: pprevBlock.txs ? pprevBlock.txs.length : 0,
     });
 
@@ -287,14 +267,16 @@ async function startPolling(): Promise<void> {
   if (!isPollingStarted) {
     isPollingStarted = true;
     log.info(
-      'polling for new blocks every ' + POLLTIME_DELAY_SECONDS + ' seconds'
+      "polling for new blocks every " + POLLTIME_DELAY_SECONDS + " seconds"
     );
   }
 
   const nodeInfo = await getNodeInfo({ keepAlive: true });
 
   if (!nodeInfo) {
-    await new Promise((res) => setTimeout(res, POLLTIME_DELAY_SECONDS * 1000));
+    await new Promise((resolve) =>
+      setTimeout(resolve, POLLTIME_DELAY_SECONDS * 1000)
+    );
     return startPolling();
   }
 
@@ -303,11 +285,13 @@ async function startPolling(): Promise<void> {
   if (nodeInfo.current === topHash) {
     // wait before polling again
 
-    await new Promise((res) => setTimeout(res, POLLTIME_DELAY_SECONDS * 1000));
+    await new Promise((resolve) =>
+      setTimeout(resolve, POLLTIME_DELAY_SECONDS * 1000)
+    );
     return startPolling();
   } else {
     const currentRemoteBlock = await fetchBlockByHash(nodeInfo.current);
-    let previousBlock = await fetchBlockByHash(
+    const previousBlock = await fetchBlockByHash(
       currentRemoteBlock.previous_block
     );
 
@@ -315,14 +299,14 @@ async function startPolling(): Promise<void> {
     // fork recovery
     if (previousBlock.indep_hash !== topHash) {
       log.info(
-        'blocks out of sync with the remote node ' +
+        "blocks out of sync with the remote node " +
           previousBlock.indep_hash +
-          '!= ' +
+          "!= " +
           topHash
       );
       await resolveFork(currentRemoteBlock);
       await pWaitFor(() => blockQueue.isEmpty());
-      log.info('blocks are back in sync!');
+      log.info("blocks are back in sync!");
     } else {
       const newBlock = await queryGetBlock({
         height: nodeInfo.height,
@@ -330,22 +314,23 @@ async function startPolling(): Promise<void> {
       });
       if (newBlock !== undefined) {
         const newBlockHeight =
-          newBlock.height !== null && !isNaN(newBlock.height)
+          newBlock.height !== null && !Number.isNaN(newBlock.height)
             ? toLong(newBlock.height)
             : toLong(0);
-        log.info('new block arrived at height ' + newBlockHeight.toString());
+        log.info("new block arrived at height " + newBlockHeight.toString());
         const blockQueryCallback = makeBlockImportQuery(newBlock);
         blockQueue.enqueue({
+          nextHeight: toLong(-1),
           callback: blockQueryCallback,
           height: newBlockHeight,
-          type: 'block',
+          type: "block",
           txCount: newBlock.txs ? newBlock.txs.length : 0,
         });
       } else {
-        console.error('Querying for new tx failed');
+        console.error("Querying for new tx failed");
       }
-      await new Promise((res) =>
-        setTimeout(res, POLLTIME_DELAY_SECONDS * 1000)
+      await new Promise((resolve) =>
+        setTimeout(resolve, POLLTIME_DELAY_SECONDS * 1000)
       );
     }
   }
@@ -354,57 +339,70 @@ async function startPolling(): Promise<void> {
 
 const detectFirstRun = async (): Promise<boolean> => {
   const queryResponse = await cassandraClient.execute(
-    `SELECT height FROM ${KEYSPACE}.block LIMIT 1`
+    `SELECT height
+     FROM ${KEYSPACE}.block LIMIT 1`
   );
-  if (queryResponse && queryResponse.rowLength > 0) {
-    return false;
-  } else {
-    return true;
-  }
+  return queryResponse && queryResponse.rowLength > 0 ? false : true;
 };
 
 const findMissingBlocks = (
   hashList: string[],
   gauge: any
 ): Promise<UnsyncedBlock[]> => {
-  const hashListObj = hashList.reduce((acc, hash, height) => {
-    acc[height] = { height, hash };
-    return acc;
+  const hashListObject = hashList.reduce((accumulator, hash, height) => {
+    accumulator[height] = { height, hash };
+    return accumulator;
   }, {});
   gauge.enable();
-  log.info(`[database] Looking for missing blocks...`);
+  log.info("[database] Looking for missing blocks...");
   return new Promise(
-    (resolve: (val?: any) => void, reject: (err: string) => void) => {
+    (resolve: (value: any) => void, reject: (error: string) => void) => {
       cassandraClient.eachRow(
-        `SELECT height,indep_hash,timestamp,txs FROM ${KEYSPACE}.block`,
+        `SELECT height, indep_hash, timestamp, txs
+         FROM ${KEYSPACE}.block`,
         [],
         {
           autoPage: true,
           prepare: false,
-          executionProfile: 'fast',
+          executionProfile: "fast",
         },
         async function (n, row) {
           gauge.show(`Looking for missing blocks: ${n}/${hashList.length}`);
           if (SIGINT || SIGKILL) {
             process.exit(1);
           }
-          const matchingRow = hashListObj[row.height];
+          const matchingRow = hashListObject[row.height];
 
           if (
             matchingRow &&
-            R.equals(matchingRow['hash'], row.indep_hash) &&
-            R.equals(matchingRow['height'], row.height)
+            R.equals(matchingRow["hash"], row.indep_hash) &&
+            R.equals(matchingRow["height"], row.height)
           ) {
             // log.info('DEQUEUEING' + row.height);
-            delete hashListObj[row.height];
+            delete hashListObject[row.height];
           }
         },
-        async function (err, res) {
+        async function (error, result) {
           gauge.disable();
-          if (err) {
-            reject((err || '').toString());
+          if (error) {
+            reject((error || "").toString());
           } else {
-            resolve(R.pipe(R.values, R.sortBy(R.prop('height')))(hashListObj));
+            const returnValue = R.pipe(
+              R.values,
+              R.sortBy(R.prop("height")),
+              (missingBlocksList) =>
+                missingBlocksList.reduce((accumulator, value, index) => {
+                  // adding .next to each unsynced blocked
+                  const nextHeight =
+                    index + 1 < missingBlocksList.length
+                      ? missingBlocksList[index + 1]
+                      : -1;
+                  (value as any)["next"] = nextHeight;
+                  accumulator.push(value);
+                  return accumulator;
+                }, [])
+            )(hashListObject);
+            resolve(returnValue);
           }
         }
       );
@@ -426,25 +424,51 @@ export async function startSync({ isTesting = false }) {
     if (isMaybeMissingBlocks) {
       const blockGap = await Dr.findBlockGaps();
       if (!R.isEmpty(blockGap)) {
-        console.error('Found missing block(s):', blockGap);
+        console.error("Repairing missing block(s):", blockGap);
+        let doneSignalResolve;
+        const doneSignal = new Promise((resolve) => {
+          doneSignalResolve = resolve;
+        });
+        fork((error) => console.error(error))(() => {
+          doneSignalResolve();
+          console.log("Block repair done!");
+        })(
+          (parallel as any)(PARALLEL)(
+            blockGap.map((gap, index) =>
+              storeBlock({
+                height: gap,
+                next:
+                  index + 1 < blockGap.length
+                    ? blockGap[index + 1]
+                    : 99_999_999,
+              })
+            )
+          )
+        );
+        await doneSignal;
+        blockQueueState.nextHeight = toLong(R.head(blockGap) + 1);
+        await pWaitFor(() => blockQueue.isEmpty() && txQueue.isEmpty());
+        blockQueueState.nextHeight = toLong(-1);
       }
       // process.exit(1);
     }
 
-    await Dr.findTxGaps();
+    // await Dr.findTxGaps();
 
     try {
       lastBlock = (
         await cassandraClient.execute(
-          `SELECT height FROM ${KEYSPACE}.block_gql_desc LIMIT 1`
+          `SELECT height
+           FROM ${KEYSPACE}.block_gql_desc LIMIT 1`
         )
       ).rows[0].height;
       lastTx = (
         await cassandraClient.execute(
-          `SELECT tx_index FROM ${KEYSPACE}.tx_id_gql_desc LIMIT 1`
+          `SELECT tx_index
+           FROM ${KEYSPACE}.tx_id_gql_desc LIMIT 1`
         )
       ).rows[0].tx_index;
-    } catch (error) {
+    } catch {
       // console.error(error);
     }
   }
@@ -452,10 +476,10 @@ export async function startSync({ isTesting = false }) {
   const gauge = new Gauge(process.stderr, {
     // tty: 79,
     template: [
-      { type: 'progressbar', length: 0 },
-      { type: 'activityIndicator', kerning: 1, length: 2 },
-      { type: 'section', kerning: 1, default: '' },
-      { type: 'subsection', kerning: 1, default: '' },
+      { type: "progressbar", length: 0 },
+      { type: "activityIndicator", kerning: 1, length: 2 },
+      { type: "section", kerning: 1, default: "" },
+      { type: "subsection", kerning: 1, default: "" },
     ],
   });
   gauge.setTheme(trackerTheme);
@@ -464,9 +488,9 @@ export async function startSync({ isTesting = false }) {
     ? hashList.map((hash, height) => ({ hash, height }))
     : await findMissingBlocks(hashList, gauge);
 
-  let initialLastBlock = toLong(
+  const initialLastBlock = toLong(
     unsyncedBlocks[0] ? unsyncedBlocks[0].height : 0
-  ).add(-1);
+  );
 
   if (developmentSyncLength) {
     unsyncedBlocks = R.slice(
@@ -475,7 +499,7 @@ export async function startSync({ isTesting = false }) {
       unsyncedBlocks
     );
 
-    initialLastBlock = toLong(developmentSyncLength).sub(1);
+    // initialLastBlock = toLong(developmentSyncLength).sub(1);
     topTxIndex = initialLastBlock.mul(MAX_TX_PER_BLOCK);
     topHeight = initialLastBlock;
   } else {
@@ -483,21 +507,22 @@ export async function startSync({ isTesting = false }) {
     topHeight = lastBlock;
   }
 
-  blockQueueState.lastPrio = initialLastBlock;
-  txQueueState.lastPrio = initialLastBlock.mul(MAX_TX_PER_BLOCK);
+  blockQueueState.nextHeight = initialLastBlock.lt(1)
+    ? toLong(1)
+    : initialLastBlock;
+  txQueueState.nextTxIndex = initialLastBlock.mul(MAX_TX_PER_BLOCK);
 
   if (firstRun) {
     log.info(
-      `[sync] database seems to be empty, starting preperations for import...`
+      "[sync] database seems to be empty, starting preperations for import..."
     );
   } else if (R.isEmpty(unsyncedBlocks)) {
-    log.info(`[sync] fully synced db`);
+    log.info("[sync] fully synced db");
     startPolling();
     return;
   } else {
     log.info(
-      `[sync] missing ${unsyncedBlocks.length} blocks, starting sync...` +
-        unsyncedBlocks.map(JSON.stringify as any).join(', ')
+      `[sync] missing ${unsyncedBlocks.length} blocks, starting sync...`
     );
   }
   // check health
@@ -507,36 +532,49 @@ export async function startSync({ isTesting = false }) {
 
   gauge.enable();
 
-  const hashListLength = hashList.length;
-
   fork((reason: string | void) => {
-    console.error('Fatal', reason || '');
+    console.error("Fatal", reason || "");
     process.exit(1);
   })(() => {
     gauge.disable();
     pWaitFor(() => blockQueue.isEmpty() && txQueue.isEmpty()).then(() => {
-      log.info(`Database fully in sync with block_list`);
+      log.info("Database fully in sync with block_list");
       !isPollingStarted && startPolling();
     });
   })(
     parallel(PARALLEL)(
       (unsyncedBlocks as any).map(
-        ({ height, hash }: { height: any; hash: string }): any => {
+        ({
+          height,
+          hash,
+          next,
+        }: {
+          height: number;
+          hash: string;
+          next: number;
+        }): any => {
           const getProgress = () =>
             `${height}/${hashList.length}/${blockQueue.getSize()}`;
-          return storeBlock(height, hash, getProgress, gauge);
+          return storeBlock({ height, hash, next, getProgress, gauge });
         }
       )
     )
   );
 }
 
-export function storeBlock(
-  height: number,
-  hash: string,
-  getProgress: () => string,
-  gauge: any
-): unknown {
+export function storeBlock({
+  height,
+  hash,
+  next,
+  getProgress,
+  gauge,
+}: {
+  height: number;
+  next: number;
+  hash?: string;
+  getProgress?: () => string;
+  gauge?: any;
+}): unknown {
   let isCancelled = false;
   return Fluture((reject: any, resolve: any) => {
     async function getBlock(retry = 0) {
@@ -567,14 +605,15 @@ export function storeBlock(
           callback: makeBlockImportQuery(newSyncBlock),
           height: newSyncBlockHeight,
           txCount: newSyncBlock.txs ? newSyncBlock.txs.length : 0,
-          type: 'block',
+          nextHeight: toLong(next),
+          type: "block",
         });
         return;
       } else {
-        await new Promise((res) => setTimeout(res, 100));
+        await new Promise((resolve) => setTimeout(resolve, 100));
         if (retry >= 250) {
           log.info(`Could not retrieve block at height ${height}`);
-          reject('Failed to fetch block after 250 retries');
+          reject("Failed to fetch block after 250 retries");
         } else {
           return await getBlock(retry + 1);
         }
@@ -641,30 +680,26 @@ export async function storeTransaction(
         blockData
       ),
       txIndex: txIndex,
-      type: 'tx',
+      type: "tx",
     });
   } else {
-    console.error('Fatal network error');
+    console.error("Fatal network error");
     process.exit(1);
   }
 }
 
-export async function processAns(
-  id: string,
-  height: number,
-  retry: boolean = true
-) {
+export async function processAns(id: string, height: number, retry = true) {
   try {
     const ansPayload = await getDataFromChunks({
       id,
       startOffset: CassandraTypes.Long.fromNumber(0), // FIXEME
       endOffset: CassandraTypes.Long.fromNumber(0), // FIXME
     });
-    const ansTxs = await ansBundles.unbundleData(ansPayload.toString('utf-8'));
+    const ansTxs = await ansBundles.unbundleData(ansPayload.toString("utf-8"));
 
     await cacheANSEntries(ansTxs);
     await processANSTransaction(ansTxs, height);
-  } catch (error) {
+  } catch {
     if (retry) {
       await processAns(id, height, false);
     } else {
@@ -680,7 +715,7 @@ export async function processANSTransaction(
   ansTxs: Array<DataItemJson>,
   height: number
 ) {
-  for (let i = 0; i < ansTxs.length; i++) {
+  for (let index = 0; index < ansTxs.length; index++) {
     // const ansTx = ansTxs[i];
     // const { ansTags, input } = serializeAnsTransaction(ansTx, height);
     // streams.transaction.cache.write(input);
@@ -700,15 +735,15 @@ export async function processANSTransaction(
 }
 
 export function signalHook() {
-  process.on('SIGINT', () => {
+  process.on("SIGINT", () => {
     log.info(
-      '[database] ensuring all blocks are stored before exit, you may see some extra output in console'
+      "[database] ensuring all blocks are stored before exit, you may see some extra output in console"
     );
     SIGKILL = true;
     setInterval(() => {
       if (SIGINT === false) {
-        log.info('[database] block sync state preserved, now exiting');
-        console.log('');
+        log.info("[database] block sync state preserved, now exiting");
+        console.log("");
         process.exit();
       }
     }, 100);

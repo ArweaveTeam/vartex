@@ -10,7 +10,8 @@
     "node": ">=16"
   },
   "prettier": {
-    "singleQuote": true
+    "singleQuote": false,
+    "doubleQuote": true
   },
   "execMap": {
     "ts": "node --loader ts-node/esm"
@@ -20,7 +21,7 @@
   },
   "scripts": {
     "test": "yarn run gql && node --experimental-vm-modules node_modules/jest/bin/jest.js --verbose false --ci --forceExit --runInBand --detectOpenHandles test/*",
-    "lint": "eslint \"test/*.ts\" \"test/**/*.ts\" \"src/*.ts\" \"src/**/*.ts\" \"migrations/*.ts\" \"knexfile.ts\"",
+    "lint": "eslint src/**/*.ts",
     "gql": "node_modules/@graphql-codegen/cli/bin.js --config codegen.yml",
     "prestart": "yarn run gql && yarn run migrate:init",
     "start": "yarn run prestart && TS_NODE_FILES=true node --experimental-specifier-resolution=node --max-old-space-size=4096 --loader ts-node/esm.mjs src/Gateway.ts",
@@ -90,7 +91,8 @@
     "@typescript-eslint/eslint-plugin": "^4.28.5-alpha.0",
     "@typescript-eslint/parser": "^4.28.5-alpha.0",
     "eslint": "^7.31.0",
-    "eslint-config-google": "^0.14.0",
+    "eslint-config-prettier": "^8.3.0",
+    "eslint-plugin-unicorn": "^35.0.0",
     "jest": "^27.0.6",
     "nock": "^13.1.1",
     "ts-jest": "^27.0.4",

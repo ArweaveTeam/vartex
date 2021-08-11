@@ -1,9 +1,10 @@
-import * as cassandra from 'cassandra-driver';
-import * as R from 'rambda';
-import { types as CassandraTypes } from 'cassandra-driver';
-import { ImportQueue, Poa, TxOffset } from '../types/cassandra.types';
-import { KEYSPACE } from '../constants';
-import { config } from 'dotenv';
+/* eslint-disable unicorn/prefer-spread */
+import * as cassandra from "cassandra-driver";
+import * as R from "rambda";
+import { types as CassandraTypes } from "cassandra-driver";
+import { Poa, TxOffset } from "../types/cassandra.types";
+import { KEYSPACE } from "../constants";
+import { config } from "dotenv";
 import {
   MAX_TX_PER_BLOCK,
   getGqlBlockHeightAscPartitionName,
@@ -20,35 +21,35 @@ import {
   getGqlTxTagDescBucketName,
   getTxTagPartitionName,
   getTxTagBucketName,
-} from './constants.database';
+} from "./constants.database";
 
-process.env.NODE_ENV !== 'test' && config();
+process.env.NODE_ENV !== "test" && config();
 
 const isNumeric = (s: any) => !(isNaN as any)(s);
 
 export const toLong = (anyValue: any): CassandraTypes.Long =>
   (cassandra as any).types.Long.isLong(anyValue)
     ? anyValue
-    : !anyValue && typeof anyValue !== 'string'
+    : !anyValue && typeof anyValue !== "string"
     ? (cassandra as any).types.Long.fromNumber(0)
-    : typeof anyValue === 'string'
+    : typeof anyValue === "string"
     ? (cassandra as any).types.Long.fromString(
-        R.isEmpty(anyValue) ? '0' : anyValue
+        R.isEmpty(anyValue) ? "0" : anyValue
       )
     : (cassandra as any).types.Long.fromNumber(anyValue);
 
-let contactPoints = ['localhost:9042'];
+let contactPoints = ["localhost:9042"];
 try {
   contactPoints = process.env.CASSANDRA_CONTACT_POINTS
-  ? JSON.parse(process.env.CASSANDRA_CONTACT_POINTS)
-  : ['localhost:9042'];
-} catch (e) {
-  console.error('[cassandra] Invalid array of contact points.');
+    ? JSON.parse(process.env.CASSANDRA_CONTACT_POINTS)
+    : ["localhost:9042"];
+} catch {
+  console.error("[cassandra] Invalid array of contact points.");
 }
 
 export const cassandraClient = new cassandra.Client({
   contactPoints,
-  localDataCenter: 'datacenter1',
+  localDataCenter: "datacenter1",
   credentials: {
     username: process.env.CASSANDRA_USERNAME,
     password: process.env.CASSANDRA_PASSWORD,
@@ -63,28 +64,28 @@ export const cassandraClient = new cassandra.Client({
     defunctReadTimeoutThreshold: 64,
     keepAlive: true,
     keepAliveDelay: 0,
-    readTimeout: 30000,
+    readTimeout: 30_000,
     tcpNoDelay: true,
-    coalescingThreshold: 65536,
+    coalescingThreshold: 65_536,
   },
   protocolOptions: {
-    maxSchemaAgreementWaitSeconds: process.env['DB_TIMEOUT']
-      ? parseInt(process.env['DB_TIMEOUT'])
+    maxSchemaAgreementWaitSeconds: process.env["DB_TIMEOUT"]
+      ? Number.parseInt(process.env["DB_TIMEOUT"])
       : 30,
   },
   profiles: [
-    new cassandra.ExecutionProfile('fast', {
+    new cassandra.ExecutionProfile("fast", {
       readTimeout: 5000,
       consistency: cassandra.types.consistencies.any,
       serialConsistency: cassandra.types.consistencies.any,
     }),
-    new cassandra.ExecutionProfile('gql', {
+    new cassandra.ExecutionProfile("gql", {
       readTimeout: 5000,
       consistency: cassandra.types.consistencies.all,
       serialConsistency: cassandra.types.consistencies.serial,
     }),
-    new cassandra.ExecutionProfile('full', {
-      readTimeout: 15000,
+    new cassandra.ExecutionProfile("full", {
+      readTimeout: 15_000,
       consistency: cassandra.types.consistencies.all,
       serialConsistency: cassandra.types.consistencies.serial,
       graphOptions: {
@@ -95,137 +96,134 @@ export const cassandraClient = new cassandra.Client({
 });
 
 const poaKeys = [
-  'option',
-  'tx_path',
-  'data_path',
-  'chunk',
-  'block_hash',
-  'block_height',
+  "option",
+  "tx_path",
+  "data_path",
+  "chunk",
+  "block_hash",
+  "block_height",
 ];
 
-const blockGqlKeys = ['height', 'indep_hash'];
+const blockGqlKeys = ["height", "indep_hash"];
 
 const txTagKeys = [
-  'partition_id',
-  'bucket_id',
-  'tx_id',
-  'tx_index',
-  'tag_index',
-  'next_tag_index',
-  'name',
-  'value',
+  "partition_id",
+  "bucket_id",
+  "tx_id",
+  "tx_index",
+  "tag_index",
+  "next_tag_index",
+  "name",
+  "value",
 ];
 
-const txOffsetKeys = ['tx_id', 'size', 'offset'];
+const txOffsetKeys = ["tx_id", "size", "offset"];
 
 const transactionKeys = [
-  'tx_index',
-  'block_height',
-  'block_hash',
-  'data_root',
-  'data_size',
-  'data_tree',
-  'format',
-  'tx_id',
-  'last_tx',
-  'owner',
-  'quantity',
-  'reward',
-  'signature',
-  'target',
-  'tags',
-  'tag_count',
+  "tx_index",
+  "block_height",
+  "block_hash",
+  "data_root",
+  "data_size",
+  "data_tree",
+  "format",
+  "tx_id",
+  "last_tx",
+  "owner",
+  "quantity",
+  "reward",
+  "signature",
+  "target",
+  "tags",
+  "tag_count",
 ];
 
 const blockKeys = [
-  'block_size',
-  'cumulative_diff',
-  'diff',
-  'hash',
-  'hash_list_merkle',
-  'height',
-  'indep_hash',
-  'last_retarget',
-  'nonce',
-  'previous_block',
-  'reward_addr',
-  'reward_pool',
-  'tags',
-  'timestamp',
-  'tx_root',
-  'tx_tree',
-  'txs',
-  'txs_count',
-  'wallet_list',
-  'weave_size',
+  "block_size",
+  "cumulative_diff",
+  "diff",
+  "hash",
+  "hash_list_merkle",
+  "height",
+  "indep_hash",
+  "last_retarget",
+  "nonce",
+  "previous_block",
+  "reward_addr",
+  "reward_pool",
+  "tags",
+  "timestamp",
+  "tx_root",
+  "tx_tree",
+  "txs",
+  "txs_count",
+  "wallet_list",
+  "weave_size",
 ];
 
-const transformPoaKeys = (obj: any): Poa => {
-  const poa = obj['poa'] ? obj['poa'] : {};
-  const poaObj = {} as Poa;
-  poaObj['option'] = poa['option'] || '';
-  poaObj['tx_path'] = poa['tx_path'] || '';
-  poaObj['data_path'] = poa['data_path'] || '';
-  poaObj['chunk'] = poa['chunk'] || '';
-  poaObj['block_hash'] = obj['indep_hash'] || '';
-  poaObj['block_height'] = toLong(obj['height']);
-  return poaObj;
+const transformPoaKeys = (object: any): Poa => {
+  const poa = object["poa"] ? object["poa"] : {};
+  const poaObject = {} as Poa;
+  poaObject["option"] = poa["option"] || "";
+  poaObject["tx_path"] = poa["tx_path"] || "";
+  poaObject["data_path"] = poa["data_path"] || "";
+  poaObject["chunk"] = poa["chunk"] || "";
+  poaObject["block_hash"] = object["indep_hash"] || "";
+  poaObject["block_height"] = toLong(object["height"]);
+  return poaObject;
 };
 
 // note for optimization reasons
 // we may store the data differently than we serve it (eg. bigint->string)
-const transformBlockKey = (key: string, obj: any) => {
+const transformBlockKey = (key: string, object: any) => {
   switch (key) {
-    case 'txs_count': {
-      if (obj.txs) {
-        return obj.txs.length;
-      } else {
-        return 0;
-      }
+    case "txs_count": {
+      return object.txs ? object.txs.length : 0;
     }
 
-    case 'txs':
-    case 'tx_tree': {
-      const txs = obj[key] && Array.isArray(obj[key]) ? obj[key] : [];
+    case "txs":
+    case "tx_tree": {
+      const txs = object[key] && Array.isArray(object[key]) ? object[key] : [];
       return txs;
     }
-    case 'tags': {
+    case "tags": {
       return (
-        !R.isEmpty(obj.tags) &&
-        (obj.tags || []).map(({ name, value }) =>
+        !R.isEmpty(object.tags) &&
+        (object.tags || []).map(({ name, value }) =>
           CassandraTypes.Tuple.fromArray([name, value])
         )
       );
     }
 
-    case 'block_size':
-    case 'diff':
-    case 'height':
-    case 'last_retarget':
-    case 'reward_pool':
-    case 'timestamp':
-    case 'weave_size': {
-      return toLong(obj[key]);
+    case "block_size":
+    case "diff":
+    case "height":
+    case "last_retarget":
+    case "reward_pool":
+    case "timestamp":
+    case "weave_size": {
+      return toLong(object[key]);
     }
-    case 'cumulative_diff':
-    case 'hash':
-    case 'hash_list_merkle':
-    case 'indep_hash':
-    case 'nonce':
-    case 'previous_block':
-    case 'reward_addr':
-    case 'tx_root':
-    case 'wallet_list':
-    case 'last_retarget': {
-      if (obj[key] || isNumeric(obj[key])) {
-        return typeof obj[key] === 'string' ? obj[key] : obj[key].toString();
+    case "cumulative_diff":
+    case "hash":
+    case "hash_list_merkle":
+    case "indep_hash":
+    case "nonce":
+    case "previous_block":
+    case "reward_addr":
+    case "tx_root":
+    case "wallet_list": {
+      if (object[key] || isNumeric(object[key])) {
+        return typeof object[key] === "string"
+          ? object[key]
+          : object[key].toString();
       } else {
-        return '';
+        return "";
       }
     }
 
     default: {
-      console.error('Unknown key', key);
+      console.error("Unknown key", key);
     }
   }
 };
@@ -237,77 +235,73 @@ const transformTxKey = (
   blockData: any
 ) => {
   switch (key) {
-    case 'tx_index': {
+    case "tx_index": {
       return txIndex;
     }
-    case 'block_timestamp': {
-      return toLong(blockData['timestamp']);
+    case "block_timestamp": {
+      return toLong(blockData["timestamp"]);
     }
-    case 'block_height': {
-      return toLong(blockData['height']);
-    }
-
-    case 'block_hash': {
-      return blockData['indep_hash'];
+    case "block_height": {
+      return toLong(blockData["height"]);
     }
 
-    case 'data_tree': {
+    case "block_hash": {
+      return blockData["indep_hash"];
+    }
+
+    case "data_tree": {
       const txs = txData[key] && Array.isArray(txData[key]) ? txData[key] : [];
       return txs;
     }
-    case 'tags': {
+    case "tags": {
       return (txData.tags || []).map(({ name, value }) =>
         CassandraTypes.Tuple.fromArray([name, value])
       );
     }
-    case 'tag_count': {
-      if (txData.tags) {
-        return txData.tags.length;
-      } else {
-        return 0;
-      }
+    case "tag_count": {
+      return txData.tags ? txData.tags.length : 0;
     }
 
-    case 'tx_id': {
+    case "tx_id": {
       return txData.id;
     }
-    case 'data_root':
-    case 'last_tx':
-    case 'owner':
-    case 'signature':
-    case 'target': {
+    case "data_root":
+    case "last_tx":
+    case "owner":
+    case "signature":
+    case "target": {
       if (txData[key]) {
-        return typeof txData[key] === 'string'
+        return typeof txData[key] === "string"
           ? txData[key]
           : txData[key].toString();
       } else {
-        return '';
+        return "";
       }
     }
 
-    case 'data_size':
-    case 'quantity':
-    case 'reward': {
+    case "data_size":
+    case "quantity":
+    case "reward": {
       return toLong(txData[key]);
     }
 
-    case 'format': {
+    case "format": {
       return txData[key];
     }
 
     default: {
-      console.error('Unknown key', key);
+      console.error("Unknown key", key);
     }
   }
 };
 
-const transformTxOffsetKeys = (txObj: any): TxOffset => {
-  const txOffset = txObj['tx_offset'] ? txObj['tx_offset'] : {};
-  const txOffsetObj = {} as TxOffset;
-  txOffsetObj['tx_id'] = txObj['id'] || '';
-  txOffsetObj['size'] = toLong(txOffset['size'] || 0);
-  txOffsetObj['offset'] = toLong(txOffset['offset'] || -1);
-  return txOffsetObj;
+const transformTxOffsetKeys = (txObject: any): TxOffset => {
+  const txOffset = txObject["tx_offset"] ? txObject["tx_offset"] : {};
+  const txOffsetObject = {} as TxOffset;
+  txOffsetObject["tx_id"] = txObject["id"] || "";
+  txOffsetObject["size"] = toLong(txOffset["size"] || 0);
+  txOffsetObject["offset"] = toLong(txOffset["offset"] || -1);
+  return txOffsetObject;
 };
 
 interface Tag {
@@ -324,45 +318,45 @@ type UpstreamTag = { name: string; value: string };
 
 const transformTag = (
   tag: UpstreamTag,
-  txObj: any,
+  txObject: any,
   blockHeight: CassandraTypes.Long,
   txIndex: CassandraTypes.Long,
   index: number,
   nextIndex?: number
 ): Tag => {
-  const tagObj = {} as Tag;
-  tagObj['partition_id'] = getTxTagPartitionName(blockHeight);
-  tagObj['bucket_id'] = getTxTagBucketName(blockHeight);
-  tagObj['tag_index'] = index;
-  tagObj['next_tag_index'] = nextIndex || undefined;
-  tagObj['tx_index'] = txIndex;
-  tagObj['tx_id'] = txObj['id'];
-  tagObj['name'] = tag.name || '';
-  tagObj['value'] = tag.value || '';
-  return tagObj;
+  const tagObject = {} as Tag;
+  tagObject["partition_id"] = getTxTagPartitionName(blockHeight);
+  tagObject["bucket_id"] = getTxTagBucketName(blockHeight);
+  tagObject["tag_index"] = index;
+  tagObject["next_tag_index"] = nextIndex || undefined;
+  tagObject["tx_index"] = txIndex;
+  tagObject["tx_id"] = txObject["id"];
+  tagObject["name"] = tag.name || "";
+  tagObject["value"] = tag.value || "";
+  return tagObject;
 };
 
 const poaInsertQuery = `INSERT INTO ${KEYSPACE}.poa (${poaKeys.join(
-  ', '
-)}) VALUES (${poaKeys.map(() => '?').join(', ')})`;
+  ", "
+)}) VALUES (${poaKeys.map(() => "?").join(", ")})`;
 
 const blockInsertQuery = (nonNilBlockKeys: string[]) =>
   `INSERT INTO ${KEYSPACE}.block (${nonNilBlockKeys.join(
-    ', '
-  )}) VALUES (${nonNilBlockKeys.map(() => '?').join(', ')})`;
+    ", "
+  )}) VALUES (${nonNilBlockKeys.map(() => "?").join(", ")})`;
 
 const transactionInsertQuery = (nonNilTxKeys: string[]) =>
   `INSERT INTO ${KEYSPACE}.transaction (${nonNilTxKeys.join(
-    ', '
-  )}) VALUES (${nonNilTxKeys.map(() => '?').join(', ')})`;
+    ", "
+  )}) VALUES (${nonNilTxKeys.map(() => "?").join(", ")})`;
 
 const txOffsetInsertQuery = `INSERT INTO ${KEYSPACE}.tx_offset (${txOffsetKeys.join(
-  ', '
-)}) VALUES (${txOffsetKeys.map(() => '?').join(', ')})`;
+  ", "
+)}) VALUES (${txOffsetKeys.map(() => "?").join(", ")})`;
 
 const txTagsInsertQuery = `INSERT INTO ${KEYSPACE}.tx_tag (${txTagKeys.join(
-  ', '
-)}) VALUES (${txTagKeys.map(() => '?').join(', ')})`;
+  ", "
+)}) VALUES (${txTagKeys.map(() => "?").join(", ")})`;
 
 const blockHeightByHashInsertQuery = `INSERT INTO ${KEYSPACE}.block_height_by_block_hash (block_height, block_hash) VALUES (?, ?) IF NOT EXISTS`;
 
@@ -396,15 +390,15 @@ export const makeTxImportQuery = (
 ) => () => {
   let dataSize: CassandraTypes.Long | undefined;
   const nonNilTxKeys: string[] = [];
-  const txInsertParams: { [k: string]: any } = transactionKeys.reduce(
+  const txInsertParameters: { [k: string]: any } = transactionKeys.reduce(
     (paramz: Array<any>, key: string) => {
-      const nextVal = transformTxKey(key, txIndex, tx, blockData);
+      const nextValue = transformTxKey(key, txIndex, tx, blockData);
 
-      if (key === 'data_size') {
-        dataSize = nextVal;
+      if (key === "data_size") {
+        dataSize = nextValue;
       }
-      if (nextVal && !R.isEmpty(nextVal)) {
-        paramz.push(nextVal);
+      if (nextValue && !R.isEmpty(nextValue)) {
+        paramz.push(nextValue);
         nonNilTxKeys.push(key);
       }
 
@@ -417,8 +411,8 @@ export const makeTxImportQuery = (
     [
       cassandraClient.execute(
         transactionInsertQuery(nonNilTxKeys),
-        txInsertParams,
-        { prepare: true, executionProfile: 'full' }
+        txInsertParameters,
+        { prepare: true, executionProfile: "full" }
       ),
 
       cassandraClient.execute(
@@ -433,9 +427,9 @@ export const makeTxImportQuery = (
           tx.id,
           tx.owner,
           tx.target,
-          '', // FIXME ANS-102/ANS-104
+          "", // FIXME ANS-102/ANS-104
         ],
-        { prepare: true, executionProfile: 'full' }
+        { prepare: true, executionProfile: "full" }
       ),
       cassandraClient.execute(
         txIdGqlInsertDescQuery,
@@ -449,9 +443,9 @@ export const makeTxImportQuery = (
           tx.id,
           tx.owner,
           tx.target,
-          '', // FIXME ANS-102/ANS-104
+          "", // FIXME ANS-102/ANS-104
         ],
-        { prepare: true, executionProfile: 'full' }
+        { prepare: true, executionProfile: "full" }
       ),
     ]
       .concat(
@@ -463,14 +457,14 @@ export const makeTxImportQuery = (
               getGqlTxTagAscBucketName(height),
               txIndex,
               index,
-              tag.value || '',
-              tag.name || '',
+              tag.value || "",
+              tag.name || "",
               tx.id,
               tx.owner,
               tx.target,
-              '', // FIXME ANS-102/ANS-104
+              "", // FIXME ANS-102/ANS-104
             ],
-            { prepare: true, executionProfile: 'full' }
+            { prepare: true, executionProfile: "full" }
           )
         )
       )
@@ -483,14 +477,14 @@ export const makeTxImportQuery = (
               getGqlTxTagDescBucketName(height),
               txIndex,
               index,
-              tag.value || '',
-              tag.name || '',
+              tag.value || "",
+              tag.name || "",
               tx.id,
               tx.owner,
               tx.target,
-              '', // FIXME ANS-102/ANS-104
+              "", // FIXME ANS-102/ANS-104
             ],
-            { prepare: true, executionProfile: 'full' }
+            { prepare: true, executionProfile: "full" }
           )
         )
       )
@@ -508,7 +502,7 @@ export const makeTxImportQuery = (
             ),
             {
               prepare: true,
-              executionProfile: 'full',
+              executionProfile: "full",
             }
           )
         )
@@ -521,7 +515,7 @@ export const makeTxImportQuery = (
                 transformTxOffsetKeys(tx),
                 {
                   prepare: true,
-                  executionProfile: 'full',
+                  executionProfile: "full",
                 }
               ),
             ]
@@ -532,11 +526,11 @@ export const makeTxImportQuery = (
 
 export const makeBlockImportQuery = (input: any) => () => {
   const nonNilBlockKeys: string[] = [];
-  const blockInsertParams = blockKeys.reduce(
+  const blockInsertParameters = blockKeys.reduce(
     (paramz: Array<any>, key: string) => {
-      const nextVal = transformBlockKey(key, input);
-      if (nextVal && !R.isEmpty(nextVal)) {
-        paramz.push(nextVal);
+      const nextValue = transformBlockKey(key, input);
+      if (nextValue && !R.isEmpty(nextValue)) {
+        paramz.push(nextValue);
         nonNilBlockKeys.push(key);
       }
 
@@ -549,7 +543,7 @@ export const makeBlockImportQuery = (input: any) => () => {
   return Promise.all([
     cassandraClient.execute(poaInsertQuery, transformPoaKeys(input), {
       prepare: true,
-      executionProfile: 'full',
+      executionProfile: "full",
     }),
     cassandraClient.execute(
       blockGqlInsertAscQuery,
@@ -561,7 +555,7 @@ export const makeBlockImportQuery = (input: any) => () => {
         input.timestamp,
         input.previous_block,
       ],
-      { prepare: true, executionProfile: 'full' }
+      { prepare: true, executionProfile: "full" }
     ),
     cassandraClient.execute(
       blockGqlInsertDescQuery,
@@ -573,17 +567,17 @@ export const makeBlockImportQuery = (input: any) => () => {
         input.timestamp,
         input.previous_block,
       ],
-      { prepare: true, executionProfile: 'full' }
+      { prepare: true, executionProfile: "full" }
     ),
     cassandraClient.execute(
       blockHeightByHashInsertQuery,
       [height, input.indep_hash],
-      { prepare: true, executionProfile: 'full' }
+      { prepare: true, executionProfile: "full" }
     ),
     cassandraClient.execute(
       blockInsertQuery(nonNilBlockKeys),
-      blockInsertParams,
-      { prepare: true, executionProfile: 'full' }
+      blockInsertParameters,
+      { prepare: true, executionProfile: "full" }
     ),
   ]);
 };
@@ -597,9 +591,5 @@ export const getMaxHeightBlock = async (): Promise<
   );
 
   const row = response.rows[0];
-  if (row) {
-    return [row['indep_hash'], row['height']];
-  } else {
-    return ['', toLong(-1)];
-  }
+  return row ? [row["indep_hash"], row["height"]] : ["", toLong(-1)];
 };

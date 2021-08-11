@@ -1,7 +1,7 @@
-import got from 'got';
-import { b64UrlToBuffer } from '../utility/encoding.utility';
-import { grabNode } from './node.query';
-import { HTTP_TIMEOUT_SECONDS } from '../constants';
+import got from "got";
+import { b64UrlToBuffer } from "../utility/encoding.utility";
+import { grabNode } from "./node.query";
+import { HTTP_TIMEOUT_SECONDS } from "../constants";
 
 // export interface TransactionOffsetType {
 //   size: number;
@@ -45,7 +45,7 @@ export async function getChunk({
 }): Promise<ChunkType> {
   try {
     const body: any = await got.get(`${grabNode()}/chunk/${offset}`, {
-      responseType: 'json',
+      responseType: "json",
       resolveBodyOnly: true,
       timeout: HTTP_TIMEOUT_SECONDS * 1000,
       followRedirect: true,

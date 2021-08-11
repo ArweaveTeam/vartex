@@ -1,6 +1,6 @@
-import { types as CassandraTypes } from 'cassandra-driver';
-import { append, head, isEmpty as rIsEmpty, slice, sort } from 'rambda';
-import * as R from 'rambda';
+import { types as CassandraTypes } from "cassandra-driver";
+import { append, head, isEmpty as rIsEmpty, slice, sort } from "rambda";
+import * as R from "rambda";
 
 export default class PriorityQueue {
   protected queue = [];
@@ -20,7 +20,7 @@ export default class PriorityQueue {
 
   // remove the head item from the queue
   pop(): void {
-    this.queue = slice(1, Infinity)(this.queue);
+    this.queue = slice(1, Number.POSITIVE_INFINITY)(this.queue);
     this.sortQueue;
   }
 
@@ -40,7 +40,9 @@ export default class PriorityQueue {
   // hacky solution for tx imports
   hasNoneLt(height: CassandraTypes.Long): boolean {
     const answer = R.isEmpty(
-      R.filter((item) => height.lessThan(item.height), this.queue)
+      R.filter((item: { height: number | CassandraTypes.Long | string }) =>
+        height.lessThan(item.height)
+      )
     );
 
     return answer;

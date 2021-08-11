@@ -1,5 +1,6 @@
 import { types as CassandraTypes } from "cassandra-driver";
 import { append, head, isEmpty as rIsEmpty, slice, sort } from "rambda";
+import { toLong } from "../database/cassandra.database";
 import * as R from "rambda";
 
 export default class PriorityQueue {
@@ -39,11 +40,12 @@ export default class PriorityQueue {
 
   // hacky solution for tx imports
   hasNoneLt(height: CassandraTypes.Long): boolean {
-    const answer = R.isEmpty(
-      R.filter((item: { height: number | CassandraTypes.Long | string }) =>
-        height.lessThan(item.height)
-      )
-    );
+    const valsLt = R.filter(
+      (item: { height: number | CassandraTypes.Long | string }) =>
+        toLong(item.height).lessThan(height)
+    )(this.queue);
+
+    const answer = R.isEmpty(valsLt);
 
     return answer;
   }

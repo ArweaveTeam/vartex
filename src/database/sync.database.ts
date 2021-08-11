@@ -7,11 +7,12 @@ import Gauge from "gauge";
 import GaugeThemes from "gauge/themes";
 import { config } from "dotenv";
 import { types as CassandraTypes } from "cassandra-driver";
+import { getCache, putCache } from "../caching/cacache";
 import { KEYSPACE, POLLTIME_DELAY_SECONDS } from "../constants";
 import { MAX_TX_PER_BLOCK } from "./constants.database";
 import { log } from "../utility/log.utility";
 import { ansBundles } from "../utility/ans.utility";
-import { mkdir } from "../utility/file.utility";
+import mkdirp from "mkdirp";
 import {
   getDataFromChunks,
   getHashList,
@@ -42,10 +43,9 @@ import {
   toLong,
 } from "./cassandra.database";
 import * as Dr from "./doctor.database";
-import { cacheANSEntries } from "../caching/ans.entry.caching";
 
 process.env.NODE_ENV !== "test" && config();
-mkdir("cache");
+mkdirp.sync("cache");
 
 const trackerTheme = GaugeThemes.newTheme(
   GaugeThemes({
@@ -655,11 +655,24 @@ export async function storeTransaction(
   const currentTransaction = await getTransaction({ txId });
 
   if (currentTransaction) {
-    let maybeTxOffset = {};
+    let maybeTxOffset;
     const dataSize = toLong(currentTransaction.data_size);
     if (dataSize && dataSize.gt(0)) {
       maybeTxOffset = await getTxOffset({ txId });
     }
+
+    const integrity = await putCache(
+      txId,
+      JSON.stringify({
+        block: blockData,
+        tx: R.mergeAll([
+          currentTransaction,
+          maybeTxOffset ? { tx_offset: maybeTxOffset } : {},
+        ]),
+        height: height.toString(),
+        txIndex: txIndex.toString(),
+      })
+    );
 
     // streams.transaction.cache.write(input);
 
@@ -673,12 +686,12 @@ export async function storeTransaction(
 
     txQueue.enqueue({
       height,
-      callback: makeTxImportQuery(
-        height,
-        txIndex,
-        currentTransaction,
-        blockData
-      ),
+      callback: async () => {
+        const { height, txIndex, txOffset, tx, block } = JSON.parse(
+          await getCache(integrity)
+        );
+        await makeTxImportQuery(toLong(height), toLong(txIndex), tx, block)();
+      },
       txIndex: txIndex,
       type: "tx",
     });
@@ -688,51 +701,51 @@ export async function storeTransaction(
   }
 }
 
-export async function processAns(id: string, height: number, retry = true) {
-  try {
-    const ansPayload = await getDataFromChunks({
-      id,
-      startOffset: CassandraTypes.Long.fromNumber(0), // FIXEME
-      endOffset: CassandraTypes.Long.fromNumber(0), // FIXME
-    });
-    const ansTxs = await ansBundles.unbundleData(ansPayload.toString("utf-8"));
+// export async function processAns(id: string, height: number, retry = true) {
+//   try {
+//     const ansPayload = await getDataFromChunks({
+//       id,
+//       startOffset: CassandraTypes.Long.fromNumber(0), // FIXEME
+//       endOffset: CassandraTypes.Long.fromNumber(0), // FIXME
+//     });
+//     const ansTxs = await ansBundles.unbundleData(ansPayload.toString("utf-8"));
 
-    await cacheANSEntries(ansTxs);
-    await processANSTransaction(ansTxs, height);
-  } catch {
-    if (retry) {
-      await processAns(id, height, false);
-    } else {
-      log.info(
-        `[database] malformed ANS payload at height ${height} for tx ${id}`
-      );
-      // streams.rescan.cache.write(`${id}|${height}|ans\n`);
-    }
-  }
-}
+//     await cacheANSEntries(ansTxs);
+//     await processANSTransaction(ansTxs, height);
+//   } catch {
+//     if (retry) {
+//       await processAns(id, height, false);
+//     } else {
+//       log.info(
+//         `[database] malformed ANS payload at height ${height} for tx ${id}`
+//       );
+//       // streams.rescan.cache.write(`${id}|${height}|ans\n`);
+//     }
+//   }
+// }
 
-export async function processANSTransaction(
-  ansTxs: Array<DataItemJson>,
-  height: number
-) {
-  for (let index = 0; index < ansTxs.length; index++) {
-    // const ansTx = ansTxs[i];
-    // const { ansTags, input } = serializeAnsTransaction(ansTx, height);
-    // streams.transaction.cache.write(input);
-    // for (let ii = 0; ii < ansTags.length; ii++) {
-    //   const ansTag = ansTags[ii];
-    //   const { name, value } = ansTag;
-    // const tag: DatabaseTag = {
-    //   tx_id: ansTx.id,
-    //   index: ii,
-    //   name: name || '',
-    //   value: value || '',
-    // };
-    // const input = `"${tag.tx_id}"|"${tag.index}"|"${tag.name}"|"${tag.value}"\n`;
-    // streams.tags.cache.write(input);
-    // }
-  }
-}
+// export async function processANSTransaction(
+//   ansTxs: Array<DataItemJson>,
+//   height: number
+// ) {
+//   for (let index = 0; index < ansTxs.length; index++) {
+//     // const ansTx = ansTxs[i];
+//     // const { ansTags, input } = serializeAnsTransaction(ansTx, height);
+//     // streams.transaction.cache.write(input);
+//     // for (let ii = 0; ii < ansTags.length; ii++) {
+//     //   const ansTag = ansTags[ii];
+//     //   const { name, value } = ansTag;
+//     // const tag: DatabaseTag = {
+//     //   tx_id: ansTx.id,
+//     //   index: ii,
+//     //   name: name || '',
+//     //   value: value || '',
+//     // };
+//     // const input = `"${tag.tx_id}"|"${tag.index}"|"${tag.name}"|"${tag.value}"\n`;
+//     // streams.tags.cache.write(input);
+//     // }
+//   }
+// }
 
 export function signalHook() {
   process.on("SIGINT", () => {

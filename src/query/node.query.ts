@@ -8,11 +8,11 @@ import { log } from "../utility/log.utility";
 import { getChunk } from "./chunk.query";
 import { HTTP_TIMEOUT_SECONDS } from "../constants";
 
-let temporaryNodes = ["http://lon-2.eu-west-1.arweave.net:1984"];
+let temporaryNodes = [];
 try {
   temporaryNodes = process.env.ARWEAVE_NODES
     ? JSON.parse(process.env.ARWEAVE_NODES)
-    : ["http://lon-2.eu-west-1.arweave.net:1984"];
+    : ["http://lon-4.eu-west-1.arweave.net:1984"];
 } catch {
   console.error("[node] invalid list of nodes.");
 }
@@ -20,13 +20,7 @@ export const NODES = temporaryNodes;
 
 type WeightedNode = { id: string; weight: number };
 
-let nodeTemperatures: WeightedNode[] =
-  process.env.NODE_ENV === "test"
-    ? []
-    : [
-        { id: "https://arweave.net", weight: 2 },
-        { id: "http://lon-2.eu-west-1.arweave.net:1984", weight: 2 },
-      ];
+let nodeTemperatures: WeightedNode[] = [];
 
 const syncNodeTemperatures = () => {
   nodeTemperatures = NODES.map((url: string) => {
@@ -42,12 +36,14 @@ const syncNodeTemperatures = () => {
 
 export function grabNode() {
   R.isEmpty(nodeTemperatures) && syncNodeTemperatures();
-  const randomWeightedNode = rwc(nodeTemperatures);
+  let randomWeightedNode = rwc(nodeTemperatures);
+
   if (!randomWeightedNode) {
-    if (process.env.NODE_ENV === "test") {
-      return nodeTemperatures[0].id;
+    if (R.isEmpty(nodeTemperatures)) {
+      throw new Error("No more peers were found");
+    } else {
+      randomWeightedNode = nodeTemperatures[0].id;
     }
-    throw new Error("No more peers were found");
   }
   return randomWeightedNode.startsWith("http")
     ? randomWeightedNode
@@ -65,10 +61,12 @@ export function coolNode(url: string, kickIfLow = false) {
   const item = nodeTemperatures.find((index: WeightedNode) => index.id === url);
   if (item) {
     if (kickIfLow && item["weight"] < 2) {
-      log.info(`[network] peer ${url} kicked out because of unresponsiveness`);
-      nodeTemperatures = R.reject((temporary: WeightedNode) =>
-        R.equals(R.prop("id", temporary), url)
-      )(nodeTemperatures) as WeightedNode[];
+      log.info(
+        `[network] peer ${url} is not responding well, if at all, consider removing this node from your list of peers`
+      );
+      // nodeTemperatures = R.reject((temporary: WeightedNode) =>
+      //   R.equals(R.prop("id", temporary), url)
+      // )(nodeTemperatures) as WeightedNode[];
     }
     item["weight"] = Math.min(item["weight"] - 1, 1);
   }

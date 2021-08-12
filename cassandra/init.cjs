@@ -1,9 +1,9 @@
-'use strict';
-const fs = require('fs');
-const net = require('net');
-const cassandra = require('cassandra-driver');
+"use strict";
+const fs = require("fs");
+const net = require("net");
+const cassandra = require("cassandra-driver");
 
-require('dotenv').config();
+require("dotenv").config();
 checkEnvVars();
 
 /**
@@ -12,21 +12,21 @@ checkEnvVars();
 const retries = 5;
 let retryCount = 0;
 
-const KEYSPACE = process.env['KEYSPACE'] ? process.env['KEYSPACE'] : 'gateway';
+const KEYSPACE = process.env["KEYSPACE"] ? process.env["KEYSPACE"] : "gateway";
 
-let contactPoints = ['localhost:9042'];
+let contactPoints = ["localhost:9042"];
 try {
   contactPoints = process.env.CASSANDRA_CONTACT_POINTS
-  ? JSON.parse(process.env.CASSANDRA_CONTACT_POINTS)
-  : ['localhost:9042'];
+    ? JSON.parse(process.env.CASSANDRA_CONTACT_POINTS)
+    : ["localhost:9042"];
 } catch (e) {
-  console.error('[init] Invalid array of contact points.');
+  console.error("[init] Invalid array of contact points.");
 }
 
 async function connect() {
   const client = new cassandra.Client({
     contactPoints,
-    localDataCenter: 'datacenter1',
+    localDataCenter: "datacenter1",
     credentials: {
       username: process.env.CASSANDRA_USERNAME,
       password: process.env.CASSANDRA_PASSWORD,
@@ -224,16 +224,16 @@ async function connect() {
       return p;
     })
     .then(() => {
-      console.log('[cassandra] init done');
+      console.log("[cassandra] init done");
       process.exit(0);
     })
     .catch((error) => {
       console.error(error);
 
-      console.error('ERRCODE: ', error.code);
+      console.error("ERRCODE: ", error.code);
 
-      if (error.code == 'ECONNREFUSED' && ++retryCount < retries) {
-        console.log('[cassandra] Retrying connection...');
+      if (error.code == "ECONNREFUSED" && ++retryCount < retries) {
+        console.log("[cassandra] Retrying connection...");
         setTimeout(connect, 10000);
         return;
       }
@@ -243,20 +243,16 @@ async function connect() {
 }
 connect();
 
-
 // -------------------------
 // Let's confirm every required env var is set, if not, we assume it's running on Docker
 function checkEnvVars() {
-  if (
-    !process.env.ARWEAVE_NODES ||
-    !process.env.ARWEAVE_NODES.length
-  ) {
-    process.env.ARWEAVE_NODES = '["http://lon-2.eu-west-1.arweave.net:1984"]';
-  } 
+  if (!process.env.ARWEAVE_NODES || !process.env.ARWEAVE_NODES.length) {
+    process.env.ARWEAVE_NODES = '["http://lon-4.eu-west-1.arweave.net:1984"]';
+  }
 
   if (!process.env.PORT || isNaN(process.env.PORT)) {
     process.env.PORT = 3000;
-  } 
+  }
 
   if (!process.env.PARALLEL || isNaN(process.env.PARALLEL)) {
     process.env.PARALLEL = 32;
@@ -264,14 +260,14 @@ function checkEnvVars() {
 
   if (!process.env.DB_TIMEOUT || isNaN(process.env.DB_TIMEOUT)) {
     process.env.DB_TIMEOUT = 30;
-  } 
+  }
 
   if (
     !process.env.HTTP_TIMEOUT_SECONDS ||
     isNaN(process.env.HTTP_TIMEOUT_SECONDS)
   ) {
     process.env.HTTP_TIMEOUT_SECONDS = 15;
-  } 
+  }
 
   if (
     !process.env.CASSANDRA_CONTACT_POINTS ||
@@ -281,25 +277,27 @@ function checkEnvVars() {
   }
 
   if (!process.env.KEYSPACE || !process.env.KEYSPACE.length) {
-    process.env.KEYSPACE = 'gateway';
-  } 
+    process.env.KEYSPACE = "gateway";
+  }
 
   if (
     !process.env.CASSANDRA_USERNAME ||
     !process.env.CASSANDRA_USERNAME.length
   ) {
-    process.env.CASSANDRA_USERNAME = 'cassandra';
-  } 
+    process.env.CASSANDRA_USERNAME = "cassandra";
+  }
 
   if (
     !process.env.CASSANDRA_PASSWORD ||
     !process.env.CASSANDRA_PASSWORD.length
   ) {
-    process.env.CASSANDRA_PASSWORD = 'cassandra';
+    process.env.CASSANDRA_PASSWORD = "cassandra";
   }
 
-  fs.writeFileSync('.env',
-  `ARWEAVE_NODES=${process.env.ARWEAVE_NODES}
+  if (!fs.existsSync(".env")) {
+    fs.writeFileSync(
+      ".env",
+      `ARWEAVE_NODES=${process.env.ARWEAVE_NODES}
   PORT=${process.env.PORT}
   PARALLEL=${process.env.PARALLEL}
   DB_TIMEOUT=${process.env.DB_TIMEOUT}
@@ -307,6 +305,11 @@ function checkEnvVars() {
   CASSANDRA_CONTACT_POINTS=${process.env.CASSANDRA_CONTACT_POINTS}
   KEYSPACE=${process.env.KEYSPACE}
   CASSANDRA_USERNAME=${process.env.CASSANDRA_USERNAME}
-  CASSANDRA_PASSWORD=${process.env.CASSANDRA_PASSWORD}`,
-  'utf8');
+  CASSANDRA_PASSWORD=${process.env.CASSANDRA_PASSWORD}`.replace(
+        /^\s+|\s+$/gm,
+        ""
+      ),
+      "utf8"
+    );
+  }
 }

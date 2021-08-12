@@ -3,8 +3,7 @@ node_modules
 package-lock.json
 .env
 .cache
-cache/*.csv
-cache/*.json
+cache/*
 .rescan
 .postgres
 logs

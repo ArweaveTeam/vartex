@@ -7,11 +7,12 @@ import Gauge from "gauge";
 import GaugeThemes from "gauge/themes";
 import { config } from "dotenv";
 import { types as CassandraTypes } from "cassandra-driver";
+import { getCache, putCache, rmCache } from "../caching/cacache";
 import { KEYSPACE, POLLTIME_DELAY_SECONDS } from "../constants";
 import { MAX_TX_PER_BLOCK } from "./constants.database";
 import { log } from "../utility/log.utility";
 import { ansBundles } from "../utility/ans.utility";
-import { mkdir } from "../utility/file.utility";
+import mkdirp from "mkdirp";
 import {
   getDataFromChunks,
   getHashList,
@@ -42,10 +43,9 @@ import {
   toLong,
 } from "./cassandra.database";
 import * as Dr from "./doctor.database";
-import { cacheANSEntries } from "../caching/ans.entry.caching";
 
 process.env.NODE_ENV !== "test" && config();
-mkdir("cache");
+mkdirp.sync("cache");
 
 const trackerTheme = GaugeThemes.newTheme(
   GaugeThemes({
@@ -129,13 +129,25 @@ const processBlockQueue = (
 
   queueSource.sortQueue();
   const peek = !queueSource.isEmpty() && queueSource.peek();
+  // console.error(
+  //   "|",
+  //   peek && peek.height.toString(),
+  //   "<=",
+  //   queueState.nextHeight.toString(),
+  //   "|",
+  //   "has noneLT",
+  //   queueSource.hasNoneLt(queueState.nextHeight),
+  //   "|"
+  // );
 
   if (
     (CassandraTypes.Long.isLong(peek.height) && isPollingStarted) ||
     (CassandraTypes.Long.isLong(peek.height) &&
+      txQueue.hasNoneLt(queueState.nextHeight) &&
       (queueState.nextHeight.lt(1) ||
         peek.height.lt(1) ||
-        peek.height.lessThanOrEqual(queueState.nextHeight)))
+        peek.height.lessThanOrEqual(queueState.nextHeight) ||
+        queueSource.hasNoneLt(queueState.nextHeight)))
   ) {
     queueState.isProcessing = true;
 
@@ -196,13 +208,13 @@ function startQueueProcessors() {
     blockQueueState.isStarted = true;
     setInterval(function processQ() {
       processBlockQueue(blockQueue, blockQueueState);
-    }, 100);
+    }, 120);
   }
   if (!txQueueState.isStarted) {
     txQueueState.isStarted = true;
     setInterval(function processTxQ() {
       processTxQueue(txQueue, txQueueState); // follow block height when syncing tx's
-    }, 100);
+    }, 80);
   }
 }
 
@@ -295,7 +307,6 @@ async function startPolling(): Promise<void> {
       currentRemoteBlock.previous_block
     );
 
-    // log.info('prevIndep: ' + previousBlock.indep_hash + ' topHash: ' + topHash);
     // fork recovery
     if (previousBlock.indep_hash !== topHash) {
       log.info(
@@ -437,10 +448,7 @@ export async function startSync({ isTesting = false }) {
             blockGap.map((gap, index) =>
               storeBlock({
                 height: gap,
-                next:
-                  index + 1 < blockGap.length
-                    ? blockGap[index + 1]
-                    : 99_999_999,
+                next: -1,
               })
             )
           )
@@ -576,7 +584,7 @@ export function storeBlock({
   gauge?: any;
 }): unknown {
   let isCancelled = false;
-  return Fluture((reject: any, resolve: any) => {
+  return Fluture((reject: any, fresolve: any) => {
     async function getBlock(retry = 0) {
       if (isPaused || isCancelled) {
         return;
@@ -590,24 +598,41 @@ export function storeBlock({
 
       if (newSyncBlock && newSyncBlock.height === height) {
         const newSyncBlockHeight = toLong(newSyncBlock.height);
+
         await Promise.all(
           (newSyncBlock.txs || []).map(async (txId: string, index: number) => {
             const txIndex = newSyncBlockHeight.mul(MAX_TX_PER_BLOCK).add(index);
-            await storeTransaction(
-              txId,
-              txIndex,
-              newSyncBlockHeight,
-              newSyncBlock
-            );
+            await new Promise((resolve) =>
+              setTimeout(
+                resolve,
+                toLong(index).div(Math.min(PARALLEL, 1)).toInt()
+              )
+            ); // no black-friday rush here!
+            storeTransaction(txId, txIndex, newSyncBlockHeight, newSyncBlock);
           })
         );
+
+        const integrity = await putCache(
+          newSyncBlock.indep_hash,
+          JSON.stringify({
+            block: newSyncBlock,
+            height: newSyncBlockHeight.toString(),
+            nextHeight: `${next ? next : newSyncBlockHeight.add(1).toString()}`,
+          })
+        );
+
         blockQueue.enqueue({
-          callback: makeBlockImportQuery(newSyncBlock),
+          callback: async () => {
+            const { block } = JSON.parse(await getCache(integrity));
+            await makeBlockImportQuery(block)();
+            await rmCache(block.indep_hash);
+          },
           height: newSyncBlockHeight,
           txCount: newSyncBlock.txs ? newSyncBlock.txs.length : 0,
           nextHeight: toLong(next),
           type: "block",
         });
+        fresolve(true);
         return;
       } else {
         await new Promise((resolve) => setTimeout(resolve, 100));
@@ -627,9 +652,7 @@ export function storeBlock({
         blockQueue.isEmpty() ||
         blockQueue.peek().height.gt(height) ||
         blockQueue.getSize() < PARALLEL + 1
-    )
-      .then(() => getBlock())
-      .then(resolve);
+    ).then(() => getBlock());
 
     return () => {
       isCancelled = true;
@@ -645,92 +668,52 @@ export async function storeTransaction(
 ) {
   txQueue.sortQueue();
 
-  await pWaitFor(
-    () =>
+  await pWaitFor(() => {
+    return (
       txQueue.isEmpty() ||
       txQueue.peek().txIndex.gt(txIndex) ||
       txQueue.getSize() < PARALLEL + 1
-  );
+    );
+  });
 
   const currentTransaction = await getTransaction({ txId });
 
   if (currentTransaction) {
-    let maybeTxOffset = {};
+    let maybeTxOffset;
     const dataSize = toLong(currentTransaction.data_size);
     if (dataSize && dataSize.gt(0)) {
       maybeTxOffset = await getTxOffset({ txId });
     }
 
-    // streams.transaction.cache.write(input);
-
-    // storeTags(formattedTransaction.id, preservedTags);
-
-    // const ans102 = tagValue(preservedTags, 'Bundle-Type') === 'ANS-102';
-
-    // if (ans102) {
-    //   await processAns(formattedTransaction.id, height);
-    // }
+    const integrity = await putCache(
+      txId,
+      JSON.stringify({
+        block: blockData,
+        tx: R.mergeAll([
+          currentTransaction,
+          maybeTxOffset ? { tx_offset: maybeTxOffset } : {},
+        ]),
+        height: height.toString(),
+        index: txIndex.toString(),
+      })
+    );
 
     txQueue.enqueue({
       height,
-      callback: makeTxImportQuery(
-        height,
-        txIndex,
-        currentTransaction,
-        blockData
-      ),
-      txIndex: txIndex,
+      callback: async () => {
+        const { height, index, txOffset, tx, block } = JSON.parse(
+          await getCache(integrity)
+        );
+        await makeTxImportQuery(toLong(height), toLong(txIndex), tx, block)();
+        await rmCache(txId);
+      },
+      txIndex,
       type: "tx",
     });
+    return;
   } else {
     console.error("Fatal network error");
     process.exit(1);
-  }
-}
-
-export async function processAns(id: string, height: number, retry = true) {
-  try {
-    const ansPayload = await getDataFromChunks({
-      id,
-      startOffset: CassandraTypes.Long.fromNumber(0), // FIXEME
-      endOffset: CassandraTypes.Long.fromNumber(0), // FIXME
-    });
-    const ansTxs = await ansBundles.unbundleData(ansPayload.toString("utf-8"));
-
-    await cacheANSEntries(ansTxs);
-    await processANSTransaction(ansTxs, height);
-  } catch {
-    if (retry) {
-      await processAns(id, height, false);
-    } else {
-      log.info(
-        `[database] malformed ANS payload at height ${height} for tx ${id}`
-      );
-      // streams.rescan.cache.write(`${id}|${height}|ans\n`);
-    }
-  }
-}
-
-export async function processANSTransaction(
-  ansTxs: Array<DataItemJson>,
-  height: number
-) {
-  for (let index = 0; index < ansTxs.length; index++) {
-    // const ansTx = ansTxs[i];
-    // const { ansTags, input } = serializeAnsTransaction(ansTx, height);
-    // streams.transaction.cache.write(input);
-    // for (let ii = 0; ii < ansTags.length; ii++) {
-    //   const ansTag = ansTags[ii];
-    //   const { name, value } = ansTag;
-    // const tag: DatabaseTag = {
-    //   tx_id: ansTx.id,
-    //   index: ii,
-    //   name: name || '',
-    //   value: value || '',
-    // };
-    // const input = `"${tag.tx_id}"|"${tag.index}"|"${tag.name}"|"${tag.value}"\n`;
-    // streams.tags.cache.write(input);
-    // }
   }
 }
 

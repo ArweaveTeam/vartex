@@ -129,13 +129,25 @@ const processBlockQueue = (
 
   queueSource.sortQueue();
   const peek = !queueSource.isEmpty() && queueSource.peek();
+  // console.error(
+  //   "|",
+  //   peek && peek.height.toString(),
+  //   "<=",
+  //   queueState.nextHeight.toString(),
+  //   "|",
+  //   "has noneLT",
+  //   queueSource.hasNoneLt(queueState.nextHeight),
+  //   "|"
+  // );
 
   if (
     (CassandraTypes.Long.isLong(peek.height) && isPollingStarted) ||
     (CassandraTypes.Long.isLong(peek.height) &&
+      txQueue.hasNoneLt(queueState.nextHeight) &&
       (queueState.nextHeight.lt(1) ||
         peek.height.lt(1) ||
-        peek.height.lessThanOrEqual(queueState.nextHeight)))
+        peek.height.lessThanOrEqual(queueState.nextHeight) ||
+        queueSource.hasNoneLt(queueState.nextHeight)))
   ) {
     queueState.isProcessing = true;
 
@@ -196,13 +208,13 @@ function startQueueProcessors() {
     blockQueueState.isStarted = true;
     setInterval(function processQ() {
       processBlockQueue(blockQueue, blockQueueState);
-    }, 100);
+    }, 120);
   }
   if (!txQueueState.isStarted) {
     txQueueState.isStarted = true;
     setInterval(function processTxQ() {
       processTxQueue(txQueue, txQueueState); // follow block height when syncing tx's
-    }, 100);
+    }, 80);
   }
 }
 
@@ -295,7 +307,6 @@ async function startPolling(): Promise<void> {
       currentRemoteBlock.previous_block
     );
 
-    // log.info('prevIndep: ' + previousBlock.indep_hash + ' topHash: ' + topHash);
     // fork recovery
     if (previousBlock.indep_hash !== topHash) {
       log.info(
@@ -437,10 +448,7 @@ export async function startSync({ isTesting = false }) {
             blockGap.map((gap, index) =>
               storeBlock({
                 height: gap,
-                next:
-                  index + 1 < blockGap.length
-                    ? blockGap[index + 1]
-                    : 99_999_999,
+                next: -1,
               })
             )
           )
@@ -576,7 +584,7 @@ export function storeBlock({
   gauge?: any;
 }): unknown {
   let isCancelled = false;
-  return Fluture((reject: any, resolve: any) => {
+  return Fluture((reject: any, fresolve: any) => {
     async function getBlock(retry = 0) {
       if (isPaused || isCancelled) {
         return;
@@ -590,24 +598,41 @@ export function storeBlock({
 
       if (newSyncBlock && newSyncBlock.height === height) {
         const newSyncBlockHeight = toLong(newSyncBlock.height);
+
         await Promise.all(
           (newSyncBlock.txs || []).map(async (txId: string, index: number) => {
             const txIndex = newSyncBlockHeight.mul(MAX_TX_PER_BLOCK).add(index);
-            await storeTransaction(
-              txId,
-              txIndex,
-              newSyncBlockHeight,
-              newSyncBlock
-            );
+            await new Promise((resolve) =>
+              setTimeout(
+                resolve,
+                toLong(index).div(Math.min(PARALLEL, 1)).toInt()
+              )
+            ); // no black-friday rush here!
+            storeTransaction(txId, txIndex, newSyncBlockHeight, newSyncBlock);
           })
         );
+
+        const integrity = await putCache(
+          newSyncBlock.indep_hash,
+          JSON.stringify({
+            block: newSyncBlock,
+            height: newSyncBlockHeight.toString(),
+            nextHeight: `${next ? next : newSyncBlockHeight.add(1).toString()}`,
+          })
+        );
+
         blockQueue.enqueue({
-          callback: makeBlockImportQuery(newSyncBlock),
+          callback: async () => {
+            const { block } = JSON.parse(await getCache(integrity));
+            await makeBlockImportQuery(block)();
+            await rmCache(block.indep_hash);
+          },
           height: newSyncBlockHeight,
           txCount: newSyncBlock.txs ? newSyncBlock.txs.length : 0,
           nextHeight: toLong(next),
           type: "block",
         });
+        fresolve(true);
         return;
       } else {
         await new Promise((resolve) => setTimeout(resolve, 100));
@@ -627,9 +652,7 @@ export function storeBlock({
         blockQueue.isEmpty() ||
         blockQueue.peek().height.gt(height) ||
         blockQueue.getSize() < PARALLEL + 1
-    )
-      .then(() => getBlock())
-      .then(resolve);
+    ).then(() => getBlock());
 
     return () => {
       isCancelled = true;
@@ -645,12 +668,13 @@ export async function storeTransaction(
 ) {
   txQueue.sortQueue();
 
-  await pWaitFor(
-    () =>
+  await pWaitFor(() => {
+    return (
       txQueue.isEmpty() ||
       txQueue.peek().txIndex.gt(txIndex) ||
       txQueue.getSize() < PARALLEL + 1
-  );
+    );
+  });
 
   const currentTransaction = await getTransaction({ txId });
 
@@ -686,6 +710,7 @@ export async function storeTransaction(
       txIndex,
       type: "tx",
     });
+    return;
   } else {
     console.error("Fatal network error");
     process.exit(1);

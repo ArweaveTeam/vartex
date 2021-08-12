@@ -109,36 +109,9 @@ describe("database sync test suite", function () {
       offset: 100,
     })[0];
 
-    process.stderr.write(
-      "LASTPRE: " + JSON.stringify(R.last(appState.get("mockBlocks"))) + "\n"
-    );
-
     appState.set("mockBlocks", R.append(nextBlock, appState.get("mockBlocks")));
-    process.stderr.write("NEXT: " + JSON.stringify(nextBlock) + "\n");
-    process.stderr.write(
-      "LAST: " + JSON.stringify(R.last(appState.get("mockBlocks"))) + "\n"
-    );
-
-    process.stderr.write(
-      "LASTHEIGHTPRE: " + JSON.stringify(appState.get("lastBlockHeight")) + "\n"
-    );
-
-    process.stderr.write(
-      "LASTHASHPRE: " + JSON.stringify(appState.get("lastBlockHash")) + "\n"
-    );
-
     appState.set("lastBlockHeight", nextBlock.height as number);
     appState.set("lastBlockHash", nextBlock.indep_hash as string);
-
-    process.stderr.write(
-      "LASTHEIGHTPOST: " +
-        JSON.stringify(appState.get("lastBlockHeight")) +
-        "\n"
-    );
-
-    process.stderr.write(
-      "LASTHASHPOST: " + JSON.stringify(appState.get("lastBlockHash")) + "\n"
-    );
 
     await runp;
 

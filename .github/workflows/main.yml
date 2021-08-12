@@ -22,7 +22,7 @@ jobs:
           sudo mkdir -p /var/lib/cassandra/data/data
           sudo mkdir -p /var/lib/cassandra/data/commitlog
           sudo chmod -R +666 /var/lib/cassandra/data
-          nix-shell --pure nix/sync-test.nix
+          nix-shell --pure nix/test.nix
   lint:
     runs-on: ubuntu-20.04
     steps:

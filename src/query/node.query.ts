@@ -98,7 +98,7 @@ export async function getNodeInfo({
       timeout: HTTP_TIMEOUT_SECONDS * 1000,
       followRedirect: true,
     });
-
+    process.stderr.write("currentBody: " + JSON.stringify(body) + "\n");
     warmNode(tryNode);
 
     return {

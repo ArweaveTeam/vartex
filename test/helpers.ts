@@ -195,20 +195,27 @@ export async function runGatewayOnce({
   });
 }
 
-export async function setupTestNode({ mockBlocks }) {
+export async function setupTestNode(appState) {
   const app = express();
 
   app.get("/hash_list", function (req, res) {
-    res.status(200).json(R.reverse(R.pluck("indep_hash", mockBlocks)));
+    res
+      .status(200)
+      .json(
+        R.reverse((R.pluck as any)("indep_hash", appState.get("mockBlocks")))
+      );
   });
 
   app.get("/info", function (req, res) {
-    res.status(200).json(lastBlock);
+    res.status(200).json({
+      height: appState.get("lastBlockHeight"),
+      current: appState.get("lastBlockHash"),
+    });
   });
 
   app.get("/block/height/:id", function (req, res) {
     const match = R.find(R.propEq("height", parseInt(req.params.id)))(
-      mockBlocks
+      appState.get("mockBlocks")
     );
     if (match) {
       res.status(200).json(match);
@@ -218,7 +225,9 @@ export async function setupTestNode({ mockBlocks }) {
   });
 
   app.get("/block/hash/:id", function (req, res) {
-    const match = R.find(R.propEq("indep_hash", req.params.id))(mockBlocks);
+    const match = R.find(R.propEq("indep_hash", req.params.id))(
+      appState.get("mockBlocks")
+    );
 
     if (match) {
       res.status(200).json(match);
@@ -232,6 +241,6 @@ export async function setupTestNode({ mockBlocks }) {
     res.status(404);
   });
 
-  srv = app.listen(PORT);
+  const srv = app.listen(12345);
   return { app, srv };
 }

@@ -294,6 +294,18 @@ async function startPolling(): Promise<void> {
 
   [topHash, topHeight] = await getMaxHeightBlock();
 
+  process.stderr.write(
+    "current: " +
+      nodeInfo.current +
+      "\n" +
+      "topHash: " +
+      topHash +
+      "\n" +
+      "topHeight: " +
+      topHeight +
+      "\n"
+  );
+
   if (nodeInfo.current === topHash) {
     // wait before polling again
 

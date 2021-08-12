@@ -8,21 +8,18 @@ import got from "got";
 import killPort from "kill-port";
 import * as helpers from "./helpers";
 
-const PORT = 12345;
+const appState: Map<string, any> = new Map();
 
 const exists = util.promisify(existsOrig);
 
-let mockBlocks: any[] = helpers.generateMockBlocks({ totalBlocks: 100 });
+appState.set(
+  "mockBlocks",
+  helpers.generateMockBlocks({ totalBlocks: 100 }) as any[]
+);
 
-const lastBlock: any = {
-  current: "",
-  height: -1,
-};
-
-const tmpNextBlock: any = R.last(mockBlocks);
-
-lastBlock["height"] = tmpNextBlock.height;
-lastBlock["current"] = tmpNextBlock.indep_hash;
+const tmpNextBlock: any = R.last(appState.get("mockBlocks"));
+appState.set("lastBlockHeight", tmpNextBlock.height as number);
+appState.set("lastBlockHash", tmpNextBlock.indep_hash as string);
 
 let app: any;
 let srv: any;
@@ -37,7 +34,7 @@ describe("database sync test suite", function () {
       contactPoints: ["localhost:9042"],
       localDataCenter: "datacenter1",
     });
-    const { srv, app } = await helpers.setupTestNode({ mockBlocks });
+    const { srv, app } = await helpers.setupTestNode(appState);
   });
 
   afterAll(async () => {
@@ -112,10 +109,36 @@ describe("database sync test suite", function () {
       offset: 100,
     })[0];
 
-    mockBlocks.push(nextBlock);
+    process.stderr.write(
+      "LASTPRE: " + JSON.stringify(R.last(appState.get("mockBlocks"))) + "\n"
+    );
 
-    lastBlock["height"] = nextBlock.height;
-    lastBlock["current"] = nextBlock.indep_hash;
+    appState.set("mockBlocks", R.append(nextBlock, appState.get("mockBlocks")));
+    process.stderr.write("NEXT: " + JSON.stringify(nextBlock) + "\n");
+    process.stderr.write(
+      "LAST: " + JSON.stringify(R.last(appState.get("mockBlocks"))) + "\n"
+    );
+
+    process.stderr.write(
+      "LASTHEIGHTPRE: " + JSON.stringify(appState.get("lastBlockHeight")) + "\n"
+    );
+
+    process.stderr.write(
+      "LASTHASHPRE: " + JSON.stringify(appState.get("lastBlockHash")) + "\n"
+    );
+
+    appState.set("lastBlockHeight", nextBlock.height as number);
+    appState.set("lastBlockHash", nextBlock.indep_hash as string);
+
+    process.stderr.write(
+      "LASTHEIGHTPOST: " +
+        JSON.stringify(appState.get("lastBlockHeight")) +
+        "\n"
+    );
+
+    process.stderr.write(
+      "LASTHASHPOST: " + JSON.stringify(appState.get("lastBlockHash")) + "\n"
+    );
 
     await runp;
 
@@ -165,22 +188,31 @@ describe("database sync test suite", function () {
       hashPrefix: "y",
     });
 
-    mockBlocks = R.splitWhen(R.propEq("height", 90))(mockBlocks)[0];
+    appState.set(
+      "mockBlocks",
+      R.splitWhen(R.propEq("height", 90))(appState.get("mockBlocks"))[0]
+    );
     nextFork = R.concat(
       [
         R.assoc(
           "previous_block",
-          R.last(mockBlocks).indep_hash,
+          (R.last(appState.get("mockBlocks")) as any).indep_hash,
           R.head(nextFork)
         ),
       ],
       R.slice(1, nextFork.length, nextFork)
     );
 
-    mockBlocks = R.concat(mockBlocks, nextFork);
+    appState.set("mockBlocks", R.concat(appState.get("mockBlocks"), nextFork));
 
-    lastBlock["height"] = R.last(mockBlocks).height;
-    lastBlock["current"] = R.last(mockBlocks).indep_hash;
+    appState.set(
+      "lastBlockHeight",
+      (R.last(appState.get("mockBlocks")) as any).height as number
+    );
+    appState.set(
+      "lastBlockHash",
+      (R.last(appState.get("mockBlocks")) as any).indep_hash as string
+    );
 
     await new Promise((resolve, reject) => {
       newForkPromiseResolve = resolve;

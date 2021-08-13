@@ -220,8 +220,10 @@ export async function runGatewayOnce({
   let proc = startGateway();
   proc.stderr.on("data", (log: string) => {
     if (shouldStop(log) && fullySyncPromiseResolve) {
-      fullySyncPromiseResolve = undefined;
-      setTimeout(fullySyncPromiseResolve, 0);
+      setTimeout(() => {
+        fullySyncPromiseResolve();
+        fullySyncPromiseResolve = undefined;
+      }, 0);
     }
 
     logs.push(log);

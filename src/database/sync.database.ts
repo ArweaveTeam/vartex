@@ -167,7 +167,7 @@ const processBlockQueue = (
           ? toLong(queueSource.peek().nextHeight)
           : toLong(-1);
 
-      peek.fresolve();
+      peek.fresolve && peek.fresolve();
       if (queueSource.isEmpty() && txQueue.isEmpty()) {
         log.info("import queues have been consumed");
       }

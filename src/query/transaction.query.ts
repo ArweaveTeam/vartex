@@ -69,7 +69,7 @@ export async function getTxOffset({
 }: {
   txId: string;
   retry?: number;
-}): Promise<TransactionType | undefined> {
+}): Promise<{size: number, offset: number} | undefined> {
   const tryNode = grabNode();
   let jsonPayload;
   try {
@@ -82,7 +82,7 @@ export async function getTxOffset({
     return new Promise((resolve) => setTimeout(resolve, 10 + 2 * retry)).then(
       () => {
         if (retry < 100) {
-          return getTransaction({ txId, retry: retry + 1 });
+          return getTxOffset({ txId });
         } else {
           console.error(
             "Failed to establish connection to any specified node after 100 retries"
@@ -91,9 +91,9 @@ export async function getTxOffset({
         }
       }
     );
-    warmNode(tryNode);
-    return jsonPayload;
   }
+  warmNode(tryNode);
+  return { size: +jsonPayload["size"], offset: +jsonPayload["offset"] };
 }
 
 export function toB64url(input: string): Base64UrlEncodedString {

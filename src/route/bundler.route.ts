@@ -3,7 +3,6 @@ import { deepHash } from "ans104";
 import { stringToBuffer } from "arweave/node/lib/utils";
 import base64url from "base64url";
 import Arweave from "arweave";
-import { tmpName } from "tmp-promise";
 import * as fs from "node:fs";
 import { pipeline } from "node:stream/promises";
 
@@ -16,7 +15,7 @@ export async function newDataItem(
     request: Request,
     response: Response
 ): Promise<void> {
-    const stream = fs.createWriteStream("SOME_CACHE/" + request.header("bnd.data.id"));
+    const stream = fs.createWriteStream("cache/" + request.header("bnd.data.id"));
     await pipeline(
         request,
         stream

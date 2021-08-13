@@ -16,7 +16,7 @@ import mkdirp from "mkdirp";
 import {
   getDataFromChunks,
   getHashList,
-  getNodeInfo,
+  getNodeInfo, grabNode,
 } from "../query/node.query";
 import {
   fetchBlockByHash,
@@ -26,7 +26,7 @@ import {
   getTransaction,
   getTxOffset,
   tagValue,
-  Tag,
+  Tag, TransactionType,
 } from "../query/transaction.query";
 import {
   DeleteRowData,
@@ -43,6 +43,9 @@ import {
   toLong,
 } from "./cassandra.database";
 import * as Dr from "./doctor.database";
+import got from "got";
+import { byteArrayToLong, longTo32ByteArray } from "ans104/lib/utils";
+import { isAns104, processAns104Transaction } from "./ans104.database";
 
 process.env.NODE_ENV !== "test" && config();
 mkdirp.sync("cache");
@@ -679,6 +682,10 @@ export async function storeTransaction(
   const currentTransaction = await getTransaction({ txId });
 
   if (currentTransaction) {
+    if (isAns104(currentTransaction)) {
+      processAns104Transaction(currentTransaction);
+    }
+
     let maybeTxOffset;
     const dataSize = toLong(currentTransaction.data_size);
     if (dataSize && dataSize.gt(0)) {
@@ -732,3 +739,5 @@ export function signalHook() {
     }, 100);
   });
 }
+
+

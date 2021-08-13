@@ -23,6 +23,7 @@ import { proxyGetRoute, proxyPostRoute } from "./route/proxy.route.js";
 import { hashListRoute } from "./route/hash-list.route.js";
 import { koiLogger, koiLogsRoute, koiLogsRawRoute } from "./route/koi.route.js";
 import { startSync } from "./database/sync.database.js";
+import { newDataItem, verifySender } from "./route/bundler.route";
 
 const { default: expressPlayground } = gpmeImport as any;
 
@@ -64,6 +65,8 @@ export function start(): void {
   app.get(/\/price.*/, proxyGetRoute);
   app.get(/\/wallet.*/, proxyGetRoute);
   app.get(/\/[a-z0-9_-]{43}/i, proxyGetRoute);
+
+  app.post("/bundler/tx", verifySender, newDataItem)
 
   // graphql endpoints
   const graphqlServer = graphServer({ introspection: true });

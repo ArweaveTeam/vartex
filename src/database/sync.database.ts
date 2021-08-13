@@ -167,6 +167,7 @@ const processBlockQueue = (
           ? toLong(queueSource.peek().nextHeight)
           : toLong(-1);
 
+      peek.fresolve && peek.fresolve();
       if (queueSource.isEmpty() && txQueue.isEmpty()) {
         log.info("import queues have been consumed");
       }
@@ -634,10 +635,9 @@ export function storeBlock({
           height: newSyncBlockHeight,
           txCount: newSyncBlock.txs ? newSyncBlock.txs.length : 0,
           nextHeight: toLong(next),
+          fresolve,
           type: "block",
         });
-        fresolve(true);
-        return;
       } else {
         await new Promise((resolve) => setTimeout(resolve, 100));
         if (retry >= 250) {
@@ -650,14 +650,7 @@ export function storeBlock({
     }
 
     blockQueue.sortQueue();
-
-    pWaitFor(
-      () =>
-        blockQueue.isEmpty() ||
-        blockQueue.peek().height.gt(height) ||
-        blockQueue.getSize() < PARALLEL + 1,
-      { interval: 500 }
-    ).then(() => getBlock());
+    getBlock();
 
     return () => {
       isCancelled = true;

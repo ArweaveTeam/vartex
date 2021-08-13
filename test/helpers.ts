@@ -217,7 +217,9 @@ export async function runGatewayOnce({
       ? stopCondition(log.toString())
       : /fully synced db/g.test(log.toString()) ||
         /import queues have been consumed/g.test(log.toString());
+
   let proc = startGateway();
+
   proc.stderr.on("data", (log: string) => {
     if (shouldStop(log) && fullySyncPromiseResolve) {
       setTimeout(() => {
@@ -230,6 +232,7 @@ export async function runGatewayOnce({
     process.stderr.write(log);
     onLog && onLog(log);
   });
+
   proc.stdout.on("data", (log: string) => {
     if (shouldStop(log) && fullySyncPromiseResolve) {
       setTimeout(fullySyncPromiseResolve, 0);

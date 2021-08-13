@@ -75,7 +75,10 @@ describe("database sync test suite", function () {
       await fs.unlink("./cache/hash_list_test.json");
     }
 
-    const logs = await helpers.runGatewayOnce({});
+    const logs = await helpers.runGatewayOnce({
+      stopCondition: (log) =>
+        log ? /polling for new blocks/.test(log) : false,
+    });
 
     const queryResponse = await client.execute(
       "SELECT COUNT(*) FROM testway.block ALLOW FILTERING"
@@ -270,7 +273,7 @@ describe("graphql test suite", function () {
 
     const runp = helpers.runGatewayOnce({
       stopCondition: (log) => {
-        if (/fully in sync/g.test(log) && resolveReady) {
+        if (/polling for new blocks/g.test(log) && resolveReady) {
           resolveReady();
           resolveReady = undefined;
         }

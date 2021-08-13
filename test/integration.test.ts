@@ -1,80 +1,46 @@
 import * as R from "rambda";
+import got from "got";
 import cassandra, { types as CassandraTypes } from "cassandra-driver";
 import { exists as existsOrig } from "fs";
 import fs from "fs/promises";
 import { jest } from "@jest/globals";
 import util from "util";
-import got from "got";
-import express from "express";
-import killPort from "kill-port";
 import * as helpers from "./helpers";
 
-const PORT = 12345;
+const appState: Map<string, any> = new Map();
 
 const exists = util.promisify(existsOrig);
 
-let mockBlocks: any[] = helpers.generateMockBlocks({ totalBlocks: 100 });
+const { blocks: tmpBlocks, txs: tmpTxs } = helpers.generateMockBlocks({
+  totalBlocks: 100,
+});
 
-const lastBlock: any = {
-  current: "",
-  height: -1,
-};
+appState.set("mockBlocks", tmpBlocks);
 
-const tmpNextBlock: any = R.last(mockBlocks);
+appState.set("mockTxs", tmpTxs);
 
-lastBlock["height"] = tmpNextBlock.height;
-lastBlock["current"] = tmpNextBlock.indep_hash;
+const tmpNextBlock: any = R.last(appState.get("mockBlocks"));
+appState.set("lastBlockHeight", tmpNextBlock.height as number);
+appState.set("lastBlockHash", tmpNextBlock.indep_hash as string);
 
 let app: any;
 let srv: any;
 let proc: any;
 let client: any;
 
-describe("integration suite", function () {
+// process.stderr.write(JSON.stringify(appState.get("mockBlocks")));
+
+describe("database sync test suite", function () {
   jest.setTimeout(60000);
   beforeAll(async function () {
     await helpers.waitForCassandra();
-    client = new cassandra.Client({
-      contactPoints: ["localhost:9042"],
-      localDataCenter: "datacenter1",
-    });
-    app = express();
-    app.get("/hash_list", function (req, res) {
-      res.status(200).json(R.reverse(R.pluck("indep_hash", mockBlocks)));
-    });
-
-    app.get("/info", function (req, res) {
-      res.status(200).json(lastBlock);
-    });
-
-    app.get("/block/height/:id", function (req, res) {
-      const match = R.find(R.propEq("height", parseInt(req.params.id)))(
-        mockBlocks
-      );
-      if (match) {
-        res.status(200).json(match);
-      } else {
-        res.status(404);
-      }
-    });
-
-    app.get("/block/hash/:id", function (req, res) {
-      const match = R.find(R.propEq("indep_hash", req.params.id))(mockBlocks);
-      // console.error(req.params.id, req.params.id, match);
-      if (match) {
-        res.status(200).json(match);
-      } else {
-        res.status(404);
-      }
-    });
-
-    app.get("*", function (req, res) {
-      console.error(req);
-      res.status(404);
-      // res.status(200).json(R.pluck('indep_hash', mockBlocks));
-    });
-
-    srv = app.listen(PORT);
+    client =
+      client ||
+      new cassandra.Client({
+        contactPoints: ["localhost:9042"],
+        localDataCenter: "datacenter1",
+      });
+    const { srv, app } = await helpers.setupTestNode(appState);
   });
 
   afterAll(async () => {
@@ -94,7 +60,6 @@ describe("integration suite", function () {
       proc = undefined;
     }
 
-    await killPort(3000);
     await new Promise((resolve) => setTimeout(resolve, 1000));
   });
   beforeEach(async () => {
@@ -144,15 +109,15 @@ describe("integration suite", function () {
 
     await new Promise((resolve) => setTimeout(resolve, 2000));
 
-    const nextBlock: any = helpers.generateMockBlocks({
+    const { blocks: nextBlocks } = helpers.generateMockBlocks({
       totalBlocks: 1,
       offset: 100,
-    })[0];
+    });
+    const nextBlock = nextBlocks[0];
 
-    mockBlocks.push(nextBlock);
-
-    lastBlock["height"] = nextBlock.height;
-    lastBlock["current"] = nextBlock.indep_hash;
+    appState.set("mockBlocks", R.append(nextBlock, appState.get("mockBlocks")));
+    appState.set("lastBlockHeight", nextBlock.height as number);
+    appState.set("lastBlockHash", nextBlock.indep_hash as string);
 
     await runp;
 
@@ -192,32 +157,42 @@ describe("integration suite", function () {
     };
     proc.stderr.on("data", logCallback);
     proc.stdout.on("data", logCallback);
+
     await new Promise((resolve, reject) => {
       fullySyncPromiseResolve = resolve;
     });
 
-    let nextFork: any[] = helpers.generateMockBlocks({
+    let { blocks: nextFork } = helpers.generateMockBlocks({
       totalBlocks: 15,
       offset: 90,
       hashPrefix: "y",
     });
 
-    mockBlocks = R.splitWhen(R.propEq("height", 90))(mockBlocks)[0];
+    appState.set(
+      "mockBlocks",
+      R.splitWhen(R.propEq("height", 90))(appState.get("mockBlocks"))[0]
+    );
     nextFork = R.concat(
       [
         R.assoc(
           "previous_block",
-          R.last(mockBlocks).indep_hash,
+          (R.last(appState.get("mockBlocks")) as any).indep_hash,
           R.head(nextFork)
         ),
       ],
       R.slice(1, nextFork.length, nextFork)
     );
 
-    mockBlocks = R.concat(mockBlocks, nextFork);
+    appState.set("mockBlocks", R.concat(appState.get("mockBlocks"), nextFork));
 
-    lastBlock["height"] = R.last(mockBlocks).height;
-    lastBlock["current"] = R.last(mockBlocks).indep_hash;
+    appState.set(
+      "lastBlockHeight",
+      (R.last(appState.get("mockBlocks")) as any).height as number
+    );
+    appState.set(
+      "lastBlockHash",
+      (R.last(appState.get("mockBlocks")) as any).indep_hash as string
+    );
 
     await new Promise((resolve, reject) => {
       newForkPromiseResolve = resolve;
@@ -252,5 +227,87 @@ describe("integration suite", function () {
     expect(
       R.filter(R.equals({ height: 92, hash: "y92" }), result)
     ).toHaveLength(1);
+  });
+});
+
+describe("graphql test suite", function () {
+  beforeAll(async function () {
+    await helpers.waitForCassandra();
+    client =
+      client ||
+      new cassandra.Client({
+        contactPoints: ["localhost:9042"],
+        localDataCenter: "datacenter1",
+      });
+
+    const { blocks: mockBlocks, txs: mockTxs } = helpers.generateMockBlocks({
+      totalBlocks: 100,
+    });
+
+    appState.set("mockBlocks", mockBlocks);
+
+    appState.set("mockTxs", mockTxs);
+  });
+
+  beforeEach(async () => {
+    jest.resetModules();
+    jest.setTimeout(10000);
+  });
+
+  test("gql returns the last id", async () => {
+    if (await exists("./cache/hash_list_test.json")) {
+      await fs.unlink("./cache/hash_list_test.json");
+    }
+
+    await helpers.nuke();
+    await helpers.initDb();
+
+    let shouldStop = false;
+    let resolveReady;
+    const ready = new Promise((resolve) => {
+      resolveReady = resolve;
+    });
+
+    const runp = helpers.runGatewayOnce({
+      stopCondition: (log) => {
+        if (/fully in sync/g.test(log) && resolveReady) {
+          resolveReady();
+          resolveReady = undefined;
+        }
+        return shouldStop;
+      },
+    });
+
+    await ready;
+
+    const gqlResponse = await got
+      .post("http://localhost:3000/graphql", {
+        json: {
+          operationName: null,
+          variables: {},
+          query: `{
+          transactions(first: 1) {
+            edges {
+              node {
+                id
+              }
+            }
+          }
+        }`,
+        },
+        responseType: "json",
+      })
+      .json();
+
+    expect(gqlResponse).toEqual({
+      data: {
+        transactions: {
+          edges: [
+            { node: { id: (R.last(appState.get("mockTxs")) as any).id } },
+          ],
+        },
+      },
+    });
+    shouldStop = true;
   });
 });

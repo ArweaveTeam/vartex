@@ -1,4 +1,5 @@
 import * as R from "rambda";
+import express from "express";
 import net from "net";
 import path from "path";
 import killPort from "kill-port";
@@ -85,11 +86,62 @@ export function nuke(): Promise<string> {
   });
 }
 
+function randomString(length) {
+  let result = "";
+  const characters =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  const charactersLength = characters.length;
+  for (let i = 0; i < length; i++) {
+    result += characters.charAt(Math.floor(Math.random() * charactersLength));
+  }
+  return result;
+}
+
+export function generateRandomMockTxs() {
+  const template = {
+    data: "",
+    id: "",
+    last_tx: "",
+    owner: "",
+    quantity: 0,
+    reward: 0,
+    signature: "",
+    tags: [],
+    target: "",
+  };
+
+  const txsRange = R.range(0, Math.floor(Math.random() * 10));
+
+  const txs = txsRange.reduce(
+    ({ lastId, acc }) => {
+      const nextId = randomString(43);
+      const tagsRange = R.range(0, Math.floor(Math.random() * 10));
+      const nextTx = R.pipe(
+        R.assoc("id", nextId),
+        R.assoc("last_tx", lastId),
+        R.assoc("reward", Math.floor(Math.random() * 1000)),
+        R.assoc("quantity", Math.floor(Math.random() * 1000)),
+        R.assoc(
+          "tags",
+          tagsRange.map(() => ({
+            name: randomString(20),
+            value: randomString(20),
+          }))
+        )
+      )(template);
+      return { lastId: nextId, acc: R.append(nextTx, acc) };
+    },
+    { lastId: "", acc: [] }
+  );
+
+  return txs.acc;
+}
+
 export function generateMockBlocks({
   totalBlocks,
   offset = 0,
   hashPrefix = "x",
-}) {
+}): { blocks: any[]; txs: any[] } {
   const template = {
     nonce: "n1",
     previous_block: hashPrefix,
@@ -118,14 +170,22 @@ export function generateMockBlocks({
   };
 
   const blockHeights = R.range(offset, offset + totalBlocks);
+  let txs = [];
+  const blocks = blockHeights.map((height) => {
+    const thisTxs = generateRandomMockTxs();
+    txs = R.concat(txs, thisTxs);
 
-  return blockHeights.map((height) =>
-    R.pipe(
+    return R.pipe(
       R.assoc("height", height),
       R.assoc("indep_hash", `${hashPrefix}${height}`),
-      R.assoc("previous_block", `${hashPrefix}${height - 1}`)
-    )(template)
-  );
+      R.assoc("previous_block", `${hashPrefix}${height - 1}`),
+      R.assoc(
+        "txs",
+        thisTxs.map((tx) => tx.id)
+      )
+    )(template);
+  });
+  return { blocks, txs };
 }
 
 export function startGateway(): any {
@@ -192,4 +252,65 @@ export async function runGatewayOnce({
       resolve(logs.join(" "));
     };
   });
+}
+
+export async function setupTestNode(appState) {
+  const app = express();
+
+  app.get("/hash_list", function (req, res) {
+    res
+      .status(200)
+      .json(
+        R.reverse((R.pluck as any)("indep_hash", appState.get("mockBlocks")))
+      );
+  });
+
+  app.get("/info", function (req, res) {
+    res.status(200).json({
+      height: appState.get("lastBlockHeight"),
+      current: appState.get("lastBlockHash"),
+    });
+  });
+
+  app.get("/block/height/:id", function (req, res) {
+    const match = R.find(R.propEq("height", parseInt(req.params.id)))(
+      appState.get("mockBlocks")
+    );
+    if (match) {
+      res.status(200).json(match);
+    } else {
+      res.status(404);
+    }
+  });
+
+  app.get("/block/hash/:id", function (req, res) {
+    const match = R.find(R.propEq("indep_hash", req.params.id))(
+      appState.get("mockBlocks")
+    );
+
+    if (match) {
+      res.status(200).json(match);
+    } else {
+      res.status(404);
+    }
+  });
+
+  app.get("/tx/:id", function (req, res) {
+    const match = R.find(R.propEq("id", req.params.id))(
+      appState.get("mockTxs")
+    );
+
+    if (match) {
+      res.status(200).json(match);
+    } else {
+      res.status(404);
+    }
+  });
+
+  app.get("*", function (req, res) {
+    res.status(404);
+  });
+
+  const srv = app.listen(12345);
+  return { app, srv };
 }

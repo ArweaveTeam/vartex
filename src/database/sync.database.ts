@@ -316,7 +316,7 @@ async function startPolling(): Promise<void> {
           topHash
       );
       await resolveFork(currentRemoteBlock);
-      await pWaitFor(() => blockQueue.isEmpty());
+      await pWaitFor(() => blockQueue.isEmpty(), { interval: 500 });
       log.info("blocks are back in sync!");
     } else {
       const newBlock = await queryGetBlock({
@@ -455,7 +455,9 @@ export async function startSync({ isTesting = false }) {
         );
         await doneSignal;
         blockQueueState.nextHeight = toLong(R.head(blockGap) + 1);
-        await pWaitFor(() => blockQueue.isEmpty() && txQueue.isEmpty());
+        await pWaitFor(() => blockQueue.isEmpty() && txQueue.isEmpty(), {
+          interval: 1000,
+        });
         blockQueueState.nextHeight = toLong(-1);
       }
       // process.exit(1);
@@ -545,7 +547,9 @@ export async function startSync({ isTesting = false }) {
     process.exit(1);
   })(() => {
     gauge.disable();
-    pWaitFor(() => blockQueue.isEmpty() && txQueue.isEmpty()).then(() => {
+    pWaitFor(() => blockQueue.isEmpty() && txQueue.isEmpty(), {
+      interval: 1000,
+    }).then(() => {
       log.info("Database fully in sync with block_list");
       !isPollingStarted && startPolling();
     });
@@ -651,7 +655,8 @@ export function storeBlock({
       () =>
         blockQueue.isEmpty() ||
         blockQueue.peek().height.gt(height) ||
-        blockQueue.getSize() < PARALLEL + 1
+        blockQueue.getSize() < PARALLEL + 1,
+      { interval: 500 }
     ).then(() => getBlock());
 
     return () => {
@@ -668,13 +673,16 @@ export async function storeTransaction(
 ) {
   txQueue.sortQueue();
 
-  await pWaitFor(() => {
-    return (
-      txQueue.isEmpty() ||
-      txQueue.peek().txIndex.gt(txIndex) ||
-      txQueue.getSize() < PARALLEL + 1
-    );
-  });
+  await pWaitFor(
+    () => {
+      return (
+        txQueue.isEmpty() ||
+        txQueue.peek().txIndex.gt(txIndex) ||
+        txQueue.getSize() < PARALLEL + 1
+      );
+    },
+    { interval: 200 }
+  );
 
   const currentTransaction = await getTransaction({ txId });
 

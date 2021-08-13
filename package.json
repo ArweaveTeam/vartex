@@ -30,7 +30,8 @@
     "migrate:nuke": "node cassandra/nuke.cjs"
   },
   "resolutions": {
-    "cassandra-driver/long": "^4.0.0"
+    "cassandra-driver/long": "^4.0.0",
+    "**/graphql": "15.x"
   },
   "dependencies": {
     "@ridi/cql-builder": "^1.0.4",

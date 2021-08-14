@@ -249,6 +249,7 @@ describe("database sync test suite", function () {
 
 describe("graphql test suite", function () {
   beforeAll(async function () {
+    await killPort(3000);
     await helpers.waitForCassandra();
     ensureCassandraClient();
     await ensureTestNode();

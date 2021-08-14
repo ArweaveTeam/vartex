@@ -487,7 +487,7 @@ function txIncomingParallelConsume() {
   })(
     parallel(PARALLEL)(
       entries.map((incTx) => {
-        return new Fluture((reject, fresolve) => {
+        return new (Fluture as (any) => void)((reject, fresolve) => {
           incTx.next(fresolve).then(() => {
             removeItemIncomingTxQueue((item: any) => {
               return item.txIndex.equals(incTx.txIndex);
@@ -846,9 +846,8 @@ export function storeBlock({
 function txImportCallback(integrity: string) {
   return async function () {
     const cached = await getCache(integrity);
-    console.error(cached.toString());
     const { height, index, txOffset, tx, block } = JSON.parse(cached);
-    console.error(height, index, txOffset);
+
     await makeTxImportQuery(toLong(height), toLong(index), tx, block)();
     await rmCache("tx:" + tx.id);
   };

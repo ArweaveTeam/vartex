@@ -283,6 +283,8 @@ describe("graphql test suite", function () {
 
     await ready;
 
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
     const gqlResponse = await got
       .post("http://localhost:3000/graphql", {
         json: {

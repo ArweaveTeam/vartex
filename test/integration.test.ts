@@ -39,11 +39,9 @@ function ensureCassandraClient() {
 }
 
 async function ensureTestNode() {
-  if (!app || !srv) {
-    const testNode = await helpers.setupTestNode(appState);
-    app = testNode.app;
-    srv = testNode.srv;
-  }
+  const testNode = await helpers.setupTestNode(appState);
+  app = testNode.app;
+  srv = testNode.srv;
 }
 
 // process.stderr.write(JSON.stringify(appState.get("mockBlocks")));

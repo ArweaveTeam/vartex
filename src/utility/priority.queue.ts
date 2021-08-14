@@ -17,13 +17,9 @@ export default class PriorityQueue {
   }
 
   entries() {
+    // eslint-disable-next-line unicorn/prefer-spread
     return this.queue.slice(0); // https://stackoverflow.com/a/21514254
   }
-
-  // removeItem(function_) {
-  //   this.queue = R.reject(function_)(this.queue);
-  //   return this.queue;
-  // }
 
   // just return the latest, sort to be sure
   peek(): any {

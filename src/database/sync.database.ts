@@ -805,14 +805,14 @@ export function storeBlock({
           txIncomingParallelConsume();
         }
 
-        const nextHeightStr = next
+        const nextHeightString = next
           ? next.toString()
           : newSyncBlockHeight.add(1).toString();
 
         const integrity = await putCache(
           newSyncBlock.indep_hash,
           JSON.stringify({
-            block: R.assoc("next_height", nextHeightStr, newSyncBlock),
+            block: R.assoc("next_height", nextHeightString, newSyncBlock),
             height: newSyncBlockHeight.toString(),
             nextHeight: nextHeightStr,
           })

@@ -13,16 +13,17 @@ export default class PriorityQueue {
   }
 
   sortQueue() {
-    this.queue.sort(this.comparator.bind(this) as any);
+    this.queue.sort(this.comparator as any);
   }
 
   entries() {
-    return this.queue;
+    return this.queue.slice(0); // https://stackoverflow.com/a/21514254
   }
 
-  removeItem(function_) {
-    this.queue = R.reject(function_)(this.queue);
-  }
+  // removeItem(function_) {
+  //   this.queue = R.reject(function_)(this.queue);
+  //   return this.queue;
+  // }
 
   // just return the latest, sort to be sure
   peek(): any {

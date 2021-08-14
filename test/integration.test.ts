@@ -1,5 +1,6 @@
 import * as R from "rambda";
 import got from "got";
+import killPort from "kill-port";
 import cassandra, { types as CassandraTypes } from "cassandra-driver";
 import { exists as existsOrig } from "fs";
 import fs from "fs/promises";
@@ -28,19 +29,31 @@ let srv: any;
 let proc: any;
 let client: any;
 
+function ensureCassandraClient() {
+  client =
+    client ||
+    new cassandra.Client({
+      contactPoints: ["localhost:9042"],
+      localDataCenter: "datacenter1",
+    });
+}
+
+async function ensureTestNode() {
+  if (!app || !srv) {
+    const testNode = await helpers.setupTestNode(appState);
+    app = testNode.app;
+    srv = testNode.srv;
+  }
+}
+
 // process.stderr.write(JSON.stringify(appState.get("mockBlocks")));
 
 describe("database sync test suite", function () {
   jest.setTimeout(60000);
   beforeAll(async function () {
     await helpers.waitForCassandra();
-    client =
-      client ||
-      new cassandra.Client({
-        contactPoints: ["localhost:9042"],
-        localDataCenter: "datacenter1",
-      });
-    const { srv, app } = await helpers.setupTestNode(appState);
+    ensureCassandraClient();
+    await ensureTestNode();
   });
 
   afterAll(async () => {
@@ -233,23 +246,17 @@ describe("database sync test suite", function () {
   });
 });
 
-/*
 describe("graphql test suite", function () {
   beforeAll(async function () {
     await helpers.waitForCassandra();
-    client =
-      client ||
-      new cassandra.Client({
-        contactPoints: ["localhost:9042"],
-        localDataCenter: "datacenter1",
-      });
+    ensureCassandraClient();
+    await ensureTestNode();
 
     const { blocks: mockBlocks, txs: mockTxs } = helpers.generateMockBlocks({
       totalBlocks: 100,
     });
 
     appState.set("mockBlocks", mockBlocks);
-
     appState.set("mockTxs", mockTxs);
   });
 
@@ -258,6 +265,7 @@ describe("graphql test suite", function () {
     jest.setTimeout(10000);
   });
 
+  afterAll(() => killPort(3000));
 
   test("gql returns the last id", async () => {
     if (await exists("./cache/hash_list_test.json")) {
@@ -282,10 +290,7 @@ describe("graphql test suite", function () {
         return shouldStop;
       },
     });
-
     await ready;
-
-    await new Promise((resolve) => setTimeout(resolve, 1000));
 
     const gqlResponse = await got
       .post("http://localhost:3000/graphql", {
@@ -318,4 +323,3 @@ describe("graphql test suite", function () {
     shouldStop = true;
   });
 });
-*/

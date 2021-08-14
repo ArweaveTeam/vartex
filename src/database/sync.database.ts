@@ -123,9 +123,9 @@ const getIncomingTxQueueSize = txIncomingQueue.getSize.bind(txIncomingQueue);
 const getIncomingTxQueuePeek = txIncomingQueue.peek.bind(txIncomingQueue);
 const popIncomingTxQueue = txIncomingQueue.pop.bind(txIncomingQueue);
 const sortIncomingTxQueue = txIncomingQueue.sortQueue.bind(txIncomingQueue);
-const removeItemIncomingTxQueue = txIncomingQueue.removeItem.bind(
-  txIncomingQueue
-);
+// const removeItemIncomingTxQueue = txIncomingQueue.removeItem.bind(
+//   txIncomingQueue
+// );
 const enqueueIncomingTxQueue = txIncomingQueue.enqueue.bind(txIncomingQueue);
 const getEntriesTxIncoming = txIncomingQueue.entries.bind(txIncomingQueue);
 
@@ -144,7 +144,6 @@ const getTxQueuePeek = txQueue.peek.bind(txQueue);
 const popTxQueue = txQueue.pop.bind(txQueue);
 const sortTxQueue = txQueue.sortQueue.bind(txQueue);
 const enqueueTxQueue = txQueue.enqueue.bind(txQueue);
-const removeItemTxQueue = txQueue.removeItem.bind(txQueue);
 
 const blockQueueState: BlockQueueState = {
   isProcessing: false,
@@ -228,6 +227,7 @@ function processTxQueue(): void {
 
   sortTxQueue();
   const peek = !isTxQueueEmpty() && getTxQueuePeek();
+  const fresolve = peek && peek.fresolve;
 
   if (CassandraTypes.Long.isLong(peek.txIndex)) {
     txQueueState.isProcessing = true;
@@ -239,7 +239,6 @@ function processTxQueue(): void {
         popTxQueue();
         txQueueState.isProcessing = false;
 
-        peek.fresolve && peek.fresolve();
         if (peek.txIndex.gt(topTxIndex)) {
           topTxIndex = peek.txIndex;
         }
@@ -247,6 +246,8 @@ function processTxQueue(): void {
         if (isTxQueueEmpty() && isBlockQueueEmpty()) {
           log.info("import queues have been consumed");
         }
+
+        setTimeout(fresolve, 1);
       });
   }
 }
@@ -478,29 +479,36 @@ function findMissingBlocks(
 function txIncomingParallelConsume() {
   sortIncomingTxQueue();
   const entries = getEntriesTxIncoming();
-  // console.error("ENTRIES", entries);
+
+  while (
+    getIncomingTxQueuePeek() &&
+    R.find((entry: any) =>
+      entry.txIndex.equals(getIncomingTxQueuePeek().txIndex)
+    )(entries)
+  ) {
+    popIncomingTxQueue();
+  }
+
+  const batch = entries.map((incTx) => {
+    return new (Fluture as (any) => void)((reject, fresolve) => {
+      incTx.next(fresolve);
+      return () => {
+        log.info("enqueueing of txId " + incTx.txId + " failed!");
+        process.exit(1);
+      };
+    });
+  });
+
   fork((reason: string | void) => {
     console.error("Fatal", reason || "");
     process.exit(1);
   })(function () {
-    txIncomingQueueState.isProcessing = false;
-  })(
-    parallel(PARALLEL)(
-      entries.map((incTx) => {
-        return new (Fluture as (any) => void)((reject, fresolve) => {
-          incTx.next(fresolve).then(() => {
-            removeItemIncomingTxQueue((item: any) => {
-              return item.txIndex.equals(incTx.txIndex);
-            });
-          });
-          return () => {
-            log.info("enqueueing of txId " + incTx.txId + " failed!");
-            process.exit(1);
-          };
-        });
-      })
-    )
-  );
+    if (isIncomingTxQueueEmpty()) {
+      txIncomingQueueState.isProcessing = false;
+    } else {
+      return txIncomingParallelConsume();
+    }
+  })(parallel(PARALLEL)(batch));
 }
 
 export async function startSync({ isTesting = false }) {
@@ -539,7 +547,7 @@ export async function startSync({ isTesting = false }) {
             blockGap.map(function (gap, index) {
               return storeBlock({
                 height: gap,
-                next: -1,
+                next: toLong(-1),
               });
             })
           )
@@ -560,7 +568,6 @@ export async function startSync({ isTesting = false }) {
     }
 
     // await Dr.findTxGaps();
-
     try {
       lastBlock = (
         await cassandraClient.execute(
@@ -638,8 +645,6 @@ export async function startSync({ isTesting = false }) {
 
   gauge.enable();
 
-  // antiGC = txIncomingParallelRecur();
-
   fork(function (reason: string | void) {
     console.error("Fatal", reason || "");
     process.exit(1);
@@ -647,7 +652,9 @@ export async function startSync({ isTesting = false }) {
     gauge.disable();
     pWaitFor(
       function () {
-        return isBlockQueueEmpty() && isTxQueueEmpty();
+        return (
+          isIncomingTxQueueEmpty() && isBlockQueueEmpty() && isTxQueueEmpty()
+        );
       },
       {
         interval: 1000,
@@ -672,7 +679,14 @@ export async function startSync({ isTesting = false }) {
             hashList.length
           }/${getBlockQueueSize()} txs: ${getIncomingTxQueueSize()}/${getTxQueueSize()}/${PARALLEL}`;
         };
-        return storeBlock({ height, hash, next, getProgress, gauge });
+
+        return storeBlock({
+          height,
+          hash,
+          next: toLong(next || -1),
+          getProgress,
+          gauge,
+        });
       })
     )
   );
@@ -680,45 +694,42 @@ export async function startSync({ isTesting = false }) {
 
 let lastTimeEmptyTxQueue = false;
 
-const incomingTxCallback = R.curry(
-  async (
-    integrity: string,
-    txIndex_: CassandraTypes.Long,
-    gauge: any,
-    getProgress?: () => string,
-    fresolve?: () => void
-  ) => {
-    gauge && gauge.show(`${getProgress ? getProgress() || "" : ""}`);
-    let cacheData;
-    let retry = 0;
+const incomingTxCallback = (
+  integrity: string,
+  txIndex_: CassandraTypes.Long,
+  gauge?: any,
+  getProgress?: () => string
+) => async (fresolve?: () => void) => {
+  gauge && gauge.show(`${getProgress ? getProgress() || "" : ""}`);
+  let cacheData;
+  let retry = 0;
 
-    while (!cacheData && retry < 100) {
-      cacheData = await getCache(integrity);
-      await new Promise((resolve) => setTimeout(resolve, 1));
-      retry += 1;
-    }
-
-    if (!cacheData) {
-      console.error("Cache disappeared with txIndex", txIndex_.toString());
-    }
-
-    const {
-      txId,
-      block: txNewSyncBlock,
-      height: txNewSyncBlockHeight,
-      txIndex,
-    } = JSON.parse(cacheData.toString());
-
-    await storeTransaction(
-      txId,
-      toLong(txIndex || txIndex_),
-      toLong(txNewSyncBlockHeight),
-      txNewSyncBlock,
-      fresolve
-    );
-    await rmCache("inconming:" + (txIndex || txIndex_).toString());
+  while (!cacheData && retry < 100) {
+    cacheData = await getCache(integrity);
+    await new Promise((resolve) => setTimeout(resolve, 1));
+    retry += 1;
   }
-);
+
+  if (!cacheData) {
+    console.error("Cache disappeared with txIndex", txIndex_.toString());
+  }
+
+  const {
+    txId,
+    block: txNewSyncBlock,
+    height: txNewSyncBlockHeight,
+    txIndex,
+  } = JSON.parse(cacheData.toString());
+
+  await storeTransaction(
+    txId,
+    toLong(txIndex || txIndex_),
+    toLong(txNewSyncBlockHeight),
+    txNewSyncBlock,
+    fresolve
+  );
+  await rmCache("inconming:" + (txIndex || txIndex_).toString());
+};
 
 export function storeBlock({
   height,
@@ -728,7 +739,7 @@ export function storeBlock({
   gauge,
 }: {
   height: number;
-  next: number;
+  next: CassandraTypes.Long;
   hash?: string;
   getProgress?: () => string;
   gauge?: any;
@@ -752,12 +763,12 @@ export function storeBlock({
         const newSyncBlockHeight = toLong(newSyncBlock.height);
 
         await Promise.all(
-          (newSyncBlock.txs || []).map(async function (
+          R.uniq(newSyncBlock.txs || []).map(async function (
             txId: string,
             index: number
           ) {
             const txIndex = newSyncBlockHeight.mul(MAX_TX_PER_BLOCK).add(index);
-            // console.error("TXINDX", txIndex.toString(), index);
+            // log.info("TXINDX " + txIndex.toString() + " " + index);
 
             const txIncomingIntegrity = await putCache(
               "inconming:" + txIndex.toString(),
@@ -794,14 +805,16 @@ export function storeBlock({
           txIncomingParallelConsume();
         }
 
+        const nextHeightStr = next
+          ? next.toString()
+          : newSyncBlockHeight.add(1).toString();
+
         const integrity = await putCache(
           newSyncBlock.indep_hash,
           JSON.stringify({
-            block: newSyncBlock,
+            block: R.assoc("next_height", nextHeightStr, newSyncBlock),
             height: newSyncBlockHeight.toString(),
-            nextHeight: `${
-              next ? next.toString() : newSyncBlockHeight.add(1).toString()
-            }`,
+            nextHeight: nextHeightStr,
           })
         );
 

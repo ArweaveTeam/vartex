@@ -247,7 +247,7 @@ function processTxQueue(): void {
           log.info("import queues have been consumed");
         }
 
-        setTimeout(fresolve, 1);
+        fresolve && setTimeout(fresolve, 1);
       });
   }
 }
@@ -504,7 +504,13 @@ function txIncomingParallelConsume() {
     process.exit(1);
   })(function () {
     if (isIncomingTxQueueEmpty()) {
-      txIncomingQueueState.isProcessing = false;
+      pWaitFor(() => isPollingStarted || !isIncomingTxQueueEmpty()).then(() => {
+        if (!isPollingStarted) {
+          return txIncomingParallelConsume();
+        } else {
+          txIncomingQueueState.isProcessing = false;
+        }
+      });
     } else {
       return txIncomingParallelConsume();
     }

@@ -69,6 +69,7 @@ const PARALLEL = (Number.isNaN as any)(process.env["PARALLEL"])
 export let topHash = "";
 export let topHeight: CassandraTypes.Long = toLong(0);
 export let topTxIndex: CassandraTypes.Long = toLong(0);
+export let txInFlight = 0;
 
 const developmentSyncLength: number | undefined =
   !process.env["DEVELOPMENT_SYNC_LENGTH"] ||
@@ -119,7 +120,9 @@ const isIncomingTxQueueEmpty = txIncomingQueue.isEmpty.bind(txIncomingQueue);
 const hasIncomingTxQueueNoneLt = txIncomingQueue.hasNoneLt.bind(
   txIncomingQueue
 );
-const getIncomingTxQueueSize = txIncomingQueue.getSize.bind(txIncomingQueue);
+export const getIncomingTxQueueSize = txIncomingQueue.getSize.bind(
+  txIncomingQueue
+);
 const getIncomingTxQueuePeek = txIncomingQueue.peek.bind(txIncomingQueue);
 const popIncomingTxQueue = txIncomingQueue.pop.bind(txIncomingQueue);
 const sortIncomingTxQueue = txIncomingQueue.sortQueue.bind(txIncomingQueue);
@@ -139,7 +142,7 @@ const txQueue = new PriorityQueue(function (
 
 const isTxQueueEmpty = txQueue.isEmpty.bind(txQueue);
 const hasTxQueueNoneLt = txQueue.hasNoneLt.bind(txQueue);
-const getTxQueueSize = txQueue.getSize.bind(txQueue);
+export const getTxQueueSize = txQueue.getSize.bind(txQueue);
 const getTxQueuePeek = txQueue.peek.bind(txQueue);
 const popTxQueue = txQueue.pop.bind(txQueue);
 const sortTxQueue = txQueue.sortQueue.bind(txQueue);
@@ -159,7 +162,7 @@ const txQueueState: TxQueueState = {
 
 const isBlockQueueEmpty = blockQueue.isEmpty.bind(blockQueue);
 const hasBlockQueueNoneLt = blockQueue.hasNoneLt.bind(blockQueue);
-const getBlockQueueSize = blockQueue.getSize.bind(blockQueue);
+export const getBlockQueueSize = blockQueue.getSize.bind(blockQueue);
 const getBlockQueuePeek = blockQueue.peek.bind(blockQueue);
 const popBlockQueue = blockQueue.pop.bind(blockQueue);
 const sortBlockQueue = blockQueue.sortQueue.bind(blockQueue);
@@ -184,7 +187,7 @@ function processBlockQueue(): void {
     (CassandraTypes.Long.isLong(peek.height) && isPollingStarted) ||
     (CassandraTypes.Long.isLong(peek.height) &&
       hasTxQueueNoneLt(blockQueueState.nextHeight) &&
-      // hasIncomingTxQueueNoneLt(blockQueueState.nextHeight) &&
+      hasIncomingTxQueueNoneLt(blockQueueState.nextHeight) &&
       (blockQueueState.nextHeight.lt(1) ||
         peek.height.lt(1) ||
         peek.height.lessThanOrEqual(blockQueueState.nextHeight) ||
@@ -209,13 +212,13 @@ function processBlockQueue(): void {
           : toLong(-1);
 
       peek.fresolve && peek.fresolve();
-      if (isBlockQueueEmpty() && isTxQueueEmpty()) {
-        log.info(
-          "import queues have been consumed" + isIncomingTxQueueEmpty()
-            ? "\n"
-            : ", waiting for txs...\n"
-        );
-      }
+      // if (isBlockQueueEmpty() && isTxQueueEmpty()) {
+      // log.info(
+      //   "import queues have been consumed" + isIncomingTxQueueEmpty()
+      //     ? "\n"
+      //     : ", waiting for txs...\n"
+      // );
+      // }
     });
   }
 }
@@ -233,36 +236,40 @@ function processTxQueue(): void {
     txQueueState.isProcessing = true;
     txQueueState.nextTxIndex = peek.nextTxIndex;
 
-    peek.callback
-      .bind(txQueue)()
-      .then(function () {
-        popTxQueue();
-        txQueueState.isProcessing = false;
+    peek.callback().then(() => {
+      popTxQueue();
+      txQueueState.isProcessing = false;
 
-        if (peek.txIndex.gt(topTxIndex)) {
-          topTxIndex = peek.txIndex;
-        }
+      if (peek.txIndex.gt(topTxIndex)) {
+        topTxIndex = peek.txIndex;
+      }
 
-        if (isTxQueueEmpty() && isBlockQueueEmpty()) {
-          log.info("import queues have been consumed");
-        }
+      if (isTxQueueEmpty() && isBlockQueueEmpty()) {
+        log.info("import queues have been consumed");
+      }
 
-        fresolve && setTimeout(fresolve, 1);
-      });
+      if (fresolve) {
+        txInFlight -= 1;
+        fresolve();
+      }
+    });
   }
 }
 
 function startQueueProcessors() {
   if (!blockQueueState.isStarted) {
     blockQueueState.isStarted = true;
-    setInterval(function () {
-      processBlockQueue.bind(this)();
+    setInterval(() => {
+      processBlockQueue();
     }, 120);
   }
   if (!txQueueState.isStarted) {
     txQueueState.isStarted = true;
-    setInterval(function () {
-      processTxQueue.bind(this)();
+    setInterval(() => {
+      processTxQueue();
+      if (!isIncomingTxQueueEmpty() && isTxQueueEmpty()) {
+        txIncomingParallelConsume();
+      }
     }, 80);
   }
 }
@@ -479,6 +486,7 @@ function findMissingBlocks(
 const txIncomingParallelConsume = () => {
   sortIncomingTxQueue();
   const entries = getEntriesTxIncoming();
+  txInFlight += entries.length;
 
   while (
     getIncomingTxQueuePeek() &&
@@ -503,11 +511,11 @@ const txIncomingParallelConsume = () => {
     console.error("Fatal", reason || "");
     process.exit(1);
   })(function () {
-    if (isIncomingTxQueueEmpty()) {
-      txIncomingQueueState.isProcessing = false;
-    } else {
-      return txIncomingParallelConsume();
-    }
+    // if (isIncomingTxQueueEmpty()) {
+    //   txIncomingQueueState.isProcessing = false;
+    // } else {
+    //   return txIncomingParallelConsume();
+    // }
   })(parallel(PARALLEL)(batch));
 };
 
@@ -674,11 +682,11 @@ export async function startSync({ isTesting = false }) {
         hash: string;
         next: number;
       }): any {
-        const getProgress = () => {
+        function getProgress() {
           return `blocks: ${height}/${
             hashList.length
-          }/${getBlockQueueSize()} txs: ${getIncomingTxQueueSize()}/${getTxQueueSize()}/${PARALLEL}`;
-        };
+          }/${getBlockQueueSize()} txs: ${getIncomingTxQueueSize()}/${txInFlight}/${getTxQueueSize()}`;
+        }
 
         return storeBlock({
           height,
@@ -692,44 +700,44 @@ export async function startSync({ isTesting = false }) {
   );
 }
 
-let lastTimeEmptyTxQueue = false;
-
-const incomingTxCallback = (
+function incomingTxCallback(
   integrity: string,
   txIndex_: CassandraTypes.Long,
   gauge?: any,
   getProgress?: () => string
-) => async (fresolve?: () => void) => {
-  gauge && gauge.show(`${getProgress ? getProgress() || "" : ""}`);
-  let cacheData;
-  let retry = 0;
+) {
+  return async function (fresolve?: () => void) {
+    gauge && gauge.show(`${getProgress ? getProgress() || "" : ""}`);
+    let cacheData;
+    let retry = 0;
 
-  while (!cacheData && retry < 100) {
-    cacheData = await getCache(integrity);
-    await new Promise((resolve) => setTimeout(resolve, 1));
-    retry += 1;
-  }
+    while (!cacheData && retry < 100) {
+      cacheData = await getCache(integrity);
+      await new Promise((resolve) => setTimeout(resolve, 1));
+      retry += 1;
+    }
 
-  if (!cacheData) {
-    console.error("Cache disappeared with txIndex", txIndex_.toString());
-  }
+    if (!cacheData) {
+      console.error("Cache disappeared with txIndex", txIndex_.toString());
+    }
 
-  const {
-    txId,
-    block: txNewSyncBlock,
-    height: txNewSyncBlockHeight,
-    txIndex,
-  } = JSON.parse(cacheData.toString());
+    const {
+      txId,
+      block: txNewSyncBlock,
+      height: txNewSyncBlockHeight,
+      txIndex,
+    } = JSON.parse(cacheData.toString());
 
-  await storeTransaction(
-    txId,
-    toLong(txIndex || txIndex_),
-    toLong(txNewSyncBlockHeight),
-    txNewSyncBlock,
-    fresolve
-  );
-  await rmCache("inconming:" + (txIndex || txIndex_).toString());
-};
+    await storeTransaction(
+      txId,
+      toLong(txIndex || txIndex_),
+      toLong(txNewSyncBlockHeight),
+      txNewSyncBlock,
+      fresolve
+    );
+    await rmCache("inconming:" + (txIndex || txIndex_).toString());
+  };
+}
 
 export function storeBlock({
   height,
@@ -784,7 +792,7 @@ export function storeBlock({
             enqueueIncomingTxQueue({
               height: newSyncBlockHeight,
               txIndex,
-              next: incomingTxCallback.bind(txQueue)(
+              next: incomingTxCallback(
                 txIncomingIntegrity,
                 txIndex,
                 gauge,
@@ -793,13 +801,6 @@ export function storeBlock({
             });
           })
         );
-
-        lastTimeEmptyTxQueue = isTxQueueEmpty();
-
-        if (!isIncomingTxQueueEmpty() && !txIncomingQueueState.isProcessing) {
-          txIncomingQueueState.isProcessing = true;
-          txIncomingParallelConsume();
-        }
 
         const nextHeightString = next
           ? next.toString()
@@ -897,7 +898,7 @@ export async function storeTransaction(
     // console.error("POST |", txIndex.toString(), "|");
     enqueueTxQueue({
       height,
-      callback: txImportCallback(integrity).bind(txQueue),
+      callback: txImportCallback(integrity),
       fresolve,
       txIndex,
       type: "tx",

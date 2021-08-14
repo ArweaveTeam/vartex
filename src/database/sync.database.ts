@@ -184,7 +184,7 @@ function processBlockQueue(): void {
     (CassandraTypes.Long.isLong(peek.height) && isPollingStarted) ||
     (CassandraTypes.Long.isLong(peek.height) &&
       hasTxQueueNoneLt(blockQueueState.nextHeight) &&
-      hasIncomingTxQueueNoneLt(blockQueueState.nextHeight) &&
+      // hasIncomingTxQueueNoneLt(blockQueueState.nextHeight) &&
       (blockQueueState.nextHeight.lt(1) ||
         peek.height.lt(1) ||
         peek.height.lessThanOrEqual(blockQueueState.nextHeight) ||
@@ -476,7 +476,7 @@ function findMissingBlocks(
   });
 }
 
-function txIncomingParallelConsume() {
+const txIncomingParallelConsume = () => {
   sortIncomingTxQueue();
   const entries = getEntriesTxIncoming();
 
@@ -504,25 +504,19 @@ function txIncomingParallelConsume() {
     process.exit(1);
   })(function () {
     if (isIncomingTxQueueEmpty()) {
-      pWaitFor(() => isPollingStarted || !isIncomingTxQueueEmpty()).then(() => {
-        if (!isPollingStarted) {
-          return txIncomingParallelConsume();
-        } else {
-          txIncomingQueueState.isProcessing = false;
-        }
-      });
+      txIncomingQueueState.isProcessing = false;
     } else {
       return txIncomingParallelConsume();
     }
   })(parallel(PARALLEL)(batch));
-}
+};
 
 export async function startSync({ isTesting = false }) {
   signalHook();
   startQueueProcessors();
 
   const hashList: string[] = await getHashList({});
-  const firstRun = await detectFirstRun();
+  const firstRun = true; // await detectFirstRun();
   let lastBlock: CassandraTypes.Long = toLong(-1);
   let lastTx: CassandraTypes.Long = toLong(-1);
 
@@ -802,11 +796,7 @@ export function storeBlock({
 
         lastTimeEmptyTxQueue = isTxQueueEmpty();
 
-        if (
-          isTxQueueEmpty() &&
-          !isIncomingTxQueueEmpty() &&
-          !txIncomingQueueState.isProcessing
-        ) {
+        if (!isIncomingTxQueueEmpty() && !txIncomingQueueState.isProcessing) {
           txIncomingQueueState.isProcessing = true;
           txIncomingParallelConsume();
         }

@@ -60,6 +60,9 @@ describe("database sync test suite", function () {
       proc.kill("SIGINT");
       proc = undefined;
     }
+
+    killPort(3000);
+
     // wait a second for handlers to close
     await new Promise((resolve) => setTimeout(resolve, 1000));
   });

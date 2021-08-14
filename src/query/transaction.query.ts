@@ -44,20 +44,21 @@ export async function getTransaction({
       responseType: "json",
       resolveBodyOnly: true,
     });
-  } catch {
+  } catch (error) {
+    console.error(error.name, `${tryNode}/tx/${txId}`, "\n");
     coolNode(tryNode);
-    return new Promise((resolve) => setTimeout(resolve, 10 + 2 * retry)).then(
-      () => {
-        if (retry < 100) {
-          return getTransaction({ txId, retry: retry + 1 });
-        } else {
-          console.error(
-            "Failed to establish connection to any specified node after 100 retries"
-          );
-          process.exit(1);
-        }
-      }
-    );
+    if (retry > 100) {
+      console.error(
+        "getTransaction: Failed to establish connection to any specified node after 100 retries\n"
+      );
+      // process.exit(1);
+    }
+
+    await new Promise(function (resolve) {
+      setTimeout(resolve, 10);
+    });
+
+    return await getTransaction({ txId, retry: retry + 1 });
   }
   warmNode(tryNode);
   return jsonPayload;
@@ -77,20 +78,23 @@ export async function getTxOffset({
       responseType: "json",
       resolveBodyOnly: true,
     });
-  } catch {
+  } catch (error) {
+    // console.error(error);
     coolNode(tryNode);
-    return new Promise((resolve) => setTimeout(resolve, 10 + 2 * retry)).then(
-      () => {
-        if (retry < 100) {
-          return getTransaction({ txId, retry: retry + 1 });
-        } else {
-          console.error(
-            "Failed to establish connection to any specified node after 100 retries"
-          );
-          process.exit(1);
-        }
-      }
-    );
+
+    if (retry > 100) {
+      console.error(
+        "getTransaction: Failed to establish connection to any specified node after 100 retries\n"
+      );
+      process.exit(1);
+    }
+
+    await new Promise(function (resolve) {
+      setTimeout(resolve, 10);
+    });
+
+    return await getTxOffset({ txId, retry: retry + 1 });
+
     warmNode(tryNode);
     return jsonPayload;
   }

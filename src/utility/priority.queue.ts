@@ -4,14 +4,39 @@ import { toLong } from "../database/cassandra.database";
 import * as R from "rambda";
 
 export default class PriorityQueue {
-  protected queue = [];
-  protected comparator: (a: any, b: any) => boolean;
+  public queue: Array<any>;
+  public comparator: (a: any, b: any) => boolean;
+
   constructor(cmp) {
     this.comparator = cmp;
-    this.hasNoneLt = this.hasNoneLt.bind(this);
+    this.queue = [];
   }
+
   sortQueue() {
-    this.queue = sort(this.comparator as any, this.queue);
+    this.queue.sort(this.comparator.bind(this) as any);
+  }
+
+  entries() {
+    // const entries = R.concat([], this.queue); // copy
+    // let purgeCount = 0;
+    // while (purgeCount < entries.length) {
+    //   this.queue.pop();
+    //   purgeCount += 1;
+    // }
+    return this.queue;
+  }
+
+  // purgeUndefs() {
+  //   while (this.queue.length > 0 && !this.queue[0]) {
+  //     !this.queue.shift();
+  //   }
+  // }
+
+  removeItem(fn) {
+    // const knife = R.findIndex((i) => i && fn(i))(this.queue);
+    // delete this.queue[knife];
+
+    this.queue = R.reject(fn)(this.queue);
   }
   // just return the latest, sort to be sure
   peek(): any {
@@ -21,12 +46,12 @@ export default class PriorityQueue {
 
   // remove the head item from the queue
   pop(): void {
-    this.queue = slice(1, Number.POSITIVE_INFINITY)(this.queue);
+    this.queue.shift();
     this.sortQueue;
   }
 
   enqueue(item: any): void {
-    this.queue = append(item, this.queue);
+    this.queue.push(item);
     this.sortQueue();
   }
 

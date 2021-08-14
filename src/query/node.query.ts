@@ -53,7 +53,7 @@ export function grabNode() {
 export function warmNode(url: string) {
   const item = nodeTemperatures.find((index: WeightedNode) => index.id === url);
   if (item) {
-    item["weight"] = Math.max(item["weight"] + 1, 99);
+    item["weight"] = Math.min(item["weight"] + 1, 99);
   }
 }
 
@@ -68,7 +68,7 @@ export function coolNode(url: string, kickIfLow = false) {
       //   R.equals(R.prop("id", temporary), url)
       // )(nodeTemperatures) as WeightedNode[];
     }
-    item["weight"] = Math.min(item["weight"] - 1, 1);
+    item["weight"] = Math.max(item["weight"] - 1, 1);
   }
 }
 
@@ -87,7 +87,6 @@ export interface InfoType {
 export async function getNodeInfo({
   retry = 0,
   maxRetry = 100,
-  keepAlive = false,
 }): Promise<InfoType | undefined> {
   const tryNode = grabNode();
 
@@ -119,24 +118,20 @@ export async function getNodeInfo({
         if (retry < maxRetry) {
           return await getNodeInfo({ retry: retry + 1, maxRetry });
         } else {
-          console.trace(
+          console.error(
             "\n" +
-              "Failed to establish connection to any specified node after 100 retries with these nodes: " +
+              "getNodeInfo: failed to establish connection to any specified node after 100 retries with these nodes: " +
               nodeTemperatures.map(R.prop("id")).join(", ") +
               "\n"
           );
 
-          if (keepAlive) {
-            console.error(
-              "\n" +
-                "Check the network status, trying again to reach some of these nodes, but it is unlikely to make a differnece:" +
-                nodeTemperatures.map(R.prop("id")).join(", ") +
-                "\n"
-            );
-            return await getNodeInfo({ retry: 0, maxRetry });
-          } else {
-            return;
-          }
+          console.error(
+            "\n" +
+              "Check the network status, trying again to reach some of these nodes, but it is unlikely to make a differnece:" +
+              nodeTemperatures.map(R.prop("id")).join(", ") +
+              "\n"
+          );
+          return await getNodeInfo({ retry: 0, maxRetry });
         }
       }
     );
@@ -189,8 +184,8 @@ export async function getHashList({
           if (retry < 100) {
             return await getHashList({ retry: retry + 1 });
           } else {
-            console.trace(
-              "Failed to establish connection to any specified node after 100 retries"
+            console.error(
+              "getHashList: failed to establish connection to any specified node after 100 retries\n"
             );
             process.exit(1);
           }

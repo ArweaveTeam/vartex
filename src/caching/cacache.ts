@@ -12,5 +12,8 @@ export const putCache = (key: string, value: any): Promise<any> =>
 export const getCache = (integrity: string): Promise<any> =>
   cacache.get.byDigest(cacheDirectory, integrity);
 
+export const getCacheByKey = (integrity: string): Promise<any> =>
+  cacache.get(cacheDirectory, integrity);
+
 export const rmCache = (integrity: string): Promise<any> =>
   cacache.rm.entry(cacheDirectory, integrity);

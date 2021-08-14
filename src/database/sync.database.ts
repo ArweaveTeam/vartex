@@ -516,7 +516,7 @@ export async function startSync({ isTesting = false }) {
   startQueueProcessors();
 
   const hashList: string[] = await getHashList({});
-  const firstRun = true; // await detectFirstRun();
+  const firstRun = await detectFirstRun();
   let lastBlock: CassandraTypes.Long = toLong(-1);
   let lastTx: CassandraTypes.Long = toLong(-1);
 

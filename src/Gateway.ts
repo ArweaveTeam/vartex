@@ -9,6 +9,11 @@ import { jsonMiddleware } from "./middleware/json.middleware.js";
 import { log } from "./utility/log.utility.js";
 import { graphServer } from "./graphql/server.graphql.js";
 import {
+  smartestOffsetRoute,
+  smartestStatus,
+  smartestFetchState,
+} from "./route/smartest.route.js";
+import {
   blockCurrentRoute,
   blockByHashRoute,
   blockByHeightRoute,
@@ -45,6 +50,10 @@ export function start(): void {
   app.get("/tx/:id/offset", txOffsetRoute);
   app.use("/tx/:id/status", proxyGetRoute);
   app.get("/tx/:id", txGetByIdRoute);
+
+  app.get("/smart/:id/offset", smartestOffsetRoute); // 
+  app.use("/smart/:id/status", smartestStatus); // returns latest update + pending tx's to be included in current state
+  app.get("/smart/:id", smartestFetchState);
 
   app.get("/peers", proxyGetRoute);
   app.get("/logs", koiLogsRoute);

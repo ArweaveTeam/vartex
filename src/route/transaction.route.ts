@@ -52,6 +52,9 @@ export async function txGetByIdRoute(
     const rawTx = await transactionMapper.get({
       tx_id: txId,
     });
+
+    // would need to parse json here before returning, and probably slow everything down a lot in order to dynamically load smartweave states
+
     response.json(R.pipe(R.dissoc("tag_count"), R.dissoc("tx_index"))(rawTx));
   } catch (error) {
     return next(error);

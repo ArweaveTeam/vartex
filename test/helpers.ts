@@ -5,6 +5,7 @@ import path from "path";
 import killPort from "kill-port";
 import child_process, { fork } from "child_process";
 import { testEnvVars } from "./setup";
+import { purgeCache } from "../src/caching/cacache";
 
 export function waitForCassandra(): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -64,24 +65,26 @@ export function initDb(): Promise<string> {
 
 export function nuke(): Promise<string> {
   return new Promise((resolve, reject) => {
-    let invoked = false;
-    const forkps = fork(path.resolve("./", "cassandra/nuke.cjs"), {
-      env: process.env,
-    });
+    purgeCache().then(() => {
+      let invoked = false;
+      const forkps = fork(path.resolve("./", "cassandra/nuke.cjs"), {
+        env: process.env,
+      });
 
-    // listen for errors as they may prevent the exit event from firing
-    forkps.on("error", function (err) {
-      if (invoked) return;
-      invoked = true;
-      reject((err || "").toString());
-    });
+      // listen for errors as they may prevent the exit event from firing
+      forkps.on("error", function (err) {
+        if (invoked) return;
+        invoked = true;
+        reject((err || "").toString());
+      });
 
-    // execute the callback once the forkps has finished running
-    forkps.on("exit", function (code) {
-      if (invoked) return;
-      invoked = true;
-      const err = code === 0 ? null : new Error("exit code " + code);
-      resolve((err || "").toString());
+      // execute the callback once the forkps has finished running
+      forkps.on("exit", function (code) {
+        if (invoked) return;
+        invoked = true;
+        const err = code === 0 ? null : new Error("exit code " + code);
+        resolve((err || "").toString());
+      });
     });
   });
 }

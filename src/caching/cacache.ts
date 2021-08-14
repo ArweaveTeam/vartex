@@ -4,7 +4,9 @@ import path from "node:path";
 import mkdirp from "mkdirp";
 import rimraf from "rimraf";
 
-const importCacheDirectory = path.resolve(process.cwd(), "cache/imports");
+const importCacheDirectory = process.env.CACHE_IMPORT_PATH
+  ? process.env.CACHE_IMPORT_PATH
+  : path.resolve(process.cwd(), "cache/imports");
 
 mkdirp.sync(importCacheDirectory);
 

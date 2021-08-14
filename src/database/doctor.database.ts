@@ -139,8 +139,18 @@ export const findTxGaps = async (): Promise<void> => {
 export async function enqueueUnhandledCache(
   enqueueIncomingTxQueue: (any) => void,
   enqueueTxQueue: (any) => void,
-  txImportCallback: (any) => (any) => void,
-  incomingTxCallback: (any) => (any) => void,
+  txImportCallback: (
+    integrity: string,
+    txIndex_: CassandraTypes.Long,
+    gauge?: any,
+    getProgress?: () => string
+  ) => (fresolve?: () => void) => Promise<void>,
+  incomingTxCallback: (
+    integrity: string,
+    txIndex_: CassandraTypes.Long,
+    gauge?: any,
+    getProgress?: () => string
+  ) => (fresolve?: () => void) => Promise<void>,
   txQueue: any
 ) {
   const unhandledIncomings = await recollectIncomingTxs();
@@ -156,9 +166,7 @@ export async function enqueueUnhandledCache(
         txIndex: toLong(dataParsed.txIndex),
         next: incomingTxCallback.bind(txQueue)(
           queueItem.integrity,
-          toLong(dataParsed.txIndex),
-          undefined, // eslint-disable-line unicorn/no-useless-undefined
-          undefined // eslint-disable-line unicorn/no-useless-undefined
+          toLong(dataParsed.txIndex)
         ),
       });
     }
@@ -171,7 +179,10 @@ export async function enqueueUnhandledCache(
 
       enqueueTxQueue({
         height: toLong(dataParsed.height),
-        callback: txImportCallback(queueItem.integrity).bind(txQueue),
+        callback: txImportCallback.bind(txQueue)(
+          queueItem.integrity,
+          toLong(dataParsed.index)
+        ),
         txIndex: toLong(dataParsed.index),
         type: "tx",
       });

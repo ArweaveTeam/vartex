@@ -293,6 +293,9 @@ function checkEnvVars() {
   ) {
     process.env.CASSANDRA_PASSWORD = "cassandra";
   }
+  if (!process.env.CACHE_IMPORT_PATH || !process.env.CACHE_IMPORT_PATH.length) {
+    process.env.CACHE_IMPORT_PATH = "cache/imports";
+  }
 
   if (!fs.existsSync(".env")) {
     fs.writeFileSync(

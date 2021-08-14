@@ -44,13 +44,14 @@ export async function getTransaction({
       responseType: "json",
       resolveBodyOnly: true,
     });
-  } catch (error) {
-    console.error(error.name, `${tryNode}/tx/${txId}`, "\n");
+  } catch {
+    // console.error(error.name, `${tryNode}/tx/${txId}`, "\n");
     coolNode(tryNode);
     if (retry > 100) {
       console.error(
-        "getTransaction: Failed to establish connection to any specified node after 100 retries\n"
+        "getTransaction: Failed to get txId: " + txId + " after 100 retries\n"
       );
+      return undefined;
       // process.exit(1);
     }
 
@@ -78,7 +79,7 @@ export async function getTxOffset({
       responseType: "json",
       resolveBodyOnly: true,
     });
-  } catch (error) {
+  } catch {
     // console.error(error);
     coolNode(tryNode);
 

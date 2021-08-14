@@ -7,7 +7,13 @@ import Gauge from "gauge";
 import GaugeThemes from "gauge/themes";
 import { config } from "dotenv";
 import { types as CassandraTypes } from "cassandra-driver";
-import { getCache, getCacheByKey, putCache, rmCache } from "../caching/cacache";
+import {
+  getCache,
+  getCacheByKey,
+  putCache,
+  // purgeCache,
+  rmCache,
+} from "../caching/cacache";
 import { KEYSPACE, POLLTIME_DELAY_SECONDS } from "../constants";
 import { MAX_TX_PER_BLOCK } from "./constants.database";
 import { log } from "../utility/log.utility";
@@ -492,7 +498,7 @@ function txIncomingParallelConsume() {
             process.exit(1);
           };
         });
-      }, [])
+      })
     )
   );
 }
@@ -507,7 +513,16 @@ export async function startSync({ isTesting = false }) {
   let lastTx: CassandraTypes.Long = toLong(-1);
 
   if (!firstRun) {
+    await Dr.enqueueUnhandledCache(
+      enqueueIncomingTxQueue,
+      enqueueTxQueue,
+      txImportCallback,
+      incomingTxCallback,
+      txQueue
+    );
+
     const isMaybeMissingBlocks = await Dr.checkForBlockGaps();
+
     if (isMaybeMissingBlocks) {
       const blockGap = await Dr.findBlockGaps();
       if (!R.isEmpty(blockGap)) {
@@ -665,6 +680,46 @@ export async function startSync({ isTesting = false }) {
 
 let lastTimeEmptyTxQueue = false;
 
+const incomingTxCallback = R.curry(
+  async (
+    integrity: string,
+    txIndex_: CassandraTypes.Long,
+    gauge: any,
+    getProgress?: () => string,
+    fresolve?: () => void
+  ) => {
+    gauge && gauge.show(`${getProgress ? getProgress() || "" : ""}`);
+    let cacheData;
+    let retry = 0;
+
+    while (!cacheData && retry < 100) {
+      cacheData = await getCache(integrity);
+      await new Promise((resolve) => setTimeout(resolve, 1));
+      retry += 1;
+    }
+
+    if (!cacheData) {
+      console.error("Cache disappeared with txIndex", txIndex_.toString());
+    }
+
+    const {
+      txId,
+      block: txNewSyncBlock,
+      height: txNewSyncBlockHeight,
+      txIndex,
+    } = JSON.parse(cacheData.toString());
+
+    await storeTransaction(
+      txId,
+      toLong(txIndex || txIndex_),
+      toLong(txNewSyncBlockHeight),
+      txNewSyncBlock,
+      fresolve
+    );
+    await rmCache("inconming:" + (txIndex || txIndex_).toString());
+  }
+);
+
 export function storeBlock({
   height,
   hash,
@@ -681,6 +736,7 @@ export function storeBlock({
   let isCancelled = false;
   return Fluture(function (reject: any, fresolve: any) {
     fresolve = fresolve.bind(this);
+
     const getBlock = async (retry = 0) => {
       if (isPaused || isCancelled) {
         return;
@@ -701,58 +757,28 @@ export function storeBlock({
             index: number
           ) {
             const txIndex = newSyncBlockHeight.mul(MAX_TX_PER_BLOCK).add(index);
-            console.error("TXINDX", txIndex.toString(), index);
+            // console.error("TXINDX", txIndex.toString(), index);
 
             const txIncomingIntegrity = await putCache(
               "inconming:" + txIndex.toString(),
               JSON.stringify({
                 type: "incoming" + index,
                 txId,
-                block: newSyncBlock,
+                block: R.dissoc("nextHeight", newSyncBlock),
                 height: newSyncBlockHeight.toString(),
                 txIndex: txIndex.toString(),
               })
             );
 
-            const next = (integrity: string) => async (
-              fresolve: () => void
-            ) => {
-              gauge && gauge.show(`${getProgress ? getProgress() || "" : ""}`);
-              let cacheData;
-              let retry = 0;
-              while (!cacheData && retry < 100) {
-                cacheData = await getCache(txIncomingIntegrity);
-                await new Promise((resolve) => setTimeout(resolve, 1));
-                retry += 1;
-              }
-              if (!cacheData) {
-                console.error(
-                  "Cache disappeared with txIndex",
-                  txIndex.toString()
-                );
-              }
-
-              const {
-                txId,
-                block: txNewSyncBlock,
-                height: txNewSyncBlockHeight,
-                txIndex: txIndex_,
-              } = JSON.parse(cacheData.toString());
-
-              storeTransaction(
-                txId,
-                toLong(txIndex),
-                toLong(txNewSyncBlockHeight),
-                txNewSyncBlock,
-                fresolve
-              );
-              await rmCache("inconming:" + txIndex.toString());
-            };
-
             enqueueIncomingTxQueue({
               height: newSyncBlockHeight,
-              txIndex: toLong(txIndex),
-              next: next.bind(txQueue)(txIncomingIntegrity),
+              txIndex,
+              next: incomingTxCallback.bind(txQueue)(
+                txIncomingIntegrity,
+                txIndex,
+                gauge,
+                getProgress
+              ),
             });
           })
         );
@@ -773,7 +799,9 @@ export function storeBlock({
           JSON.stringify({
             block: newSyncBlock,
             height: newSyncBlockHeight.toString(),
-            nextHeight: `${next ? next : newSyncBlockHeight.add(1).toString()}`,
+            nextHeight: `${
+              next ? next.toString() : newSyncBlockHeight.add(1).toString()
+            }`,
           })
         );
 
@@ -815,6 +843,17 @@ export function storeBlock({
   });
 }
 
+function txImportCallback(integrity: string) {
+  return async function () {
+    const cached = await getCache(integrity);
+    console.error(cached.toString());
+    const { height, index, txOffset, tx, block } = JSON.parse(cached);
+    console.error(height, index, txOffset);
+    await makeTxImportQuery(toLong(height), toLong(index), tx, block)();
+    await rmCache("tx:" + tx.id);
+  };
+}
+
 export async function storeTransaction(
   txId: string,
   txIndex: CassandraTypes.Long,
@@ -822,10 +861,11 @@ export async function storeTransaction(
   blockData: { [k: string]: any },
   fresolve: () => void
 ) {
-  // console.error("PRE11 |", txIndex.toString(), "|");
   const currentTransaction = await getTransaction({ txId });
-  // console.error("PRE22 |", txIndex.toString(), "|");
-  if (currentTransaction) {
+
+  if (!currentTransaction) {
+    fresolve(); // error message has alrady been printed
+  } else {
     let maybeTxOffset;
     const dataSize = toLong(currentTransaction.data_size);
     if (dataSize && dataSize.gt(0)) {
@@ -833,37 +873,27 @@ export async function storeTransaction(
     }
 
     const integrity = await putCache(
-      txId,
+      "tx:" + txId,
       JSON.stringify({
-        block: blockData,
+        block: R.dissoc("nextHeight", blockData),
         tx: R.mergeAll([
           currentTransaction,
           maybeTxOffset ? { tx_offset: maybeTxOffset } : {},
         ]),
+        txId,
         height: height.toString(),
         index: txIndex.toString(),
       })
     );
 
-    async function txCallback() {
-      const { height, index, txOffset, tx, block } = JSON.parse(
-        await getCache(integrity)
-      );
-      await makeTxImportQuery(toLong(height), toLong(txIndex), tx, block)();
-      await rmCache(txId);
-    }
-    console.error("POST |", txIndex.toString(), "|");
+    // console.error("POST |", txIndex.toString(), "|");
     enqueueTxQueue({
       height,
-      callback: txCallback.bind(txQueue),
+      callback: txImportCallback(integrity).bind(txQueue),
       fresolve,
       txIndex,
       type: "tx",
     });
-  } else {
-    fresolve();
-    console.error("Fatal network error");
-    // process.exit(1);
   }
 }
 

@@ -17,27 +17,13 @@ export default class PriorityQueue {
   }
 
   entries() {
-    // const entries = R.concat([], this.queue); // copy
-    // let purgeCount = 0;
-    // while (purgeCount < entries.length) {
-    //   this.queue.pop();
-    //   purgeCount += 1;
-    // }
     return this.queue;
   }
 
-  // purgeUndefs() {
-  //   while (this.queue.length > 0 && !this.queue[0]) {
-  //     !this.queue.shift();
-  //   }
-  // }
-
-  removeItem(fn) {
-    // const knife = R.findIndex((i) => i && fn(i))(this.queue);
-    // delete this.queue[knife];
-
-    this.queue = R.reject(fn)(this.queue);
+  removeItem(function_) {
+    this.queue = R.reject(function_)(this.queue);
   }
+
   // just return the latest, sort to be sure
   peek(): any {
     this.sortQueue();

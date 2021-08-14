@@ -814,7 +814,7 @@ export function storeBlock({
           JSON.stringify({
             block: R.assoc("next_height", nextHeightString, newSyncBlock),
             height: newSyncBlockHeight.toString(),
-            nextHeight: nextHeightStr,
+            nextHeight: nextHeightString,
           })
         );
 

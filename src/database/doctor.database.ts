@@ -9,31 +9,36 @@ import {
   makeTxImportQuery,
   toLong,
 } from "./cassandra.database";
+import {
+  getCacheByKey,
+  recollectImportableTxs,
+  recollectIncomingTxs,
+} from "../caching/cacache";
 import * as C from "./constants.database";
 
 export const checkForBlockGaps = async (): Promise<boolean> => {
   const expectedBlockHeightResult = await cassandraClient.execute(
-      `SELECT height FROM ${KEYSPACE}.block_gql_desc LIMIT 1`,
+    `SELECT height FROM ${KEYSPACE}.block_gql_desc LIMIT 1`
   );
   const expectedBlockHeight = expectedBlockHeightResult.rows[0].height;
 
   const eachBucket = R.range(
-      0,
-      expectedBlockHeight.divide(C.GQL_BLOCK_HEIGHT_BUCKET_SIZE).add(1).toInt(),
+    0,
+    expectedBlockHeight.divide(C.GQL_BLOCK_HEIGHT_BUCKET_SIZE).add(1).toInt()
   );
 
   let totalBlocksCount = toLong(0);
 
   for (const bucket of eachBucket) {
     const currentPartition = toLong(bucket)
-        .mul(C.GQL_BLOCK_HEIGHT_BUCKET_SIZE)
-        .divide(C.GQL_BLOCK_HEIGHT_PARTITION_SIZE)
-        .toString();
+      .mul(C.GQL_BLOCK_HEIGHT_BUCKET_SIZE)
+      .divide(C.GQL_BLOCK_HEIGHT_PARTITION_SIZE)
+      .toString();
     const currentBucketCountResult = await cassandraClient.execute(
-        `SELECT COUNT(*) from ${KEYSPACE}.block_gql_asc WHERE bucket_id='gql_bucket_block_height_asc_${bucket}' AND partition_id='gql_partition_block_height_asc_${currentPartition}'`,
+      `SELECT COUNT(*) from ${KEYSPACE}.block_gql_asc WHERE bucket_id='gql_bucket_block_height_asc_${bucket}' AND partition_id='gql_partition_block_height_asc_${currentPartition}'`
     );
     totalBlocksCount = totalBlocksCount.add(
-        currentBucketCountResult.rows[0].count,
+      currentBucketCountResult.rows[0].count
     );
   }
   return !expectedBlockHeight.add(1).equals(totalBlocksCount);
@@ -41,29 +46,29 @@ export const checkForBlockGaps = async (): Promise<boolean> => {
 
 export const findBlockGaps = async (): Promise<number[]> => {
   const topHeightQ = await cassandraClient.execute(
-      `SELECT height FROM ${KEYSPACE}.block_gql_desc LIMIT 1`,
+    `SELECT height FROM ${KEYSPACE}.block_gql_desc LIMIT 1`
   );
   const topHeight = topHeightQ.rows[0].height;
 
   const queryHeightGroups = R.splitEvery(
-      1000,
-      R.range(0, topHeight.add(1).toInt()),
+    1000,
+    R.range(0, topHeight.add(1).toInt())
   );
 
   const missingHeights: number[] = [];
 
   for (const heightGroup of queryHeightGroups) {
     const blockQ = await cassandraClient.execute(
-        `SELECT height FROM ${KEYSPACE}.block WHERE height >= ${R.head(
-            heightGroup,
-        )} AND height <= ${R.last(heightGroup)} ALLOW FILTERING`,
+      `SELECT height FROM ${KEYSPACE}.block WHERE height >= ${R.head(
+        heightGroup
+      )} AND height <= ${R.last(heightGroup)} ALLOW FILTERING`
     );
     for (const height of R.range(
-        R.head(heightGroup),
-        R.last(heightGroup) + 1,
+      R.head(heightGroup),
+      R.last(heightGroup) + 1
     )) {
       const findResult = R.findIndex((row: any) => row.height.equals(height))(
-          blockQ.rows,
+        blockQ.rows
       );
       if (findResult < 0) {
         missingHeights.push(height);
@@ -75,44 +80,44 @@ export const findBlockGaps = async (): Promise<number[]> => {
 
 export const findTxGaps = async (): Promise<void> => {
   const topHeightQ = await cassandraClient.execute(
-      `SELECT height FROM ${KEYSPACE}.block_gql_desc LIMIT 1`,
+    `SELECT height FROM ${KEYSPACE}.block_gql_desc LIMIT 1`
   );
   const topHeight = topHeightQ.rows[0].height;
 
   const queryHeightGroups = R.splitEvery(
-      C.MAX_TX_PER_BLOCK,
-      R.range(0, topHeight.add(1).toInt()),
+    C.MAX_TX_PER_BLOCK,
+    R.range(0, topHeight.add(1).toInt())
   );
 
   const missingTxs: string[] = [];
 
   for (const heightGroup of queryHeightGroups) {
     const blockQ = await cassandraClient.execute(
-        `SELECT height,txs,txs_count FROM ${KEYSPACE}.block WHERE height >= ${R.head(
-            heightGroup,
-        )} AND height <= ${R.last(heightGroup)} ALLOW FILTERING`,
+      `SELECT height,txs,txs_count FROM ${KEYSPACE}.block WHERE height >= ${R.head(
+        heightGroup
+      )} AND height <= ${R.last(heightGroup)} ALLOW FILTERING`
     );
 
     const txCounts = blockQ.rows.filter(
-        (row) => row.txs_count && row.txs_count !== 0,
+      (row) => row.txs_count && row.txs_count !== 0
     );
 
     for (const { txs_count, height, txs } of txCounts) {
       const txCntQ = await cassandraClient.execute(
-          `SELECT COUNT(*) FROM gateway.transaction WHERE block_height>=${height.divide(
-              C.MAX_TX_PER_BLOCK,
-          )} AND block_height<${height
-              .add(1)
-              .divide(C.MAX_TX_PER_BLOCK)} ALLOW FILTERING`,
+        `SELECT COUNT(*) FROM gateway.transaction WHERE block_height>=${height.divide(
+          C.MAX_TX_PER_BLOCK
+        )} AND block_height<${height
+          .add(1)
+          .divide(C.MAX_TX_PER_BLOCK)} ALLOW FILTERING`
       );
 
       if (txCntQ.rowLength !== txs_count) {
         const txDataQ = await cassandraClient.execute(
-            `SELECT tx_id FROM gateway.transaction WHERE block_height>=${height.divide(
-                C.MAX_TX_PER_BLOCK,
-            )} AND block_height<${height
-                .add(1)
-                .divide(C.MAX_TX_PER_BLOCK)} ALLOW FILTERING`,
+          `SELECT tx_id FROM gateway.transaction WHERE block_height>=${height.divide(
+            C.MAX_TX_PER_BLOCK
+          )} AND block_height<${height
+            .add(1)
+            .divide(C.MAX_TX_PER_BLOCK)} ALLOW FILTERING`
         );
         for (const { tx_id } of txDataQ.rows) {
           if (!txs.includes(tx_id)) {
@@ -125,11 +130,54 @@ export const findTxGaps = async (): Promise<void> => {
 
   if (!R.isEmpty(missingTxs)) {
     console.error(
-        "Very bad situation it seems these txs are missing",
-        missingTxs,
+      "Very bad situation it seems these txs are missing",
+      missingTxs
     );
   }
 };
+
+export async function enqueueUnhandledCache(
+  enqueueIncomingTxQueue: (any) => void,
+  enqueueTxQueue: (any) => void,
+  txImportCallback: (any) => (any) => void,
+  incomingTxCallback: (any) => (any) => void,
+  txQueue: any
+) {
+  const unhandledIncomings = await recollectIncomingTxs();
+  const unhandledTxImports = await recollectImportableTxs();
+
+  if (!R.isEmpty(unhandledIncomings)) {
+    for (const queueItem of unhandledIncomings) {
+      const { data } = await getCacheByKey(queueItem.key);
+      const dataParsed = JSON.parse(data.toString());
+
+      enqueueIncomingTxQueue({
+        height: toLong(0),
+        txIndex: toLong(dataParsed.txIndex),
+        next: incomingTxCallback.bind(txQueue)(
+          queueItem.integrity,
+          toLong(dataParsed.txIndex),
+          undefined, // eslint-disable-line unicorn/no-useless-undefined
+          undefined // eslint-disable-line unicorn/no-useless-undefined
+        ),
+      });
+    }
+  }
+
+  if (!R.isEmpty(unhandledTxImports)) {
+    for (const queueItem of unhandledTxImports) {
+      const { data } = await getCacheByKey(queueItem.key);
+      const dataParsed = JSON.parse(data.toString());
+
+      enqueueTxQueue({
+        height: toLong(dataParsed.height),
+        callback: txImportCallback(queueItem.integrity).bind(txQueue),
+        txIndex: toLong(dataParsed.index),
+        type: "tx",
+      });
+    }
+  }
+}
 
 // const verifyBlock = async (height: number): Promise<boolean> => {
 //   const queryResponse = await cassandraClient.execute(

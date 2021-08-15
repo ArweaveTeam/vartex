@@ -1,12 +1,13 @@
 import * as R from "rambda";
 import got from "got";
-import killPort from "kill-port";
 import cassandra, { types as CassandraTypes } from "cassandra-driver";
 import { exists as existsOrig } from "fs";
 import fs from "fs/promises";
 import { jest } from "@jest/globals";
 import util from "util";
 import * as helpers from "./helpers";
+
+const PORT = parseInt(process.env.PORT);
 
 const appState: Map<string, any> = new Map();
 
@@ -61,7 +62,7 @@ describe("database sync test suite", function () {
       proc = undefined;
     }
 
-    killPort(3000);
+    await helpers.killPortAndWait(PORT);
 
     // wait a second for handlers to close
     await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -77,7 +78,6 @@ describe("database sync test suite", function () {
     await new Promise((resolve) => setTimeout(resolve, 1000));
   });
   beforeEach(async () => {
-    jest.resetModules();
     jest.setTimeout(60000);
   });
 
@@ -249,7 +249,7 @@ describe("database sync test suite", function () {
 
 describe("graphql test suite", function () {
   beforeAll(async function () {
-    await killPort(3000);
+    await helpers.killPortAndWait(PORT);
     await helpers.waitForCassandra();
     ensureCassandraClient();
     await ensureTestNode();
@@ -263,11 +263,10 @@ describe("graphql test suite", function () {
   });
 
   beforeEach(async () => {
-    jest.resetModules();
     jest.setTimeout(10000);
   });
 
-  afterAll(() => killPort(3000));
+  afterAll(async () => await helpers.killPortAndWait(PORT));
 
   test("gql returns the last id", async () => {
     if (await exists("./cache/hash_list_test.json")) {
@@ -283,6 +282,7 @@ describe("graphql test suite", function () {
       resolveReady = resolve;
     });
 
+    await helpers.killPortAndWait(PORT);
     const runp = helpers.runGatewayOnce({
       stopCondition: (log) => {
         if (/polling for new blocks/g.test(log) && resolveReady) {
@@ -295,7 +295,7 @@ describe("graphql test suite", function () {
     await ready;
 
     const gqlResponse = await got
-      .post("http://localhost:3000/graphql", {
+      .post(`http://localhost:${PORT}/graphql`, {
         json: {
           operationName: null,
           variables: {},

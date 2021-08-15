@@ -7,6 +7,8 @@ import child_process, { fork } from "child_process";
 import { testEnvVars } from "./setup";
 import { purgeCache } from "../src/caching/cacache";
 
+const PORT = parseInt(process.env.PORT);
+
 export function waitForCassandra(): Promise<void> {
   return new Promise((resolve, reject) => {
     const maxRetry = 100;
@@ -36,6 +38,44 @@ export function waitForCassandra(): Promise<void> {
         });
     };
     retry();
+  });
+}
+
+export function killPortAndWait(port: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const maxRetry = 100;
+    let rtry = 0;
+    // Wait until cassandra is reachable
+    const retry = () => {
+      const client = net
+        .createConnection(port, "127.0.0.1")
+        .on("connect", function (error: string) {
+          rtry += 1;
+          if (rtry < maxRetry) {
+            new Promise((resolveRetry) => setTimeout(resolveRetry, 100)).then(
+              () => {
+                retry();
+                try {
+                  client.destroy();
+                  // eslint-disable-next-line no-empty
+                } catch (error) {}
+              }
+            );
+          } else {
+            throw new Error(`Couldn't kill port ${port}`);
+          }
+        })
+        .on("error", function (error: string) {
+          try {
+            client.destroy();
+            // eslint-disable-next-line no-empty
+          } catch (error) {}
+          resolve();
+        });
+    };
+    killPort(port)
+      .then(retry)
+      .catch(() => resolve());
   });
 }
 
@@ -254,7 +294,7 @@ export async function runGatewayOnce({
         proc = undefined;
       }
 
-      await killPort(3000);
+      await killPort(PORT);
       await new Promise((res_) => setTimeout(res_, 0));
 
       resolve(logs.join(" "));

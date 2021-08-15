@@ -11,7 +11,8 @@ import {
   getCache,
   getCacheByKey,
   putCache,
-  // purgeCache,
+  gcImportCache,
+  lastGcImportCacheRun,
   rmCache,
 } from "../caching/cacache";
 import { KEYSPACE, POLLTIME_DELAY_SECONDS } from "../constants";
@@ -85,6 +86,7 @@ if (developmentSyncLength === Number.NaN) {
 
 const isQueueProcessorStarted = false;
 let isPollingStarted = false;
+let isImportCacheGcRunning = true; // true because we want to wait before starting periodic gc runs
 const isSyncing = true;
 let isPaused = false;
 
@@ -259,7 +261,19 @@ function processTxQueue(): void {
 function startQueueProcessors() {
   if (!blockQueueState.isStarted) {
     blockQueueState.isStarted = true;
+    let counter = 0;
     setInterval(() => {
+      counter += 1;
+      if (!isImportCacheGcRunning && counter % 100 === 0) {
+        lastGcImportCacheRun().then(async (secondsAgo) => {
+          if (secondsAgo > 60 && !isImportCacheGcRunning) {
+            isImportCacheGcRunning = true;
+            await gcImportCache();
+            isImportCacheGcRunning = false;
+          }
+        });
+      }
+
       processBlockQueue();
     }, 120);
   }
@@ -632,6 +646,7 @@ export async function startSync({ isTesting = false }) {
     ? toLong(1)
     : initialLastBlock;
   txQueueState.nextTxIndex = initialLastBlock.mul(MAX_TX_PER_BLOCK);
+  isImportCacheGcRunning = false;
 
   if (firstRun) {
     log.info(

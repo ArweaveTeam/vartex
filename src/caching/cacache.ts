@@ -19,8 +19,32 @@ export const getCache = (integrity: string): Promise<any> =>
 export const getCacheByKey = (integrity: string): Promise<any> =>
   cacache.get(importCacheDirectory, integrity);
 
-export const rmCache = (integrity: string): Promise<any> =>
-  cacache.rm.entry(importCacheDirectory, integrity);
+export const rmCache = async (key: string): Promise<void> => {
+  try {
+    await cacache.rm.entry(importCacheDirectory, key, {
+      removeFully: true,
+    });
+  } catch {}
+};
+
+export const gcImportCache = (): Promise<any> =>
+  cacache.verify(importCacheDirectory);
+
+export const lastGcImportCacheRun = async (): Promise<number> => {
+  let neverRan = true;
+  let lastRunDate: Date;
+  try {
+    lastRunDate = await cacache.verify.lastRun(importCacheDirectory);
+    neverRan = false;
+  } catch {}
+
+  if (neverRan) {
+    return 9999999;
+  }
+  const now = new Date();
+  const secondsAgo = Math.floor((now.getTime() - lastRunDate.getTime()) / 1000);
+  return secondsAgo;
+};
 
 export const purgeCache = (): Promise<void> =>
   new Promise((resolve, reject) =>

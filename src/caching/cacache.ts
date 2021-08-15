@@ -55,27 +55,42 @@ export const purgeCache = (): Promise<void> =>
   );
 
 export const recollectIncomingTxs = async (): Promise<any> => {
-  const entireCache = await cacache.ls(importCacheDirectory);
-  return R.filter(
-    (R.pipe as any)(
-      R.both(
-        R.over(R.lensProp("key"), R.is(String)),
-        R.over(R.lensProp("key"), R.startsWith("incoming:"))
-      ),
-      R.prop("key")
-    )
-  )(R.values(entireCache));
+  let entireCache;
+  try {
+    entireCache = await cacache.ls(importCacheDirectory);
+  } catch {}
+  if (!entireCache) {
+    return [];
+  } else {
+    return R.filter(
+      (R.pipe as any)(
+        R.both(
+          R.over(R.lensProp("key"), R.is(String)),
+          R.over(R.lensProp("key"), R.startsWith("incoming:"))
+        ),
+        R.prop("key")
+      )
+    )(R.values(entireCache));
+  }
 };
 
 export const recollectImportableTxs = async (): Promise<any> => {
-  const entireCache = await cacache.ls(importCacheDirectory);
-  return R.filter(
-    (R.pipe as any)(
-      R.both(
-        R.over(R.lensProp("key"), R.is(String)),
-        R.over(R.lensProp("key"), R.startsWith("tx:"))
-      ),
-      R.prop("key")
-    )
-  )(R.values(entireCache));
+  let entireCache;
+  try {
+    entireCache = await cacache.ls(importCacheDirectory);
+  } catch {}
+
+  if (!entireCache) {
+    return [];
+  } else {
+    return R.filter(
+      (R.pipe as any)(
+        R.both(
+          R.over(R.lensProp("key"), R.is(String)),
+          R.over(R.lensProp("key"), R.startsWith("tx:"))
+        ),
+        R.prop("key")
+      )
+    )(R.values(entireCache));
+  }
 };

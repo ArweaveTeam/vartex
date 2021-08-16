@@ -174,18 +174,21 @@ export async function enqueueUnhandledCache(
 
   if (!R.isEmpty(unhandledTxImports)) {
     for (const queueItem of unhandledTxImports) {
-      const { data } = await getCacheByKey(queueItem.key);
-      const dataParsed = JSON.parse(data.toString());
+      const maybeData = await getCacheByKey(queueItem.key);
+      if (maybeData && maybeData.data) {
+        const data = maybeData.data;
+        const dataParsed = JSON.parse(data.toString());
 
-      enqueueTxQueue({
-        height: toLong(dataParsed.height),
-        callback: txImportCallback.bind(txQueue)(
-          queueItem.integrity,
-          toLong(dataParsed.index)
-        ),
-        txIndex: toLong(dataParsed.index),
-        type: "tx",
-      });
+        enqueueTxQueue({
+          height: toLong(dataParsed.height),
+          callback: txImportCallback.bind(txQueue)(
+            queueItem.integrity,
+            toLong(dataParsed.index)
+          ),
+          txIndex: toLong(dataParsed.index),
+          type: "tx",
+        });
+      }
     }
   }
 }

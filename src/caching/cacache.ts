@@ -10,9 +10,13 @@ const importCacheDirectory = process.env.CACHE_IMPORT_PATH
 
 mkdirp.sync(importCacheDirectory);
 
-export const putCache = async (key: string, value: any): Promise<void> => {
+export const putCache = async (
+  key: string,
+  value: any
+): Promise<string | undefined> => {
+  let integrity;
   try {
-    await cacache.put(importCacheDirectory, key, value);
+    integrity = await cacache.put(importCacheDirectory, key, value);
   } catch (error) {
     console.error(
       "FATAL: unable to put in new cache, tried putting the following into importCache",
@@ -20,6 +24,7 @@ export const putCache = async (key: string, value: any): Promise<void> => {
       value
     );
   }
+  return integrity ? integrity : undefined;
 };
 
 export const getCache = async (integrity: string): Promise<any> => {

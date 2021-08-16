@@ -13,17 +13,20 @@ mkdirp.sync(importCacheDirectory);
 export const putCache = (key: string, value: any): Promise<any> =>
   cacache.put(importCacheDirectory, key, value);
 
-export const getCache = (integrity: string): Promise<any> =>
-  cacache.get.byDigest(importCacheDirectory, integrity);
+export const getCache = async (integrity: string): Promise<any> => {
+  let resp;
+  try {
+    resp = cacache.get.byDigest(importCacheDirectory, integrity);
+  } catch {}
+  return resp ? resp : undefined;
+};
 
 export const getCacheByKey = (integrity: string): Promise<any> =>
   cacache.get(importCacheDirectory, integrity);
 
 export const rmCache = async (key: string): Promise<void> => {
   try {
-    await cacache.rm.entry(importCacheDirectory, key, {
-      removeFully: true,
-    });
+    await cacache.rm.entry(importCacheDirectory, key);
   } catch {}
 };
 

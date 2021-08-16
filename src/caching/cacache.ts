@@ -17,12 +17,27 @@ export const getCache = async (integrity: string): Promise<any> => {
   let resp;
   try {
     resp = cacache.get.byDigest(importCacheDirectory, integrity);
-  } catch {}
+  } catch (error) {
+    console.error(
+      "went looking for entry by digest in import cache but didn't find integrity:",
+      integrity
+    );
+  }
   return resp ? resp : undefined;
 };
 
-export const getCacheByKey = (integrity: string): Promise<any> =>
-  cacache.get(importCacheDirectory, integrity);
+export const getCacheByKey = async (integrity: string): Promise<any> => {
+  let resp;
+  try {
+    resp = await cacache.get(importCacheDirectory, integrity);
+  } catch (error) {
+    console.error(
+      "went looking for entry in import cache but didn't find integrity:",
+      integrity
+    );
+  }
+  return resp ? resp : undefined;
+};
 
 export const rmCache = async (key: string): Promise<void> => {
   try {
@@ -30,8 +45,11 @@ export const rmCache = async (key: string): Promise<void> => {
   } catch {}
 };
 
-export const gcImportCache = (): Promise<any> =>
-  cacache.verify(importCacheDirectory);
+export const gcImportCache = async (): Promise<void> => {
+  try {
+    await cacache.verify(importCacheDirectory);
+  } catch {}
+};
 
 export const lastGcImportCacheRun = async (): Promise<number> => {
   let neverRan = true;

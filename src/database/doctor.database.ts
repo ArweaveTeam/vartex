@@ -158,17 +158,20 @@ export async function enqueueUnhandledCache(
 
   if (!R.isEmpty(unhandledIncomings)) {
     for (const queueItem of unhandledIncomings) {
-      const { data } = await getCacheByKey(queueItem.key);
-      const dataParsed = JSON.parse(data.toString());
+      const maybeData = await getCacheByKey(queueItem.key);
+      if (maybeData && maybeData.data) {
+        const data = maybeData.data;
+        const dataParsed = JSON.parse(data.toString());
 
-      enqueueIncomingTxQueue({
-        height: toLong(0),
-        txIndex: toLong(dataParsed.txIndex),
-        next: incomingTxCallback.bind(txQueue)(
-          queueItem.integrity,
-          toLong(dataParsed.txIndex)
-        ),
-      });
+        enqueueIncomingTxQueue({
+          height: toLong(0),
+          txIndex: toLong(dataParsed.txIndex),
+          next: incomingTxCallback.bind(txQueue)(
+            queueItem.integrity,
+            toLong(dataParsed.txIndex)
+          ),
+        });
+      }
     }
   }
 

@@ -247,7 +247,11 @@ function startQueueProcessors() {
       counter += 1;
       if (counter > 10_000 && !isImportCacheGcRunning && counter % 100 === 0) {
         lastGcImportCacheRun().then(async (secondsAgo) => {
-          if (secondsAgo > 60 && !isImportCacheGcRunning) {
+          if (
+            topHeight.gt(1000) &&
+            secondsAgo > 60 &&
+            !isImportCacheGcRunning
+          ) {
             isImportCacheGcRunning = true;
             await gcImportCache();
             isImportCacheGcRunning = false;

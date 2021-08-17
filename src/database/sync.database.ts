@@ -1,5 +1,5 @@
 import * as R from "rambda";
-import Fluture, { fork, parallel } from "fluture/index.js";
+import Fluture, { fork, forkCatch, parallel } from "fluture/index.js";
 import PriorityQueue from "../utility/priority.queue";
 import pWaitFor from "p-wait-for";
 // import { DataItemJson } from "arweave-bundles";
@@ -478,23 +478,43 @@ function findMissingBlocks(
   });
 }
 
+let txIncomingIsConsuming;
+
+function unlockIncomingQueue() {
+  txIncomingIsConsuming = undefined;
+}
+
+const handleTxImportError = (reason: any): void => {
+  console.error("Fatal", reason || "");
+  process.exit(1);
+};
+
 const txIncomingParallelConsume = () => {
+  if (txIncomingIsConsuming && !isTxQueueEmpty()) {
+    return;
+  } else {
+    txIncomingIsConsuming = true;
+  }
   sortIncomingTxQueue();
-  const entries = getEntriesTxIncoming();
+  const entries = [...getEntriesTxIncoming()];
+
+  if (entries.length === 0) {
+    return;
+  }
   txInFlight += entries.length;
 
   while (
     getIncomingTxQueuePeek() &&
-    R.find((entry: any) =>
+    entries.some((entry: any) =>
       entry.txIndex.equals(getIncomingTxQueuePeek().txIndex)
-    )(entries)
+    )
   ) {
     popIncomingTxQueue();
   }
 
   const batch = entries.map((incTx) => {
     return new (Fluture as (any) => void)((reject, fresolve) => {
-      incTx.next(fresolve);
+      incTx.next.call(this, fresolve);
       return () => {
         log.info("enqueueing of txId " + incTx.txId + " failed!");
         process.exit(1);
@@ -502,16 +522,9 @@ const txIncomingParallelConsume = () => {
     });
   });
 
-  fork((reason: string | void) => {
-    console.error("Fatal", reason || "");
-    process.exit(1);
-  })(function () {
-    // if (isIncomingTxQueueEmpty()) {
-    //   txIncomingQueueState.isProcessing = false;
-    // } else {
-    //   return txIncomingParallelConsume();
-    // }
-  })(parallel(PARALLEL)(batch));
+  forkCatch(handleTxImportError)(handleTxImportError)(unlockIncomingQueue)(
+    parallel(PARALLEL)(batch)
+  );
 };
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -543,7 +556,7 @@ export async function startSync({ isTesting = false }) {
         const doneSignal = new Promise(function (resolve) {
           doneSignalResolve = resolve;
         });
-        fork((error) => console.error(error))(function () {
+        fork((error) => console.error(error))(() => {
           doneSignalResolve();
           console.log("Block repair done!");
         })(
@@ -670,29 +683,31 @@ export async function startSync({ isTesting = false }) {
     });
   })(
     parallel(PARALLEL)(
-      (unsyncedBlocks as any).map(function ({
-        height,
-        hash,
-        next,
-      }: {
-        height: number;
-        hash: string;
-        next: number;
-      }): any {
-        function getProgress() {
-          return `blocks: ${height}/${
-            hashList.length
-          }/${getBlockQueueSize()} txs: ${getIncomingTxQueueSize()}/${txInFlight}/${getTxQueueSize()}`;
-        }
-
-        return storeBlock({
+      (unsyncedBlocks as any).map(
+        ({
           height,
           hash,
-          next: toLong(next || -1),
-          getProgress,
-          gauge,
-        });
-      })
+          next,
+        }: {
+          height: number;
+          hash: string;
+          next: number;
+        }): any => {
+          const getProgress = () => {
+            return `blocks: ${height}/${
+              hashList.length
+            }/${getBlockQueueSize()} txs: ${getIncomingTxQueueSize()}/${txInFlight}/${getTxQueueSize()}`;
+          };
+
+          return storeBlock({
+            height,
+            hash,
+            next: toLong(next || -1),
+            getProgress,
+            gauge,
+          });
+        }
+      )
     )
   );
 }

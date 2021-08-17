@@ -243,6 +243,7 @@ describe("database sync test suite", function () {
 });
 
 describe("graphql test suite", function () {
+  jest.setTimeout(120000);
   beforeAll(async function () {
     await helpers.waitForCassandra();
     ensureCassandraClient();
@@ -254,10 +255,6 @@ describe("graphql test suite", function () {
 
     appState.set("mockBlocks", mockBlocks);
     appState.set("mockTxs", mockTxs);
-  });
-
-  beforeEach(async () => {
-    jest.setTimeout(10000);
   });
 
   test("gql returns the last id", async () => {

@@ -56,7 +56,14 @@ export const rmCache = async (key: string): Promise<void> => {
 
 export const gcImportCache = async (): Promise<void> => {
   try {
-    await cacache.verify(importCacheDirectory);
+    await cacache.verify(importCacheDirectory, {
+      filter: ({ time }) => {
+        const now = new Date();
+        const nowSeconds = Math.floor(now.getTime() / 1000);
+        // for safety, keep all 5 minute old cache, just in case of slowness causing purge before read
+        return nowSeconds - time > 60 * 5;
+      },
+    });
   } catch {}
 };
 

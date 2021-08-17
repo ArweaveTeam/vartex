@@ -1,14 +1,7 @@
 import * as R from "rambda";
 import { types as CassandraTypes } from "cassandra-driver";
 import { KEYSPACE } from "../constants";
-import { getBlock as queryGetBlock } from "../query/block.query";
-import {
-  cassandraClient,
-  getMaxHeightBlock,
-  makeBlockImportQuery,
-  makeTxImportQuery,
-  toLong,
-} from "./cassandra.database";
+import { cassandraClient, toLong } from "./cassandra.database";
 import {
   getCacheByKey,
   recollectImportableTxs,

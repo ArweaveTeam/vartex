@@ -8,7 +8,7 @@ export function proxyGetRoute(request: Request, response: Response) {
   stream.on("error", (error) => {
     response.status(404).json({
       status: 404,
-      error: "Not Found",
+      error: "Not Found: " + error,
     });
 
     console.log(`[GET] Failed to get: ${uri}`);

@@ -6,7 +6,6 @@ import { Poa, TxOffset } from "../types/cassandra.types";
 import { KEYSPACE } from "../constants";
 import { config } from "dotenv";
 import {
-  MAX_TX_PER_BLOCK,
   getGqlBlockHeightAscPartitionName,
   getGqlBlockHeightAscBucketName,
   getGqlBlockHeightDescPartitionName,
@@ -103,8 +102,6 @@ const poaKeys = [
   "block_hash",
   "block_height",
 ];
-
-const blockGqlKeys = ["height", "indep_hash"];
 
 const txTagKeys = [
   "partition_id",

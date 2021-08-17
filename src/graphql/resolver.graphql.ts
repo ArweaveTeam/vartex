@@ -22,9 +22,8 @@ import {
   generateTransactionQuery,
   generateDeferedTxQuery,
   generateDeferedTxBlockQuery,
-  generateDeferedBlockQuery,
+  // generateDeferedBlockQuery,
 } from "./query.graphql";
-import * as DatabaseMapper from "../database/mapper.database";
 
 process.env.NODE_ENV !== "test" && config();
 
@@ -72,25 +71,6 @@ interface FieldMap {
   block_previous: string;
 }
 
-const fieldMap = {
-  id: "transactions.id",
-  anchor: "transactions.last_tx",
-  recipient: "transactions.target",
-  tags: "transactions.tags",
-  fee: "transactions.reward",
-  quantity: "transactions.quantity",
-  data_size: "transactions.data_size",
-  data_type: "transactions.content_type",
-  parent: "transactions.parent",
-  owner: "transactions.owner",
-  owner_address: "transactions.owner_address",
-  // signature: 'transactions.signature',
-  block_id: "blocks.id",
-  block_timestamp: "blocks.mined_at",
-  block_height: "blocks.height",
-  block_previous: "blocks.previous_block",
-};
-
 const edgeFieldMapTx = {
   "edges.node.id": "tx_id",
   "edges.node.last_tx": "anchor",
@@ -117,24 +97,6 @@ const blockFieldMap = {
   timestamp: "blocks.mined_at",
   height: "blocks.height",
   // extended: 'blocks.extended',
-};
-
-const hydrateGqlTx = async (tx) => {
-  const block = await DatabaseMapper.txIdToBlockMapper.get({
-    tx_id: tx.id,
-  });
-  const tags = await DatabaseMapper.tagsByTxId(tx.id);
-  const hydrated = R.reduce((accumulator: FieldMap, key: string) => {
-    const txKeyKey = fieldMap[key].split(".");
-    const txScope = txKeyKey[0];
-    const txKey = txKeyKey[1];
-    const value =
-      txScope === "blocks"
-        ? (block[txKey] || "").toString()
-        : (tx[txKey] || "").toString();
-    return R.assoc(key, value, accumulator);
-  }, {} as FieldMap)(R.keys(fieldMap));
-  return R.assoc("tags", tags, hydrated);
 };
 
 const resolveGqlTxSelect = (userFields: any, singleTx = false): string[] => {
@@ -169,28 +131,10 @@ export const resolvers = {
     transaction: async (
       parent: FieldMap,
       queryParameters: any,
-      { req, connection }: any,
+      { req, connection }: any, // eslint-disable-line @typescript-eslint/no-unused-vars
       info: any
     ) => {
-      const { timestamp, offset } = parseCursor(
-        queryParameters.after || newCursor()
-      );
       const fieldsWithSubFields = graphqlFields(info);
-
-      const fetchSize =
-        Math.min(queryParameters.first || DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE) + 1;
-
-      const ids: Array<string> = [];
-      let minHeight = toLong(0);
-      let maxHeight = toLong(topTxIndex);
-
-      if (queryParameters.block && queryParameters.block.min) {
-        minHeight = toLong(queryParameters.block.min).mul(1000);
-      }
-
-      if (queryParameters.block && queryParameters.block.max) {
-        maxHeight = toLong(queryParameters.block.max).mul(1000);
-      }
 
       const parameters: any = {
         id: queryParameters.id || undefined,
@@ -312,7 +256,7 @@ export const resolvers = {
     transactions: async (
       parent: string,
       queryParameters: QueryTransactionsArguments,
-      { req, connection }: any,
+      request: any, // eslint-disable-line @typescript-eslint/no-unused-vars
       info: any
     ) => {
       const { timestamp, offset } = parseCursor(
@@ -323,7 +267,6 @@ export const resolvers = {
       const fetchSize =
         Math.min(queryParameters.first || DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE) + 1;
 
-      const ids: Array<string> = [];
       let minHeight = toLong(0);
       let maxHeight = toLong(topTxIndex);
 
@@ -341,7 +284,7 @@ export const resolvers = {
       > = {
         limit: fetchSize,
         offset: offset,
-        ids: queryParameters.ids || undefined,
+        // ids: queryParameters.ids || undefined,
         to: queryParameters.recipients || undefined,
         from: queryParameters.owners || undefined,
         tags: queryParameters.tags || undefined,
@@ -409,7 +352,7 @@ export const resolvers = {
           }
         }
         for (const item of result) {
-          const userSelectKeys = R.keys(fieldsWithSubFields.edges.node.block);
+          // const userSelectKeys = R.keys(fieldsWithSubFields.edges.node.block);
 
           const blockQuery = generateDeferedTxBlockQuery(
             item.tx_index.divide(1000),
@@ -499,7 +442,7 @@ export const resolvers = {
     block: async (
       parent: string,
       queryParameters: QueryBlockArguments,
-      { req, connection }: any
+      request: any // eslint-disable-line @typescript-eslint/no-unused-vars
     ) => {
       return queryParameters.id
         ? (
@@ -515,7 +458,7 @@ export const resolvers = {
     blocks: async (
       parent: FieldMap,
       queryParameters: QueryBlocksArguments,
-      { req, connection }: any,
+      request: any, // eslint-disable-line @typescript-eslint/no-unused-vars
       info: any
     ) => {
       const fieldsWithSubFields = graphqlFields(info);

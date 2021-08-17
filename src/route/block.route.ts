@@ -5,7 +5,7 @@ import {
   blockHeightToHashMapper,
   poaMapper,
 } from "../database/mapper.database";
-import { topHash, topHeight } from "../database/sync.database";
+import { topHeight } from "../database/sync.database";
 
 export async function blockByHeightRoute(
   request: Request,

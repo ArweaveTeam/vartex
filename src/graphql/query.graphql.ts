@@ -3,13 +3,13 @@ import { types as CassandraTypes } from "cassandra-driver";
 import * as Constants from "../database/constants.database";
 import { config } from "dotenv";
 import { KEYSPACE } from "../constants";
-import { indices } from "../utility/order.utility";
-import { ISO8601DateTimeString } from "../utility/encoding.utility";
+// import { indices } from "../utility/order.utility";
+// import { ISO8601DateTimeString } from "../utility/encoding.utility";
 import { TagFilter } from "./types";
 import { toB64url } from "../query/transaction.query";
 import { default as cqlBuilder } from "@ridi/cql-builder";
 
-const { Insert, Select, Update, Delete, CqlBuilderError } = cqlBuilder;
+const { Select } = cqlBuilder;
 
 export type TxSortOrder = "HEIGHT_ASC" | "HEIGHT_DESC";
 

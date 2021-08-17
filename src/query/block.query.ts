@@ -1,6 +1,4 @@
 import got from "got";
-import fs from "node:fs/promises";
-import path from "node:path";
 import { log } from "../utility/log.utility";
 import { grabNode, warmNode, coolNode } from "./node.query";
 import { HTTP_TIMEOUT_SECONDS } from "../constants";
@@ -45,9 +43,9 @@ export async function getBlock({
   getProgress?: () => string;
 }): Promise<BlockType | undefined> {
   const tryNode = grabNode();
-  const url = hash ?
-    `${tryNode}/block/hash/${hash}` :
-    `${tryNode}/block/height/${height}`;
+  const url = hash
+    ? `${tryNode}/block/hash/${hash}`
+    : `${tryNode}/block/height/${height}`;
   gauge && gauge.show(`${getProgress ? getProgress() || "" : ""} ${url}`);
   // const
 
@@ -75,7 +73,7 @@ export async function getBlock({
   if (hash && height !== body.height) {
     console.error(height, typeof height, body.height, typeof body.height);
     log.error(
-        "fatal inconsistency: hash and height dont match for hash." +
+      "fatal inconsistency: hash and height dont match for hash." +
         "wanted: " +
         hash +
         " got: " +
@@ -85,7 +83,7 @@ export async function getBlock({
         " got: " +
         body.height +
         " while requesting " +
-        url,
+        url
     );
     // REVIEW: does assuming re-forking condition work better than fatal error?
     process.exit(1);
@@ -95,7 +93,7 @@ export async function getBlock({
 }
 
 export async function fetchBlockByHash(
-    hash: string,
+  hash: string
 ): Promise<BlockType | undefined> {
   const tryNode = grabNode();
   const url = `${tryNode}/block/hash/${hash}`;

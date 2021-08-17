@@ -1,5 +1,5 @@
 import { types as CassandraTypes } from "cassandra-driver";
-import { append, head, isEmpty as rIsEmpty, slice, sort } from "rambda";
+import { head, isEmpty as rIsEmpty } from "rambda";
 import { toLong } from "../database/cassandra.database";
 import * as R from "rambda";
 

@@ -1,6 +1,4 @@
-import * as R from "rambda";
 import { Request, Response } from "express";
-import { concurrent, types as CassandraTypes } from "cassandra-driver";
 import { KEYSPACE } from "../constants.js";
 import { cassandraClient } from "../database/cassandra.database.js";
 

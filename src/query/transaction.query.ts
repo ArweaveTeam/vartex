@@ -6,7 +6,6 @@ import {
   fromB64Url,
 } from "../utility/encoding.utility";
 import { grabNode, coolNode, warmNode } from "./node.query";
-import { HTTP_TIMEOUT_SECONDS } from "../constants";
 
 export interface Tag {
   name: Base64UrlEncodedString;

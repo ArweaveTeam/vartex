@@ -2,9 +2,9 @@ import Ar from "arweave/node/ar";
 import { types as CassandraTypes } from "cassandra-driver";
 import * as B64js from "base64-js";
 import { base32 } from "rfc4648";
-import crypto, { createHash } from "node:crypto";
+import { createHash } from "node:crypto";
 import { Readable, PassThrough, Transform } from "node:stream";
-import { Tag } from "../types/arweave.types";
+// import { Tag } from "../types/arweave.types";
 
 const ar = new ((Ar as any).default as typeof Ar)();
 
@@ -114,7 +114,7 @@ export function sha256B64Url(input: Buffer): string {
 
 export async function streamToBuffer(stream: Readable): Promise<Buffer> {
   let buffer = Buffer.alloc(0);
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     stream.on("data", (chunk: Buffer) => {
       buffer = Buffer.concat([buffer, chunk]);
     });

@@ -1,14 +1,7 @@
 import * as R from "rambda";
 import { types as CassandraTypes } from "cassandra-driver";
 import { KEYSPACE } from "../constants";
-import { getBlock as queryGetBlock } from "../query/block.query";
-import {
-  cassandraClient,
-  getMaxHeightBlock,
-  makeBlockImportQuery,
-  makeTxImportQuery,
-  toLong,
-} from "./cassandra.database";
+import { cassandraClient, toLong } from "./cassandra.database";
 import {
   getCacheByKey,
   recollectImportableTxs,
@@ -161,6 +154,7 @@ export async function enqueueUnhandledCache(
       const maybeData = await getCacheByKey(queueItem.key);
       if (maybeData && maybeData.data) {
         const data = maybeData.data;
+        process.stderr.write(JSON.stringify(Object.keys(maybeData)));
         const dataParsed = JSON.parse(data.toString());
 
         enqueueIncomingTxQueue({
@@ -180,6 +174,7 @@ export async function enqueueUnhandledCache(
       const maybeData = await getCacheByKey(queueItem.key);
       if (maybeData && maybeData.data) {
         const data = maybeData.data;
+        process.stderr.write(JSON.stringify(Object.keys(maybeData)));
         const dataParsed = JSON.parse(data.toString());
 
         enqueueTxQueue({

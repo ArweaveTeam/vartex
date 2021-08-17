@@ -4,8 +4,6 @@ import got from "got";
 import {
   transactionMapper,
   txOffsetMapper,
-  txIdToBlockMapper,
-  tagsByTxId,
 } from "../database/mapper.database.js";
 import { grabNode } from "../query/node.query.js";
 import Transaction from "arweave/node/lib/transaction";
@@ -33,6 +31,15 @@ export async function txUploadRoute(
         code: result.statusCode,
         error: result.statusMessage,
       });
+      next(
+        "[broadcast-tx] failed: " +
+          JSON.stringify({
+            id: tx.id,
+            host,
+            code: result.statusCode,
+            error: result.statusMessage,
+          })
+      );
     }
 
     return response.sendStatus(200).end();

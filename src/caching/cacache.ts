@@ -17,7 +17,7 @@ export const putCache = async (
   let integrity;
   try {
     integrity = await cacache.put(importCacheDirectory, key, value);
-  } catch (error) {
+  } catch {
     console.error(
       "FATAL: unable to put in new cache, tried putting the following into importCache",
       key,
@@ -31,7 +31,7 @@ export const getCache = async (integrity: string): Promise<any> => {
   let resp;
   try {
     resp = cacache.get.byDigest(importCacheDirectory, integrity);
-  } catch (error) {
+  } catch {
     console.error(
       "went looking for entry by digest in import cache but didn't find integrity:",
       integrity
@@ -40,16 +40,11 @@ export const getCache = async (integrity: string): Promise<any> => {
   return resp ? resp : undefined;
 };
 
-export const getCacheByKey = async (integrity: string): Promise<any> => {
+export const getCacheByKey = async (key: string): Promise<any> => {
   let resp;
   try {
-    resp = await cacache.get(importCacheDirectory, integrity);
-  } catch (error) {
-    console.error(
-      "went looking for entry in import cache but didn't find integrity:",
-      integrity
-    );
-  }
+    resp = await cacache.get(importCacheDirectory, key);
+  } catch {}
   return resp ? resp : undefined;
 };
 
@@ -74,7 +69,7 @@ export const lastGcImportCacheRun = async (): Promise<number> => {
   } catch {}
 
   if (neverRan) {
-    return 9999999;
+    return 9_999_999;
   }
   const now = new Date();
   const secondsAgo = Math.floor((now.getTime() - lastRunDate.getTime()) / 1000);
@@ -82,7 +77,7 @@ export const lastGcImportCacheRun = async (): Promise<number> => {
 };
 
 export const purgeCache = (): Promise<void> =>
-  new Promise((resolve, reject) =>
+  new Promise((resolve) =>
     rimraf(importCacheDirectory, {}, () => {
       mkdirp.sync(importCacheDirectory);
       resolve();
@@ -94,19 +89,17 @@ export const recollectIncomingTxs = async (): Promise<any> => {
   try {
     entireCache = await cacache.ls(importCacheDirectory);
   } catch {}
-  if (!entireCache) {
-    return [];
-  } else {
-    return R.filter(
-      (R.pipe as any)(
-        R.both(
-          R.over(R.lensProp("key"), R.is(String)),
-          R.over(R.lensProp("key"), R.startsWith("incoming:"))
-        ),
-        R.prop("key")
-      )
-    )(R.values(entireCache));
-  }
+  return !entireCache
+    ? []
+    : R.filter(
+        (R.pipe as any)(
+          R.both(
+            R.over(R.lensProp("key"), R.is(String)),
+            R.over(R.lensProp("key"), R.startsWith("incoming:"))
+          ),
+          R.prop("key")
+        )
+      )(R.values(entireCache));
 };
 
 export const recollectImportableTxs = async (): Promise<any> => {
@@ -115,17 +108,15 @@ export const recollectImportableTxs = async (): Promise<any> => {
     entireCache = await cacache.ls(importCacheDirectory);
   } catch {}
 
-  if (!entireCache) {
-    return [];
-  } else {
-    return R.filter(
-      (R.pipe as any)(
-        R.both(
-          R.over(R.lensProp("key"), R.is(String)),
-          R.over(R.lensProp("key"), R.startsWith("tx:"))
-        ),
-        R.prop("key")
-      )
-    )(R.values(entireCache));
-  }
+  return !entireCache
+    ? []
+    : R.filter(
+        (R.pipe as any)(
+          R.both(
+            R.over(R.lensProp("key"), R.is(String)),
+            R.over(R.lensProp("key"), R.startsWith("tx:"))
+          ),
+          R.prop("key")
+        )
+      )(R.values(entireCache));
 };

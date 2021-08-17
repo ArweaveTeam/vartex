@@ -1,15 +1,14 @@
 import * as R from "rambda";
-import Fluture, { chain, fork, parallel } from "fluture/index.js";
+import Fluture, { fork, parallel } from "fluture/index.js";
 import PriorityQueue from "../utility/priority.queue";
 import pWaitFor from "p-wait-for";
-import { DataItemJson } from "arweave-bundles";
+// import { DataItemJson } from "arweave-bundles";
 import Gauge from "gauge";
 import GaugeThemes from "gauge/themes";
 import { config } from "dotenv";
 import { types as CassandraTypes } from "cassandra-driver";
 import {
   getCache,
-  getCacheByKey,
   putCache,
   gcImportCache,
   lastGcImportCacheRun,
@@ -18,10 +17,9 @@ import {
 import { KEYSPACE, POLLTIME_DELAY_SECONDS } from "../constants";
 import { MAX_TX_PER_BLOCK } from "./constants.database";
 import { log } from "../utility/log.utility";
-import { ansBundles } from "../utility/ans.utility";
 import mkdirp from "mkdirp";
 import {
-  getDataFromChunks,
+  // getDataFromChunks,
   getHashList,
   getNodeInfo,
 } from "../query/node.query";
@@ -29,15 +27,8 @@ import {
   fetchBlockByHash,
   getBlock as queryGetBlock,
 } from "../query/block.query";
+import { getTransaction, getTxOffset } from "../query/transaction.query";
 import {
-  getTransaction,
-  getTxOffset,
-  tagValue,
-  Tag,
-} from "../query/transaction.query";
-import {
-  DeleteRowData,
-  ImportQueue,
   UnsyncedBlock,
   TxQueueState,
   BlockQueueState,
@@ -84,10 +75,8 @@ if (developmentSyncLength === Number.NaN) {
   process.exit(1);
 }
 
-const isQueueProcessorStarted = false;
 let isPollingStarted = false;
 let isImportCacheGcRunning = true; // true because we want to wait before starting periodic gc runs
-const isSyncing = true;
 let isPaused = false;
 
 export function togglePause(): void {
@@ -102,14 +91,6 @@ const blockQueue = new PriorityQueue(function (
 ) {
   return a.height.compare(b.height);
 });
-
-const txIncomingQueueState = {
-  isEmpty: false,
-  size: 0,
-  isProcessing: false,
-};
-
-// const txIncomingQueueArr = [];
 
 const txIncomingQueue = new PriorityQueue(function (
   a: { txIndex: CassandraTypes.Long },
@@ -264,7 +245,7 @@ function startQueueProcessors() {
     let counter = 0;
     setInterval(() => {
       counter += 1;
-      if (!isImportCacheGcRunning && counter % 100 === 0) {
+      if (counter > 10_000 && !isImportCacheGcRunning && counter % 100 === 0) {
         lastGcImportCacheRun().then(async (secondsAgo) => {
           if (secondsAgo > 60 && !isImportCacheGcRunning) {
             isImportCacheGcRunning = true;
@@ -316,7 +297,7 @@ async function resolveFork(previousBlock: any): Promise<void> {
         );
       },
 
-      function (error, result) {
+      function () {
         isPaused = false;
         log.info(
           "fork diverges at " +
@@ -470,7 +451,7 @@ function findMissingBlocks(
           delete hashListObject[row.height];
         }
       },
-      async function (error, result) {
+      async function (error) {
         gauge.disable();
         if (error) {
           reject((error || "").toString());
@@ -533,6 +514,7 @@ const txIncomingParallelConsume = () => {
   })(parallel(PARALLEL)(batch));
 };
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function startSync({ isTesting = false }) {
   signalHook();
   startQueueProcessors();
@@ -566,7 +548,7 @@ export async function startSync({ isTesting = false }) {
           console.log("Block repair done!");
         })(
           (parallel as any)(PARALLEL)(
-            blockGap.map(function (gap, index) {
+            blockGap.map(function (gap) {
               return storeBlock({
                 height: gap,
                 next: toLong(-1),
@@ -871,7 +853,7 @@ export function storeBlock({
 function txImportCallback(integrity: string) {
   return async function () {
     const cached = await getCache(integrity);
-    const { height, index, txOffset, tx, block } = JSON.parse(cached);
+    const { height, index, tx, block } = JSON.parse(cached);
 
     await makeTxImportQuery(toLong(height), toLong(index), tx, block)();
     await rmCache("tx:" + tx.id);

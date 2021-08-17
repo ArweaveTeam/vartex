@@ -48,7 +48,7 @@ const retryPort = async (port, retry = 0): Promise<void> => {
       .createConnection(port, "127.0.0.1")
       .on("connect", function (error: string) {
         if (retry < maxRetry) {
-          new Promise((resolveRetry) => setTimeout(resolveRetry, 100)).then(
+          new Promise((resolveRetry) => setTimeout(resolveRetry, 1)).then(
             () => {
               return retryPort(port, retry + 1);
               try {

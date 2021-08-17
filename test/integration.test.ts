@@ -108,9 +108,8 @@ describe("database sync test suite", function () {
       stopCondition: (log) => {
         if (log.includes("new block arrived at height 100")) {
           shouldStop = true;
-          return false;
         }
-        return shouldStop;
+        return false;
       },
     });
 
@@ -125,9 +124,9 @@ describe("database sync test suite", function () {
     appState.set("lastBlockHash", nextBlock.indep_hash as string);
 
     await pWaitFor(() => shouldStop);
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    await new Promise((resolve) => setTimeout(resolve, 5000));
     // await runp;
-    await helpers.killPortAndWait(PORT);
+    // await helpers.killPortAndWait(PORT);
 
     const queryResponse = await client.execute(
       "SELECT COUNT(*) FROM testway.block ALLOW FILTERING"

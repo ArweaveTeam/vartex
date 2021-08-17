@@ -1,6 +1,7 @@
 import * as R from "rambda";
 import got from "got";
 import cassandra, { types as CassandraTypes } from "cassandra-driver";
+import pWaitFor from "p-wait-for";
 import { exists as existsOrig } from "fs";
 import fs from "fs/promises";
 import { jest } from "@jest/globals";
@@ -40,12 +41,12 @@ function ensureCassandraClient() {
 }
 
 async function ensureTestNode() {
-  const testNode = await helpers.setupTestNode(appState);
-  app = testNode.app;
-  srv = testNode.srv;
+  if (!app && !srv) {
+    const testNode = await helpers.setupTestNode(appState);
+    app = testNode.app;
+    srv = testNode.srv;
+  }
 }
-
-// process.stderr.write(JSON.stringify(appState.get("mockBlocks")));
 
 describe("database sync test suite", function () {
   jest.setTimeout(60000);
@@ -56,23 +57,11 @@ describe("database sync test suite", function () {
   });
 
   afterAll(async () => {
-    // srv && srv.close();
-    // if (proc) {
-    //   proc.kill("SIGINT");
-    //   proc = undefined;
-    // }
-
     // wait a second for handlers to close
     await new Promise((resolve) => setTimeout(resolve, 1000));
   });
 
   afterEach(async () => {
-    // togglePause();
-    // if (proc) {
-    //   proc.kill("SIGINT");
-    //   proc = undefined;
-    // }
-
     await new Promise((resolve) => setTimeout(resolve, 1000));
   });
 
@@ -112,17 +101,16 @@ describe("database sync test suite", function () {
   });
 
   test("it starts polling and receives new blocks", async () => {
+    let shouldStop = false;
     const runp = helpers.runGatewayOnce({
       stopCondition: (log) => {
         if (log.includes("new block arrived at height 100")) {
-          return true;
-        } else {
+          shouldStop = true;
           return false;
         }
+        return shouldStop;
       },
     });
-
-    await new Promise((resolve) => setTimeout(resolve, 2000));
 
     const { blocks: nextBlocks } = helpers.generateMockBlocks({
       totalBlocks: 1,
@@ -134,9 +122,10 @@ describe("database sync test suite", function () {
     appState.set("lastBlockHeight", nextBlock.height as number);
     appState.set("lastBlockHash", nextBlock.indep_hash as string);
 
-    await runp;
-
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await pWaitFor(() => shouldStop);
+    // await new Promise((resolve) => setTimeout(resolve, 100));
+    // await runp;
+    await helpers.killPortAndWait(PORT);
 
     const queryResponse = await client.execute(
       "SELECT COUNT(*) FROM testway.block ALLOW FILTERING"
@@ -149,9 +138,9 @@ describe("database sync test suite", function () {
     let logs = "";
     let fullySyncPromiseResolve: any;
     let newForkPromiseResolve: any;
+
+    await helpers.killPortAndWait(PORT);
     const proc = helpers.startGateway();
-    // await helpers.killPortAndWait(PORT);
-    // proc = proc || helpers.startGateway();
 
     const logCallback = (log: string) => {
       if (
@@ -268,9 +257,10 @@ describe("graphql test suite", function () {
     jest.setTimeout(10000);
   });
 
-  afterAll(async () => await helpers.killPortAndWait(PORT));
-
   test("gql returns the last id", async () => {
+    await helpers.killPortAndWait(PORT);
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
     if (await exists("./cache/hash_list_test.json")) {
       await fs.unlink("./cache/hash_list_test.json");
     }

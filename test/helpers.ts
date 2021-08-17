@@ -41,62 +41,62 @@ export function waitForCassandra(): Promise<void> {
   });
 }
 
+const retryPort = async (port, retry = 0): Promise<void> => {
+  const maxRetry = 100;
+  return await new Promise((resolve) => {
+    const client = net
+      .createConnection(port, "127.0.0.1")
+      .on("connect", function (error: string) {
+        if (retry < maxRetry) {
+          new Promise((resolveRetry) => setTimeout(resolveRetry, 100)).then(
+            () => {
+              return retryPort(port, retry + 1);
+              try {
+                client.destroy();
+                // eslint-disable-next-line no-empty
+              } catch (error) {}
+            }
+          );
+        } else {
+          throw new Error(`Couldn't kill port ${port}`);
+        }
+      })
+      .on("error", function (error: string) {
+        try {
+          client.destroy();
+          // eslint-disable-next-line no-empty
+        } catch (error) {}
+        resolve();
+      });
+  });
+};
+
 export function killPortAndWait(port: number): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const maxRetry = 100;
-    let rtry = 0;
-    // Wait until cassandra is reachable
-    const retry = () => {
-      const client = net
-        .createConnection(port, "127.0.0.1")
-        .on("connect", function (error: string) {
-          rtry += 1;
-          if (rtry < maxRetry) {
-            new Promise((resolveRetry) => setTimeout(resolveRetry, 100)).then(
-              () => {
-                retry();
-                try {
-                  client.destroy();
-                  // eslint-disable-next-line no-empty
-                } catch (error) {}
-              }
-            );
-          } else {
-            throw new Error(`Couldn't kill port ${port}`);
-          }
-        })
-        .on("error", function (error: string) {
-          try {
-            client.destroy();
-            // eslint-disable-next-line no-empty
-          } catch (error) {}
-          resolve();
-        });
-    };
-    killPort(port)
-      .then(retry)
-      .catch(() => resolve());
+  return new Promise(async (resolve, reject) => {
+    await killPort(port);
+    await retryPort(port);
+    resolve();
   });
 }
 
 export function initDb(): Promise<string> {
   return new Promise((resolve, reject) => {
-    let invoked = false;
+    // let invoked = false;
     const forkps = fork(path.resolve("./", "cassandra/init.cjs"), {
       env: process.env,
     });
 
     // listen for errors as they may prevent the exit event from firing
     forkps.on("error", function (err) {
-      if (invoked) return;
-      invoked = true;
+      // if (invoked) return;
+      // invoked = true;
       reject((err || "").toString());
     });
 
     // execute the callback once the forkps has finished running
     forkps.on("exit", function (code) {
-      if (invoked) return;
-      invoked = true;
+      // if (invoked) return;
+      // invoked = true;
       const err = code === 0 ? null : new Error("exit code " + code);
       resolve((err || "").toString());
     });

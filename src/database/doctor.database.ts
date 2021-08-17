@@ -161,6 +161,7 @@ export async function enqueueUnhandledCache(
       const maybeData = await getCacheByKey(queueItem.key);
       if (maybeData && maybeData.data) {
         const data = maybeData.data;
+        process.stderr.write(JSON.stringify(Object.keys(maybeData)));
         const dataParsed = JSON.parse(data.toString());
 
         enqueueIncomingTxQueue({
@@ -180,6 +181,7 @@ export async function enqueueUnhandledCache(
       const maybeData = await getCacheByKey(queueItem.key);
       if (maybeData && maybeData.data) {
         const data = maybeData.data;
+        process.stderr.write(JSON.stringify(Object.keys(maybeData)));
         const dataParsed = JSON.parse(data.toString());
 
         enqueueTxQueue({

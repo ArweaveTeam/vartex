@@ -56,13 +56,11 @@ describe("database sync test suite", function () {
   });
 
   afterAll(async () => {
-    srv && srv.close();
-    if (proc) {
-      proc.kill("SIGINT");
-      proc = undefined;
-    }
-
-    await helpers.killPortAndWait(PORT);
+    // srv && srv.close();
+    // if (proc) {
+    //   proc.kill("SIGINT");
+    //   proc = undefined;
+    // }
 
     // wait a second for handlers to close
     await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -70,13 +68,14 @@ describe("database sync test suite", function () {
 
   afterEach(async () => {
     // togglePause();
-    if (proc) {
-      proc.kill("SIGINT");
-      proc = undefined;
-    }
+    // if (proc) {
+    //   proc.kill("SIGINT");
+    //   proc = undefined;
+    // }
 
     await new Promise((resolve) => setTimeout(resolve, 1000));
   });
+
   beforeEach(async () => {
     jest.setTimeout(60000);
   });
@@ -113,14 +112,13 @@ describe("database sync test suite", function () {
   });
 
   test("it starts polling and receives new blocks", async () => {
-    let shouldStop = false;
     const runp = helpers.runGatewayOnce({
       stopCondition: (log) => {
         if (log.includes("new block arrived at height 100")) {
-          shouldStop = true;
+          return true;
+        } else {
           return false;
         }
-        return shouldStop;
       },
     });
 
@@ -151,7 +149,10 @@ describe("database sync test suite", function () {
     let logs = "";
     let fullySyncPromiseResolve: any;
     let newForkPromiseResolve: any;
-    proc = proc || helpers.startGateway();
+    const proc = helpers.startGateway();
+    // await helpers.killPortAndWait(PORT);
+    // proc = proc || helpers.startGateway();
+
     const logCallback = (log: string) => {
       if (
         /polling for new blocks/g.test(log.toString()) &&
@@ -244,12 +245,13 @@ describe("database sync test suite", function () {
     expect(
       R.filter(R.equals({ height: 92, hash: "y92" }), result)
     ).toHaveLength(1);
+
+    proc.kill("SIGINT");
   });
 });
 
 describe("graphql test suite", function () {
   beforeAll(async function () {
-    await helpers.killPortAndWait(PORT);
     await helpers.waitForCassandra();
     ensureCassandraClient();
     await ensureTestNode();
@@ -282,7 +284,6 @@ describe("graphql test suite", function () {
       resolveReady = resolve;
     });
 
-    await helpers.killPortAndWait(PORT);
     const runp = helpers.runGatewayOnce({
       stopCondition: (log) => {
         if (/polling for new blocks/g.test(log) && resolveReady) {

@@ -9,7 +9,6 @@ import { config } from "dotenv";
 import { types as CassandraTypes } from "cassandra-driver";
 import {
   getCache,
-  getCacheByKey,
   putCache,
   gcImportCache,
   lastGcImportCacheRun,
@@ -264,7 +263,7 @@ function startQueueProcessors() {
     let counter = 0;
     setInterval(() => {
       counter += 1;
-      if (!isImportCacheGcRunning && counter % 100 === 0) {
+      if (counter > 10000 && !isImportCacheGcRunning && counter % 100 === 0) {
         lastGcImportCacheRun().then(async (secondsAgo) => {
           if (secondsAgo > 60 && !isImportCacheGcRunning) {
             isImportCacheGcRunning = true;

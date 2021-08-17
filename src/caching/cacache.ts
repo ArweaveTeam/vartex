@@ -40,16 +40,11 @@ export const getCache = async (integrity: string): Promise<any> => {
   return resp ? resp : undefined;
 };
 
-export const getCacheByKey = async (integrity: string): Promise<any> => {
+export const getCacheByKey = async (key: string): Promise<any> => {
   let resp;
   try {
-    resp = await cacache.get(importCacheDirectory, integrity);
-  } catch (error) {
-    console.error(
-      "went looking for entry in import cache but didn't find integrity:",
-      integrity
-    );
-  }
+    resp = await cacache.get(importCacheDirectory, key);
+  } catch {}
   return resp ? resp : undefined;
 };
 
@@ -61,7 +56,11 @@ export const rmCache = async (key: string): Promise<void> => {
 
 export const gcImportCache = async (): Promise<void> => {
   try {
-    await cacache.verify(importCacheDirectory);
+    await cacache.verify(importCacheDirectory, {
+      filter: (data) => {
+        return false;
+      },
+    });
   } catch {}
 };
 

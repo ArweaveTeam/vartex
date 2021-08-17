@@ -58,7 +58,8 @@ const retryPort = async (port, retry = 0): Promise<void> => {
             }
           );
         } else {
-          throw new Error(`Couldn't kill port ${port}`);
+          // throw new Error(`Couldn't kill port ${port}`);
+          resolve();
         }
       })
       .on("error", function (error: string) {

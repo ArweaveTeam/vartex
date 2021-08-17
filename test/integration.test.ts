@@ -76,7 +76,7 @@ describe("database sync test suite", function () {
     if (await exists("./cache/hash_list_test.json")) {
       await fs.unlink("./cache/hash_list_test.json");
     }
-
+    await helpers.killPortAndWait(PORT);
     const logs = await helpers.runGatewayOnce({
       stopCondition: (log) =>
         log ? /polling for new blocks/.test(log) : false,
@@ -90,6 +90,7 @@ describe("database sync test suite", function () {
   });
 
   test("it detects correctly fully synced db on startup", async () => {
+    await helpers.killPortAndWait(PORT);
     const logs = await helpers.runGatewayOnce({});
 
     const queryResponse = await client.execute(
@@ -102,6 +103,7 @@ describe("database sync test suite", function () {
 
   test("it starts polling and receives new blocks", async () => {
     let shouldStop = false;
+    await helpers.killPortAndWait(PORT);
     const runp = helpers.runGatewayOnce({
       stopCondition: (log) => {
         if (log.includes("new block arrived at height 100")) {
@@ -123,7 +125,7 @@ describe("database sync test suite", function () {
     appState.set("lastBlockHash", nextBlock.indep_hash as string);
 
     await pWaitFor(() => shouldStop);
-    // await new Promise((resolve) => setTimeout(resolve, 100));
+    await new Promise((resolve) => setTimeout(resolve, 1000));
     // await runp;
     await helpers.killPortAndWait(PORT);
 

@@ -523,7 +523,7 @@ const txIncomingParallelConsume = () => {
   });
 
   forkCatch(handleTxImportError)(handleTxImportError)(unlockIncomingQueue)(
-    parallel(PARALLEL)(batch)
+    parallel(PARALLEL * 4)(batch)
   );
 };
 

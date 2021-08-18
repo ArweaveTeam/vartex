@@ -27,6 +27,7 @@ import {
   getNodeInfo,
 } from "../query/node.query";
 import {
+  BlockType,
   fetchBlockByHash,
   getBlock as queryGetBlock,
 } from "../query/block.query";
@@ -570,42 +571,45 @@ export async function startSync({ isTesting = false }) {
             onlineHandler: () => console.log('worker is online') 
           });
 
-        const pall: Promise<any>[] = [];
+        // const pall: Promise<any>[] = [];
 
-        blockGap.map(function (gap) {
-          pall.push(pool.execute({
-            height: gap,
-            next: toLong(-1),
-          }));
+        // blockGap.map(function (gap) {
+        //   pall.push(pool.execute({
+        //     height: gap,
+        //     next: toLong(-1),
+        //   }));
+        // });
+
+        // try {
+        //   await Promise.all(pall);
+        //   console.log("Block repair done!");
+        // } catch (e) {
+        //   console.log(e);
+        // }
+        // await pool.destroy();
+
+        let doneSignalResolve;
+        const doneSignal = new Promise(function (resolve) {
+          doneSignalResolve = resolve;
         });
-
-        try {
-          await Promise.all(pall);
+        
+        fork((error) => console.error(error))(() => {
+          doneSignalResolve();
           console.log("Block repair done!");
-        } catch (e) {
-          console.log(e);
-        }
+        })(
+          (parallel as any)(PARALLEL)(
+            blockGap.map(function (gap) {
+              return storeBlock({
+                height: gap,
+                next: toLong(-1),
+                pool,
+              });
+            })
+          )
+        );
+        await doneSignal;
         await pool.destroy();
 
-        // let doneSignalResolve;
-        // const doneSignal = new Promise(function (resolve) {
-        //   doneSignalResolve = resolve;
-        // });
-        
-        // fork((error) => console.error(error))(() => {
-        //   doneSignalResolve();
-        //   console.log("Block repair done!");
-        // })(
-        //   (parallel as any)(PARALLEL)(
-        //     blockGap.map(function (gap) {
-        //       return storeBlock({
-        //         height: gap,
-        //         next: toLong(-1),
-        //       });
-        //     })
-        //   )
-        // );
-        // await doneSignal;
         blockQueueState.nextHeight = toLong(R.head(blockGap) + 1);
         await pWaitFor(
           function () {
@@ -706,87 +710,90 @@ export async function startSync({ isTesting = false }) {
       onlineHandler: () => console.log('worker is online') 
     });
 
-  const pall: Promise<any>[] = [];
+  // const pall: Promise<any>[] = [];
 
-  unsyncedBlocks.map(({
-    height,
-    hash,
-    next,
-  }: {
-    height: number;
-    hash: string;
-    next: number;
-  }): any => {
-      const getProgress = () => {
-        return `blocks: ${height}/${
-          hashList.length
-        }/${getBlockQueueSize()} txs: ${getIncomingTxQueueSize()}/${txInFlight}/${getTxQueueSize()}`;
-      };
+  // unsyncedBlocks.map(({
+  //   height,
+  //   hash,
+  //   next,
+  // }: {
+  //   height: number;
+  //   hash: string;
+  //   next: number;
+  // }): any => {
+  //     const getProgress = () => {
+  //       return `blocks: ${height}/${
+  //         hashList.length
+  //       }/${getBlockQueueSize()} txs: ${getIncomingTxQueueSize()}/${txInFlight}/${getTxQueueSize()}`;
+  //     };
 
-      pall.push(pool.execute({
-        height,
-        hash,
-        next: toLong(next || -1),
-        getProgress: JSON.stringify(getProgress),
-        gauge: JSON.stringify(gauge),
-      }));
-  });
+  //     pall.push(pool.execute({
+  //       height,
+  //       hash,
+  //       next: toLong(next || -1),
+  //       getProgress: JSON.stringify(getProgress),
+  //       gauge: JSON.stringify(gauge),
+  //     }));
+  // });
 
-  try {
-    await Promise.all(pall);
-  } catch (e) {
-    console.error("Fatal", e);
-    process.exit(1);
-  }
-  await pool.destroy();
-
-  // fork(function (reason: string | void) {
-  //   console.error("Fatal", reason || "");
+  // try {
+  //   await Promise.all(pall);
+  // } catch (e) {
+  //   console.error("Fatal", e);
   //   process.exit(1);
-  // })(function () {
-  //   gauge.disable();
-  //   pWaitFor(
-  //     function () {
-  //       return (
-  //         isIncomingTxQueueEmpty() && isBlockQueueEmpty() && isTxQueueEmpty()
-  //       );
-  //     },
-  //     {
-  //       interval: 1000,
-  //     }
-  //   ).then(function () {
-  //     log.info("Database fully in sync with block_list");
-  //     !isPollingStarted && startPolling();
-  //   });
-  // })(
-  //   parallel(PARALLEL)(
-  //     (unsyncedBlocks as any).map(
-  //       ({
-  //         height,
-  //         hash,
-  //         next,
-  //       }: {
-  //         height: number;
-  //         hash: string;
-  //         next: number;
-  //       }): any => {
-  //         const getProgress = () => {
-  //           return `blocks: ${height}/${
-  //             hashList.length
-  //           }/${getBlockQueueSize()} txs: ${getIncomingTxQueueSize()}/${txInFlight}/${getTxQueueSize()}`;
-  //         };
+  // }
+  
 
-  //         return storeBlock({
-  //           height,
-  //           hash,
-  //           next: toLong(next || -1),
-  //           getProgress,
-  //           gauge,
-  //         });
-  //       }
-  //     )
-  //   )
-  // );
+  fork(function (reason: string | void) {
+    console.error("Fatal", reason || "");
+    pool.destroy();
+    process.exit(1);
+  })(function () {
+    gauge.disable();
+    pool.destroy();
+    pWaitFor(
+      function () {
+        return (
+          isIncomingTxQueueEmpty() && isBlockQueueEmpty() && isTxQueueEmpty()
+        );
+      },
+      {
+        interval: 1000,
+      }
+    ).then(function () {
+      log.info("Database fully in sync with block_list");
+      !isPollingStarted && startPolling();
+    });
+  })(
+    parallel(PARALLEL)(
+      (unsyncedBlocks as any).map(
+        ({
+          height,
+          hash,
+          next,
+        }: {
+          height: number;
+          hash: string;
+          next: number;
+        }): any => {
+          const getProgress = () => {
+            return `blocks: ${height}/${
+              hashList.length
+            }/${getBlockQueueSize()} txs: ${getIncomingTxQueueSize()}/${txInFlight}/${getTxQueueSize()}`;
+          };
+
+          return storeBlock({
+            height,
+            hash,
+            next: toLong(next || -1),
+            getProgress,
+            gauge,
+            pool,
+          });
+        }
+      )
+    )
+  );
 }
 
 function incomingTxCallback(
@@ -834,12 +841,14 @@ export function storeBlock({
   next,
   getProgress,
   gauge,
+  pool,
 }: {
   height: number;
   next: CassandraTypes.Long;
   hash?: string;
   getProgress?: () => string;
   gauge?: any;
+  pool?: DynamicThreadPool;
 }): unknown {
   let isCancelled = false;
   return Fluture(function (reject: any, fresolve: any) {
@@ -849,12 +858,23 @@ export function storeBlock({
       if (isPaused || isCancelled) {
         return;
       }
-      const newSyncBlock = await queryGetBlock({
-        hash,
-        height,
-        gauge,
-        getProgress,
-      });
+
+      let newSyncBlock;
+      if(pool) {
+        newSyncBlock = await pool.execute({
+          hash,
+          height,
+          gauge: JSON.stringify(gauge),
+          getProgress: JSON.stringify(getProgress),
+        }) as BlockType;
+      } else {
+        newSyncBlock = await queryGetBlock({
+          hash,
+          height,
+          gauge,
+          getProgress,
+        });
+      }
 
       if (newSyncBlock && newSyncBlock.height === height) {
         const newSyncBlockHeight = toLong(newSyncBlock.height);

@@ -1,126 +1,120 @@
-import { log } from 'console';
-import { toLong, makeBlockImportQuery } from '../database/cassandra.database';
-import { MAX_TX_PER_BLOCK } from '../database/constants.database';
-import PriorityQueue from "../utility/priority.queue";
 import { ThreadWorker } from 'poolifier';
+import got from "got";
+import { log } from "../utility/log.utility";
+import { grabNode, warmNode, coolNode } from "./node.query";
+import { HTTP_TIMEOUT_SECONDS } from "../constants";
 
-import {
-  getBlock as queryGetBlock,
-} from "../query/block.query";
+// get block by hash is optional (needs proper decoupling)
+export async function getBlock({
+  hash,
+  height,
+  gauge,
+  getProgress,
+}){
+  if(gauge) {
+    gauge = new Function(gauge);
+  }
+  if(getProgress) {
+    getProgress = new Function(getProgress);
+  }
 
-const PARALLEL = (Number.isNaN)(process.env["PARALLEL"])
-  ? 36
-  : Number.parseInt(process.env["PARALLEL"] || "36");
+  const tryNode = grabNode();
+  const url = hash
+    ? `${tryNode}/block/hash/${hash}`
+    : `${tryNode}/block/height/${height}`;
+  gauge && gauge.show(`${getProgress ? getProgress() || "" : ""} ${url}`);
+  // const
 
-const blockQueue = new PriorityQueue(function (
-  a,
-  b
-) {
-  return a.height.compare(b.height);
-});
-
-const sortBlockQueue = blockQueue.sortQueue.bind(blockQueue);
-
-const getBlock = async (retry = 0) => {
-  const newSyncBlock = await queryGetBlock({
-    hash,
-    height,
-    gauge,
-    getProgress,
-  });
-
-  if (newSyncBlock && newSyncBlock.height === height) {
-    const newSyncBlockHeight = toLong(newSyncBlock.height);
-
-    await Promise.all(
-      R.uniq(newSyncBlock.txs || []).map(async function (txId, index) {
-        const txIndex = newSyncBlockHeight.mul(MAX_TX_PER_BLOCK).add(index);
-        // log.info("TXINDX " + txIndex.toString() + " " + index);
-
-        const txIncomingIntegrity = await putCache(
-          "inconming:" + txIndex.toString(),
-          JSON.stringify({
-            type: "incoming" + index,
-            txId,
-            block: R.dissoc("nextHeight", newSyncBlock),
-            height: newSyncBlockHeight.toString(),
-            txIndex: txIndex.toString(),
-          })
-        );
-
-        enqueueIncomingTxQueue({
-          height: newSyncBlockHeight,
-          txIndex,
-          next: incomingTxCallback(
-            txIncomingIntegrity,
-            txIndex,
-            gauge,
-            getProgress
-          ),
-        });
-      })
-    );
-
-    const nextHeightString = next
-      ? next.toString()
-      : newSyncBlockHeight.add(1).toString();
-
-    const integrity = await putCache(
-      newSyncBlock.indep_hash,
-      JSON.stringify({
-        block: R.assoc("next_height", nextHeightString, newSyncBlock),
-        height: newSyncBlockHeight.toString(),
-        nextHeight: nextHeightString,
-      })
-    );
-
-    const blockCallback = async function () {
-      const { block } = JSON.parse(await getCache(integrity));
-      await makeBlockImportQuery(block)();
-      await rmCache(block.indep_hash);
-    };
-    await new Promise(function (resolve) {
-      setTimeout(resolve, 0);
-    });
-    enqueueBlockQueue({
-      callback: blockCallback.bind(blockQueue),
-      height: newSyncBlockHeight,
-      txCount: newSyncBlock.txs ? newSyncBlock.txs.length : 0,
-      nextHeight: toLong(next),
-      fresolve,
-      type: "block",
-    });
-  } else {
-    await new Promise(function (resolve) {
-      setTimeout(resolve, 100);
-    });
-    if (retry >= 250) {
-      log.info(`Could not retrieve block at height ${height}`);
-      reject("Failed to fetch block after 250 retries");
-    } else {
-      await getBlock(retry + 1);
-      return;
+  let body;
+  try {
+    body = (await got.get(url, {
+      responseType: "json",
+      resolveBodyOnly: true,
+      timeout: HTTP_TIMEOUT_SECONDS * 1000,
+      followRedirect: true,
+    }));
+  } catch (error) {
+    coolNode(tryNode);
+    if (error instanceof got.TimeoutError) {
+      gauge.show(`timeout: ${url}`);
+    } else if (error instanceof got.HTTPError) {
+      gauge.show(`error'd: ${url}`);
     }
   }
-};
 
-function storeBlock({
-  height,
-  hash,
-  next,
-  getProgress,
-  gauge,
-}) {
-  // Convert strings back to functions
-  if(getProgress) getProgress = Function(getProgress);
-  if(gauge) gauge = Function(gauge);
+  if (!body) {
+    return getBlock({ hash, height, gauge, getProgress });
+  }
 
-    sortBlockQueue();
-    getBlock();
-
+  if (hash && height !== body.height) {
+    console.error(height, typeof height, body.height, typeof body.height);
+    log.error(
+      "fatal inconsistency: hash and height dont match for hash." +
+        "wanted: " +
+        hash +
+        " got: " +
+        body.indep_hash +
+        "\nwanted: " +
+        height +
+        " got: " +
+        body.height +
+        " while requesting " +
+        url
+    );
+    // REVIEW: does assuming re-forking condition work better than fatal error?
+    process.exit(1);
+  }
+  warmNode(tryNode);
+  return body;
 }
 
-export default new ThreadWorker(storeBlock, {
+export async function fetchBlockByHash(
+  hash
+) {
+  const tryNode = grabNode();
+  const url = `${tryNode}/block/hash/${hash}`;
+
+  let body;
+  try {
+    body = (await got.get(url, {
+      responseType: "json",
+      resolveBodyOnly: true,
+      timeout: HTTP_TIMEOUT_SECONDS * 1000,
+      followRedirect: true,
+    }));
+  } catch {
+    coolNode(tryNode);
+  }
+
+  if (!body) {
+    return fetchBlockByHash(hash);
+  }
+
+  warmNode(tryNode);
+  return body;
+}
+
+export async function currentBlock(){
+  const tryNode = grabNode();
+  let jsonPayload;
+  try {
+    jsonPayload = await got.get(`${tryNode}/block/current`, {
+      responseType: "json",
+      resolveBodyOnly: true,
+      timeout: 15 * 1000,
+    });
+  } catch {
+    coolNode(tryNode);
+    return undefined;
+  }
+
+  warmNode(tryNode);
+
+  return jsonPayload;
+}
+
+
+export default new ThreadWorker(getBlock, {
   maxInactiveTime: 60000,
   async: false
 });

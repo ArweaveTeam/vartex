@@ -41,6 +41,7 @@ import {
   toLong,
 } from "./cassandra.database";
 import * as Dr from "./doctor.database";
+import { DynamicThreadPool } from "poolifier";
 
 process.env.NODE_ENV !== "test" && config();
 mkdirp.sync("cache");
@@ -556,10 +557,42 @@ export async function startSync({ isTesting = false }) {
       const blockGap = await Dr.findBlockGaps();
       if (!R.isEmpty(blockGap)) {
         console.error("Repairing missing block(s):", blockGap);
+
+        // const pool = new DynamicThreadPool(10, 100,
+        //   '../workers/store-block.ts',
+        //   { 
+        //     errorHandler: (e) => console.error(e), 
+        //     onlineHandler: () => console.log('worker is online') 
+        //   });
+        // pool.emitter.on('busy', () => console.log('Pool is busy'));
+
+        // const pall: Promise<any>[] = [];
+
+        // blockGap.map((gap, index) => {
+        //   if (isPaused) {
+        //     return;
+        //   }
+          
+        //   // the execute method signature is the same for both implementations,
+        //   // so you can easy switch from one to another
+        //   pall.push(pool.execute({
+        //     height: gap,
+        //     next: index + 1 < blockGap.length ? blockGap[index + 1] : 99_999_999,
+        //   }));
+
+        // try {
+        //   await Promise.all(pall);
+        //   console.log("Block repair done!");
+        // } catch (e) {
+        //   console.log(e);
+        // }
+        // await pool.destroy();
+
         let doneSignalResolve;
         const doneSignal = new Promise(function (resolve) {
           doneSignalResolve = resolve;
         });
+        
         fork((error) => console.error(error))(() => {
           doneSignalResolve();
           console.log("Block repair done!");
@@ -666,6 +699,38 @@ export async function startSync({ isTesting = false }) {
   // }
 
   gauge.enable();
+
+  // const pool = new DynamicThreadPool(10, 100,
+  //   '../workers/store-block.ts',
+  //   { 
+  //     errorHandler: (e) => console.error(e), 
+  //     onlineHandler: () => console.log('worker is online') 
+  //   });
+  // pool.emitter.on('busy', () => console.log('Pool is busy'));
+
+  // const pall: Promise<any>[] = [];
+
+  // unsyncedBlocks.map(({
+  //   height,
+  //   hash,
+  //   next,
+  // }: {
+  //   height: number;
+  //   hash: string;
+  //   next: number;
+  // }): any => {
+  //   const getProgress = () =>
+  //     `${height}/${hashList.length}/${blockQueue.getSize()}`;
+  //     pall.push(pool.execute({ height, hash, next, getProgress, gauge }));
+  // });
+
+  // try {
+  //   await Promise.all(pall);
+// } catch (e) {
+//   console.error("Fatal", e);
+//   process.exit(1);
+// }
+// await pool.destroy();
 
   fork(function (reason: string | void) {
     console.error("Fatal", reason || "");

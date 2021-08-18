@@ -1,15 +1,10 @@
-import Fluture, { fork, parallel } from "fluture";
 import { log } from 'console';
-import pWaitFor from 'p-wait-for';
 import { toLong, makeBlockImportQuery } from '../database/cassandra.database';
 import { MAX_TX_PER_BLOCK } from '../database/constants.database';
-import { storeTransaction } from '../database/sync.database';
 import PriorityQueue from "../utility/priority.queue";
-import { types as CassandraTypes } from "cassandra-driver";
 import { ThreadWorker } from 'poolifier';
 
 import {
-  fetchBlockByHash,
   getBlock as queryGetBlock,
 } from "../query/block.query";
 
@@ -24,76 +19,105 @@ const blockQueue = new PriorityQueue(function (
   return a.height.compare(b.height);
 });
 
-export function storeBlock({
+const sortBlockQueue = blockQueue.sortQueue.bind(blockQueue);
+
+const getBlock = async (retry = 0) => {
+  const newSyncBlock = await queryGetBlock({
+    hash,
+    height,
+    gauge,
+    getProgress,
+  });
+
+  if (newSyncBlock && newSyncBlock.height === height) {
+    const newSyncBlockHeight = toLong(newSyncBlock.height);
+
+    await Promise.all(
+      R.uniq(newSyncBlock.txs || []).map(async function (txId, index) {
+        const txIndex = newSyncBlockHeight.mul(MAX_TX_PER_BLOCK).add(index);
+        // log.info("TXINDX " + txIndex.toString() + " " + index);
+
+        const txIncomingIntegrity = await putCache(
+          "inconming:" + txIndex.toString(),
+          JSON.stringify({
+            type: "incoming" + index,
+            txId,
+            block: R.dissoc("nextHeight", newSyncBlock),
+            height: newSyncBlockHeight.toString(),
+            txIndex: txIndex.toString(),
+          })
+        );
+
+        enqueueIncomingTxQueue({
+          height: newSyncBlockHeight,
+          txIndex,
+          next: incomingTxCallback(
+            txIncomingIntegrity,
+            txIndex,
+            gauge,
+            getProgress
+          ),
+        });
+      })
+    );
+
+    const nextHeightString = next
+      ? next.toString()
+      : newSyncBlockHeight.add(1).toString();
+
+    const integrity = await putCache(
+      newSyncBlock.indep_hash,
+      JSON.stringify({
+        block: R.assoc("next_height", nextHeightString, newSyncBlock),
+        height: newSyncBlockHeight.toString(),
+        nextHeight: nextHeightString,
+      })
+    );
+
+    const blockCallback = async function () {
+      const { block } = JSON.parse(await getCache(integrity));
+      await makeBlockImportQuery(block)();
+      await rmCache(block.indep_hash);
+    };
+    await new Promise(function (resolve) {
+      setTimeout(resolve, 0);
+    });
+    enqueueBlockQueue({
+      callback: blockCallback.bind(blockQueue),
+      height: newSyncBlockHeight,
+      txCount: newSyncBlock.txs ? newSyncBlock.txs.length : 0,
+      nextHeight: toLong(next),
+      fresolve,
+      type: "block",
+    });
+  } else {
+    await new Promise(function (resolve) {
+      setTimeout(resolve, 100);
+    });
+    if (retry >= 250) {
+      log.info(`Could not retrieve block at height ${height}`);
+      reject("Failed to fetch block after 250 retries");
+    } else {
+      await getBlock(retry + 1);
+      return;
+    }
+  }
+};
+
+function storeBlock({
   height,
-  next,
   hash,
+  next,
   getProgress,
   gauge,
 }) {
-
   // Convert strings back to functions
-  getProgress = Function(getProgress);
-  gauge = Function(gauge);
+  if(getProgress) getProgress = Function(getProgress);
+  if(gauge) gauge = Function(gauge);
 
-  let isCancelled = false;
-  return Fluture((reject, resolve) => {
-    async function getBlock(retry = 0) {
-      
-      const newSyncBlock = await queryGetBlock({
-        hash,
-        height,
-        gauge,
-        getProgress,
-      });
+    sortBlockQueue();
+    getBlock();
 
-      if (newSyncBlock && newSyncBlock.height === height) {
-        const newSyncBlockHeight = toLong(newSyncBlock.height);
-        await Promise.all(
-          (newSyncBlock.txs || []).map(async (txId, index) => {
-            const txIndex = newSyncBlockHeight.mul(MAX_TX_PER_BLOCK).add(index);
-            await storeTransaction(
-              txId,
-              txIndex,
-              newSyncBlockHeight,
-              newSyncBlock
-            );
-          })
-        );
-        blockQueue.enqueue({
-          callback: makeBlockImportQuery(newSyncBlock),
-          height: newSyncBlockHeight,
-          txCount: newSyncBlock.txs ? newSyncBlock.txs.length : 0,
-          nextHeight: toLong(next),
-          type: "block",
-        });
-        return;
-      } else {
-        await new Promise((resolve) => setTimeout(resolve, 100));
-        if (retry >= 250) {
-          console.info(`Could not retrieve block at height ${height}`);
-          reject("Failed to fetch block after 250 retries");
-        } else {
-          return await getBlock(retry + 1);
-        }
-      }
-    }
-
-    blockQueue.sortQueue();
-
-    pWaitFor(
-      () =>
-        blockQueue.isEmpty() ||
-        blockQueue.peek().height.gt(height) ||
-        blockQueue.getSize() < PARALLEL + 1
-    )
-      .then(() => getBlock())
-      .then(resolve);
-
-    return () => {
-      isCancelled = true;
-    };
-  });
 }
 
 export default new ThreadWorker(storeBlock, {

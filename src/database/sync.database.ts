@@ -19,6 +19,7 @@ import { MAX_TX_PER_BLOCK } from "./constants.database";
 import { log } from "../utility/log.utility";
 import mkdirp from "mkdirp";
 import { FixedThreadPool } from 'poolifier';
+import os from 'os';
 
 import {
   // getDataFromChunks,
@@ -45,7 +46,7 @@ import {
 import * as Dr from "./doctor.database";
 import { DynamicThreadPool } from "poolifier";
 
-const POOL_THREADS = 4;
+const numCpus = os.cpus().length > 1? Math.floor(os.cpus().length) / 2 : 1;
 
 process.env.NODE_ENV !== "test" && config();
 mkdirp.sync("cache");
@@ -562,55 +563,49 @@ export async function startSync({ isTesting = false }) {
       if (!R.isEmpty(blockGap)) {
         console.error("Repairing missing block(s):", blockGap);
 
-        // const pool = new DynamicThreadPool(10, 100,
-        //   '../workers/store-block.ts',
-        //   { 
-        //     errorHandler: (e) => console.error(e), 
-        //     onlineHandler: () => console.log('worker is online') 
-        //   });
-        // pool.emitter.on('busy', () => console.log('Pool is busy'));
+        const pool = new DynamicThreadPool(numCpus, numCpus > PARALLEL ? numCpus*2 : PARALLEL,
+          './src/workers/store-block.mjs',
+          { 
+            errorHandler: (e) => console.error(e), 
+            onlineHandler: () => console.log('worker is online') 
+          });
 
-        // const pall: Promise<any>[] = [];
+        const pall: Promise<any>[] = [];
 
-        // blockGap.map((gap, index) => {
-        //   if (isPaused) {
-        //     return;
-        //   }
-          
-        //   // the execute method signature is the same for both implementations,
-        //   // so you can easy switch from one to another
-        //   pall.push(pool.execute({
-        //     height: gap,
-        //     next: index + 1 < blockGap.length ? blockGap[index + 1] : 99_999_999,
-        //   }));
-
-        // try {
-        //   await Promise.all(pall);
-        //   console.log("Block repair done!");
-        // } catch (e) {
-        //   console.log(e);
-        // }
-        // await pool.destroy();
-
-        let doneSignalResolve;
-        const doneSignal = new Promise(function (resolve) {
-          doneSignalResolve = resolve;
+        blockGap.map(function (gap) {
+          pall.push(pool.execute({
+            height: gap,
+            next: toLong(-1),
+          }));
         });
-        
-        fork((error) => console.error(error))(() => {
-          doneSignalResolve();
+
+        try {
+          await Promise.all(pall);
           console.log("Block repair done!");
-        })(
-          (parallel as any)(PARALLEL)(
-            blockGap.map(function (gap) {
-              return storeBlock({
-                height: gap,
-                next: toLong(-1),
-              });
-            })
-          )
-        );
-        await doneSignal;
+        } catch (e) {
+          console.log(e);
+        }
+        await pool.destroy();
+
+        // let doneSignalResolve;
+        // const doneSignal = new Promise(function (resolve) {
+        //   doneSignalResolve = resolve;
+        // });
+        
+        // fork((error) => console.error(error))(() => {
+        //   doneSignalResolve();
+        //   console.log("Block repair done!");
+        // })(
+        //   (parallel as any)(PARALLEL)(
+        //     blockGap.map(function (gap) {
+        //       return storeBlock({
+        //         height: gap,
+        //         next: toLong(-1),
+        //       });
+        //     })
+        //   )
+        // );
+        // await doneSignal;
         blockQueueState.nextHeight = toLong(R.head(blockGap) + 1);
         await pWaitFor(
           function () {
@@ -704,85 +699,94 @@ export async function startSync({ isTesting = false }) {
 
   gauge.enable();
 
-  // const pool = new DynamicThreadPool(10, 100,
-  //   '../workers/store-block.ts',
-  //   { 
-  //     errorHandler: (e) => console.error(e), 
-  //     onlineHandler: () => console.log('worker is online') 
-  //   });
-  // pool.emitter.on('busy', () => console.log('Pool is busy'));
-
-  // const pall: Promise<any>[] = [];
-
-  // unsyncedBlocks.map(({
-  //   height,
-  //   hash,
-  //   next,
-  // }: {
-  //   height: number;
-  //   hash: string;
-  //   next: number;
-  // }): any => {
-  //   const getProgress = () =>
-  //     `${height}/${hashList.length}/${blockQueue.getSize()}`;
-  //     pall.push(pool.execute({ height, hash, next, getProgress, gauge }));
-  // });
-
-  // try {
-  //   await Promise.all(pall);
-// } catch (e) {
-//   console.error("Fatal", e);
-//   process.exit(1);
-// }
-// await pool.destroy();
-
-  fork(function (reason: string | void) {
-    console.error("Fatal", reason || "");
-    process.exit(1);
-  })(function () {
-    gauge.disable();
-    pWaitFor(
-      function () {
-        return (
-          isIncomingTxQueueEmpty() && isBlockQueueEmpty() && isTxQueueEmpty()
-        );
-      },
-      {
-        interval: 1000,
-      }
-    ).then(function () {
-      log.info("Database fully in sync with block_list");
-      !isPollingStarted && startPolling();
+  const pool = new DynamicThreadPool(numCpus, numCpus > PARALLEL ? numCpus*2 : PARALLEL,
+    './src/workers/store-block.mjs',
+    { 
+      errorHandler: (e) => console.error(e), 
+      onlineHandler: () => console.log('worker is online') 
     });
-  })(
-    parallel(PARALLEL)(
-      (unsyncedBlocks as any).map(
-        ({
-          height,
-          hash,
-          next,
-        }: {
-          height: number;
-          hash: string;
-          next: number;
-        }): any => {
-          const getProgress = () => {
-            return `blocks: ${height}/${
-              hashList.length
-            }/${getBlockQueueSize()} txs: ${getIncomingTxQueueSize()}/${txInFlight}/${getTxQueueSize()}`;
-          };
 
-          return storeBlock({
-            height,
-            hash,
-            next: toLong(next || -1),
-            getProgress,
-            gauge,
-          });
-        }
-      )
-    )
-  );
+  const pall: Promise<any>[] = [];
+
+  unsyncedBlocks.map(({
+    height,
+    hash,
+    next,
+  }: {
+    height: number;
+    hash: string;
+    next: number;
+  }): any => {
+      const getProgress = () => {
+        return `blocks: ${height}/${
+          hashList.length
+        }/${getBlockQueueSize()} txs: ${getIncomingTxQueueSize()}/${txInFlight}/${getTxQueueSize()}`;
+      };
+
+      pall.push(pool.execute({
+        height,
+        hash,
+        next: toLong(next || -1),
+        getProgress: JSON.stringify(getProgress),
+        gauge: JSON.stringify(gauge),
+      }));
+  });
+
+  try {
+    await Promise.all(pall);
+  } catch (e) {
+    console.error("Fatal", e);
+    process.exit(1);
+  }
+  await pool.destroy();
+
+  // fork(function (reason: string | void) {
+  //   console.error("Fatal", reason || "");
+  //   process.exit(1);
+  // })(function () {
+  //   gauge.disable();
+  //   pWaitFor(
+  //     function () {
+  //       return (
+  //         isIncomingTxQueueEmpty() && isBlockQueueEmpty() && isTxQueueEmpty()
+  //       );
+  //     },
+  //     {
+  //       interval: 1000,
+  //     }
+  //   ).then(function () {
+  //     log.info("Database fully in sync with block_list");
+  //     !isPollingStarted && startPolling();
+  //   });
+  // })(
+  //   parallel(PARALLEL)(
+  //     (unsyncedBlocks as any).map(
+  //       ({
+  //         height,
+  //         hash,
+  //         next,
+  //       }: {
+  //         height: number;
+  //         hash: string;
+  //         next: number;
+  //       }): any => {
+  //         const getProgress = () => {
+  //           return `blocks: ${height}/${
+  //             hashList.length
+  //           }/${getBlockQueueSize()} txs: ${getIncomingTxQueueSize()}/${txInFlight}/${getTxQueueSize()}`;
+  //         };
+
+  //         return storeBlock({
+  //           height,
+  //           hash,
+  //           next: toLong(next || -1),
+  //           getProgress,
+  //           gauge,
+  //         });
+  //       }
+  //     )
+  //   )
+  // );
 }
 
 function incomingTxCallback(

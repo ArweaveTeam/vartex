@@ -71,6 +71,7 @@
     "moment": "^2.29.1",
     "node-cron": "^3.0.0",
     "p-wait-for": "^4.1.0",
+    "poolifier": "^2.0.2",
     "rambda": "^6.8.2",
     "random-weighted-choice": "^0.1.4",
     "rfc4648": "^1.5.0",

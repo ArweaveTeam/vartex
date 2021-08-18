@@ -1,12 +1,13 @@
-import Fluture, { fork, parallel } from "fluture/index.js";
+import Fluture, { fork, parallel } from "fluture";
 import { log } from 'console';
 import pWaitFor from 'p-wait-for';
-import { expose } from "threads/worker";
-import { toLong, makeBlockImportQuery } from 'src/database/cassandra.database';
-import { MAX_TX_PER_BLOCK } from 'src/database/constants.database';
-import { storeTransaction } from 'src/database/sync.database';
-import PriorityQueue from "src/utility/priority.queue";
+import { toLong, makeBlockImportQuery } from '../database/cassandra.database';
+import { MAX_TX_PER_BLOCK } from '../database/constants.database';
+import { storeTransaction } from '../database/sync.database';
+import PriorityQueue from "../utility/priority.queue";
 import { types as CassandraTypes } from "cassandra-driver";
+import { ThreadWorker } from 'poolifier';
+
 import {
   fetchBlockByHash,
   getBlock as queryGetBlock,
@@ -30,6 +31,11 @@ export function storeBlock({
   getProgress,
   gauge,
 }) {
+
+  // Convert strings back to functions
+  getProgress = Function(getProgress);
+  gauge = Function(gauge);
+
   let isCancelled = false;
   return Fluture((reject, resolve) => {
     async function getBlock(retry = 0) {
@@ -90,4 +96,7 @@ export function storeBlock({
   });
 }
 
-expose(storeBlock);
+export default new ThreadWorker(storeBlock, {
+  maxInactiveTime: 60000,
+  async: false
+});

@@ -5,7 +5,6 @@ import pWaitFor from "p-wait-for";
 // import { DataItemJson } from "arweave-bundles";
 import Gauge from "gauge";
 import GaugeThemes from "gauge/themes";
-import { spawn, Pool, Worker } from "threads";
 import { config } from "dotenv";
 import { types as CassandraTypes } from "cassandra-driver";
 import {
@@ -19,6 +18,8 @@ import { KEYSPACE, POLLTIME_DELAY_SECONDS } from "../constants";
 import { MAX_TX_PER_BLOCK } from "./constants.database";
 import { log } from "../utility/log.utility";
 import mkdirp from "mkdirp";
+import { FixedThreadPool } from 'poolifier';
+
 import {
   // getDataFromChunks,
   getHashList,

@@ -1,6 +1,6 @@
 import got from "got";
-import fs from "node:fs/promises";
-import path from "node:path";
+import fs from "fs/promises";
+import path from "path";
 import { log } from "../utility/log.utility";
 import { grabNode, warmNode, coolNode } from "./node.query";
 import { HTTP_TIMEOUT_SECONDS } from "../constants";

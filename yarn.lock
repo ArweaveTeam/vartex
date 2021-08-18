@@ -2119,7 +2119,7 @@ ajv@^8.0.1:
 
 "ans104@https://github.com/joshbenaron/ans104.git":
   version "0.2.4"
-  resolved "https://github.com/joshbenaron/ans104.git#31e39ddab91a670e8a414a7f077a83f9e78c63bc"
+  resolved "https://github.com/joshbenaron/ans104.git#83c48e640f6a34571370fe12118fec8f6d5bebbd"
   dependencies:
     "@akiroz/size-chunker-stream" "^0.0.1"
     "@types/browser-or-node" "^1.3.0"
@@ -2502,9 +2502,9 @@ available-typed-arrays@^1.0.2:
   integrity sha512-SA5mXJWrId1TaQjfxUYghbqQ/hYioKmLJvPJyDuYRtXXenFNMjj4hSSt1Cf1xsuXSXrtxrVC5Ot4eU6cOtBDdA==
 
 avsc@^5.7.1:
-  version "5.7.2"
-  resolved "https://registry.yarnpkg.com/avsc/-/avsc-5.7.2.tgz#4659cefb0a902d879780fa3f0ef26db1d382b676"
-  integrity sha512-9fZMS1meEfZriKMiLmOlQu4/3WFGkH2BM5aU++iRciUeHJ8L4K0T+bfYqpQS7X2ywEu18Dqp6aq9fIRXkvZ+TQ==
+  version "5.7.3"
+  resolved "https://registry.yarnpkg.com/avsc/-/avsc-5.7.3.tgz#c5a57147c0c7f6d9cbbdf6f02576eda94d293cd9"
+  integrity sha512-uUbetCWczQHbsKyX1C99XpQHBM8SWfovvaZhPIj23/1uV7SQf0WeRZbiLpw0JZm+LHTChfNgrLfDJOVoU2kU+A==
 
 axios@^0.21.1:
   version "0.21.1"
@@ -4712,9 +4712,9 @@ fn.name@1.x.x:
   integrity sha512-GRnmB5gPyJpAhTQdSZTSp9uaPSvl09KoYcMQtsB9rQoOmzs9dH6ffeccH+Z+cv6P68Hu5bC6JjRh4Ah/mHSNRw==
 
 follow-redirects@^1.10.0:
-  version "1.14.1"
-  resolved "https://registry.yarnpkg.com/follow-redirects/-/follow-redirects-1.14.1.tgz#d9114ded0a1cfdd334e164e6662ad02bfd91ff43"
-  integrity sha512-HWqDgT7ZEkqRzBvc2s64vSZ/hfOceEol3ac/7tKwzuvEyWx3/4UegXh5oBOIotkGsObyk3xznnSRVADBgWSQVg==
+  version "1.14.2"
+  resolved "https://registry.yarnpkg.com/follow-redirects/-/follow-redirects-1.14.2.tgz#cecb825047c00f5e66b142f90fed4f515dec789b"
+  integrity sha512-yLR6WaE2lbF0x4K2qE2p9PEXKLDjUjnR/xmjS3wHAYxtlsI9MLLBJUZirAHKzUZDGLxje7w/cXR49WOUo4rbsA==
 
 for-in@^1.0.2:
   version "1.0.2"
@@ -9010,6 +9010,13 @@ title-case@^3.0.3:
   dependencies:
     tslib "^2.0.3"
 
+tmp-promise@^3.0.2:
+  version "3.0.2"
+  resolved "https://registry.yarnpkg.com/tmp-promise/-/tmp-promise-3.0.2.tgz#6e933782abff8b00c3119d63589ca1fb9caaa62a"
+  integrity sha512-OyCLAKU1HzBjL6Ev3gxUeraJNlbNingmi8IrHHEsYH8LTmEuhvYfqvhn2F/je+mjf4N58UmZ96OMEy1JanSCpA==
+  dependencies:
+    tmp "^0.2.0"
+
 tmp@^0.0.33:
   version "0.0.33"
   resolved "https://registry.yarnpkg.com/tmp/-/tmp-0.0.33.tgz#6d34335889768d21b2bcda0aa277ced3b1bfadf9"
@@ -9017,7 +9024,7 @@ tmp@^0.0.33:
   dependencies:
     os-tmpdir "~1.0.2"
 
-tmp@^0.2.1:
+tmp@^0.2.0, tmp@^0.2.1:
   version "0.2.1"
   resolved "https://registry.yarnpkg.com/tmp/-/tmp-0.2.1.tgz#8457fc3037dcf4719c251367a1af6500ee1ccf14"
   integrity sha512-76SUhtfqR2Ijn+xllcI5P1oyannHNHByD80W1q447gU3mp9G9PSpGdWmjUOHRDPiHYacIk66W7ubDTuPF3BEtQ==

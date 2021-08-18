@@ -1,5 +1,5 @@
 import cacache from "cacache";
-import path from "node:path";
+import path from "path";
 import mkdirp from "mkdirp";
 
 const cacheDirectory = path.resolve(process.cwd(), "cache/cacache");

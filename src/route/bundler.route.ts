@@ -5,6 +5,7 @@ import base64url from "base64url";
 import Arweave from "arweave";
 import * as fs from "node:fs";
 import { pipeline } from "node:stream/promises";
+import { indexAns104File } from "../database/ans104.database";
 
 /**
  * Uploads the data item to the gateways cache
@@ -15,14 +16,20 @@ export async function newDataItem(
     request: Request,
     response: Response
 ): Promise<void> {
+    const filename = "cache/" + request.header("bnd.data.id");
     const stream = fs.createWriteStream("cache/" + request.header("bnd.data.id"));
     await pipeline(
         request,
         stream
     );
 
+    indexAns104File(filename);
+
     response
-        .status(200);
+        .status(200)
+        .send({
+            "result": "indexing"
+        });
 }
 
 /**

@@ -1,5 +1,5 @@
-import { existsSync } from "node:fs";
-import fs from "node:fs/promises";
+import { existsSync } from "fs";
+import fs from "fs/promises";
 import { types as CassandraTypes } from "cassandra-driver";
 import * as R from "rambda";
 import rwc from "random-weighted-choice";

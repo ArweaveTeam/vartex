@@ -683,7 +683,7 @@ export async function storeTransaction(
 
   if (currentTransaction) {
     if (isAns104(currentTransaction)) {
-      processAns104Transaction(currentTransaction);
+      processAns104Transaction(currentTransaction.id);
     }
 
     let maybeTxOffset;

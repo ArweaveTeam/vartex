@@ -7667,11 +7667,6 @@ pluralize@^8.0.0:
   resolved "https://registry.yarnpkg.com/pluralize/-/pluralize-8.0.0.tgz#1a6fa16a38d12a1901e0320fa017051c539ce3b1"
   integrity sha512-Nc3IT5yHzflTfbjgqWcCPpo7DaKy4FnpB0l/zCAW0Tc7jxAiuqSxHasntB3D7887LSrA93kDJ9IXovxJYxyLCA==
 
-poolifier@^2.0.2:
-  version "2.0.2"
-  resolved "https://registry.yarnpkg.com/poolifier/-/poolifier-2.0.2.tgz#ed42e88296896996b4c650d8e79cd66791068842"
-  integrity sha512-qibRFXZlhYJYf/jIoayoOb31S8EeMDF89H9ujOQh1xOxLreYZ0EzCEnnOR8OdpdAxyl+JKyt7sgFLHK78WTV5w==
-
 posix-character-classes@^0.1.0:
   version "0.1.1"
   resolved "https://registry.yarnpkg.com/posix-character-classes/-/posix-character-classes-0.1.1.tgz#01eac0fe3b5af71a2a6c02feabb8c1fef7e00eab"

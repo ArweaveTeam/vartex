@@ -5,6 +5,7 @@ import pWaitFor from "p-wait-for";
 // import { DataItemJson } from "arweave-bundles";
 import Gauge from "gauge";
 import GaugeThemes from "gauge/themes";
+import { spawn, Pool, Worker } from "threads";
 import { config } from "dotenv";
 import { types as CassandraTypes } from "cassandra-driver";
 import {
@@ -42,6 +43,8 @@ import {
 } from "./cassandra.database";
 import * as Dr from "./doctor.database";
 import { DynamicThreadPool } from "poolifier";
+
+const POOL_THREADS = 4;
 
 process.env.NODE_ENV !== "test" && config();
 mkdirp.sync("cache");

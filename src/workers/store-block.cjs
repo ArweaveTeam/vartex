@@ -1,7 +1,7 @@
 import Fluture, { fork, parallel } from "fluture/index.js";
 import { log } from 'console';
 import pWaitFor from 'p-wait-for';
-import { ThreadWorker } from 'poolifier';
+import { expose } from "threads/worker";
 import { toLong, makeBlockImportQuery } from 'src/database/cassandra.database';
 import { MAX_TX_PER_BLOCK } from 'src/database/constants.database';
 import { storeTransaction } from 'src/database/sync.database';
@@ -12,32 +12,26 @@ import {
   getBlock as queryGetBlock,
 } from "../query/block.query";
 
-const PARALLEL = (Number.isNaN as any)(process.env["PARALLEL"])
+const PARALLEL = (Number.isNaN)(process.env["PARALLEL"])
   ? 36
   : Number.parseInt(process.env["PARALLEL"] || "36");
 
 const blockQueue = new PriorityQueue(function (
-  a: { height: CassandraTypes.Long },
-  b: { height: CassandraTypes.Long }
+  a,
+  b
 ) {
   return a.height.compare(b.height);
 });
 
 export function storeBlock({
   height,
-  hash,
   next,
+  hash,
   getProgress,
   gauge,
-}: {
-  height: number;
-  next: number;
-  hash?: string;
-  getProgress?: () => string;
-  gauge?: any;
-}): unknown {
+}) {
   let isCancelled = false;
-  return Fluture((reject: any, resolve: any) => {
+  return Fluture((reject, resolve) => {
     async function getBlock(retry = 0) {
       
       const newSyncBlock = await queryGetBlock({
@@ -50,7 +44,7 @@ export function storeBlock({
       if (newSyncBlock && newSyncBlock.height === height) {
         const newSyncBlockHeight = toLong(newSyncBlock.height);
         await Promise.all(
-          (newSyncBlock.txs || []).map(async (txId: string, index: number) => {
+          (newSyncBlock.txs || []).map(async (txId, index) => {
             const txIndex = newSyncBlockHeight.mul(MAX_TX_PER_BLOCK).add(index);
             await storeTransaction(
               txId,
@@ -96,7 +90,4 @@ export function storeBlock({
   });
 }
 
-module.exports = new ThreadWorker(storeBlock, {
-  maxInactiveTime: 60000,
-  async: false
-})
+expose(storeBlock);

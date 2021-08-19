@@ -245,7 +245,7 @@ function startQueueProcessors() {
     let counter = 0;
     setInterval(() => {
       counter += 1;
-      if (counter > 10_000 && !isImportCacheGcRunning && counter % 100 === 0) {
+      if (counter % 100 === 0) {
         lastGcImportCacheRun().then(async (secondsAgo) => {
           if (
             topHeight.gt(1000) &&
@@ -541,7 +541,7 @@ export async function startSync({ isTesting = false }) {
   let lastBlock: CassandraTypes.Long = toLong(-1);
   let lastTx: CassandraTypes.Long = toLong(-1);
 
-  if (!firstRun) {
+  if (!firstRun && !developmentSyncLength) {
     await Dr.enqueueUnhandledCache(
       enqueueIncomingTxQueue,
       enqueueTxQueue,

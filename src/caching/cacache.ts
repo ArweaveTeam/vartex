@@ -1,6 +1,7 @@
 import * as R from "rambda";
 import cacache from "cacache";
 import path from "node:path";
+import fs from "node:fs";
 import mkdirp from "mkdirp";
 import rimraf from "rimraf";
 
@@ -50,18 +51,21 @@ export const getCacheByKey = async (key: string): Promise<any> => {
 
 export const rmCache = async (key: string): Promise<void> => {
   try {
-    await cacache.rm.entry(importCacheDirectory, key);
+    await cacache.rm.entry(importCacheDirectory, key, { removeFully: true });
   } catch {}
 };
 
 export const gcImportCache = async (): Promise<void> => {
   try {
     await cacache.verify(importCacheDirectory, {
-      filter: ({ time }) => {
+      filter: ({ time, path }) => {
         const now = new Date();
         const nowSeconds = Math.floor(now.getTime() / 1000);
+        const pathExists = fs.existsSync(path);
+        const fiveMinsPassed = nowSeconds - time / 1000 > 60 * 5;
+
         // for safety, keep all 5 minute old cache, just in case of slowness causing purge before read
-        return nowSeconds - time > 60 * 5;
+        return pathExists && !fiveMinsPassed;
       },
     });
   } catch {}

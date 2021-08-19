@@ -1,4 +1,5 @@
 import * as R from "rambda";
+import path from "path";
 import Fluture, { fork, forkCatch, parallel } from "fluture/index.js";
 import PriorityQueue from "../utility/priority.queue";
 import pWaitFor from "p-wait-for";
@@ -18,8 +19,8 @@ import { KEYSPACE, POLLTIME_DELAY_SECONDS } from "../constants";
 import { MAX_TX_PER_BLOCK } from "./constants.database";
 import { log } from "../utility/log.utility";
 import mkdirp from "mkdirp";
-import { FixedThreadPool } from 'poolifier';
-import os from 'os';
+import { WorkerPool } from "../gatsby-worker";
+import os from "os";
 
 import {
   // getDataFromChunks,
@@ -45,9 +46,6 @@ import {
   toLong,
 } from "./cassandra.database";
 import * as Dr from "./doctor.database";
-import { DynamicThreadPool } from "poolifier";
-
-const numCpus = os.cpus().length > 1? Math.floor(os.cpus().length) / 2 : 1;
 
 process.env.NODE_ENV !== "test" && config();
 mkdirp.sync("cache");
@@ -59,16 +57,15 @@ const trackerTheme = GaugeThemes.newTheme(
   })
 );
 
-export const SIGINT = false;
-export let SIGKILL = false;
 const PARALLEL = (Number.isNaN as any)(process.env["PARALLEL"])
   ? 36
   : Number.parseInt(process.env["PARALLEL"] || "36");
 
 export let topHash = "";
 export let topHeight: CassandraTypes.Long = toLong(0);
-export let topTxIndex: CassandraTypes.Long = toLong(0);
-export let txInFlight = 0;
+
+// export let topTxIndex: CassandraTypes.Long = toLong(0);
+// export let txInFlight = 0;
 
 const developmentSyncLength: number | undefined =
   !process.env["DEVELOPMENT_SYNC_LENGTH"] ||
@@ -90,196 +87,84 @@ export function togglePause(): void {
   isPaused = !isPaused;
 }
 
-// const blockQueueArr = [];
+// // const blockQueueArr = [];
+// const blockQueue = new PriorityQueue(function (
+//   a: { height: CassandraTypes.Long },
+//   b: { height: CassandraTypes.Long }
+// ) {
+//   return a.height.compare(b.height);
+// });
 
-const blockQueue = new PriorityQueue(function (
-  a: { height: CassandraTypes.Long },
-  b: { height: CassandraTypes.Long }
-) {
-  return a.height.compare(b.height);
-});
+// const blockQueueState: BlockQueueState = {
+//   isProcessing: false,
+//   isStarted: false,
+//   nextHeight: toLong(-1),
+// };
 
-const txIncomingQueue = new PriorityQueue(function (
-  a: { txIndex: CassandraTypes.Long },
-  b: { txIndex: CassandraTypes.Long }
-) {
-  return a.txIndex.compare(b.txIndex);
-});
-
-const isIncomingTxQueueEmpty = txIncomingQueue.isEmpty.bind(txIncomingQueue);
-const hasIncomingTxQueueNoneLt = txIncomingQueue.hasNoneLt.bind(
-  txIncomingQueue
-);
-export const getIncomingTxQueueSize = txIncomingQueue.getSize.bind(
-  txIncomingQueue
-);
-const getIncomingTxQueuePeek = txIncomingQueue.peek.bind(txIncomingQueue);
-const popIncomingTxQueue = txIncomingQueue.pop.bind(txIncomingQueue);
-const sortIncomingTxQueue = txIncomingQueue.sortQueue.bind(txIncomingQueue);
-// const removeItemIncomingTxQueue = txIncomingQueue.removeItem.bind(
-//   txIncomingQueue
-// );
-const enqueueIncomingTxQueue = txIncomingQueue.enqueue.bind(txIncomingQueue);
-const getEntriesTxIncoming = txIncomingQueue.entries.bind(txIncomingQueue);
-
-// const txQueueArr = [];
-const txQueue = new PriorityQueue(function (
-  a: { txIndex: CassandraTypes.Long },
-  b: { txIndex: CassandraTypes.Long }
-) {
-  return a.txIndex.compare(b.txIndex);
-});
-
-const isTxQueueEmpty = txQueue.isEmpty.bind(txQueue);
-const hasTxQueueNoneLt = txQueue.hasNoneLt.bind(txQueue);
-export const getTxQueueSize = txQueue.getSize.bind(txQueue);
-const getTxQueuePeek = txQueue.peek.bind(txQueue);
-const popTxQueue = txQueue.pop.bind(txQueue);
-const sortTxQueue = txQueue.sortQueue.bind(txQueue);
-const enqueueTxQueue = txQueue.enqueue.bind(txQueue);
-
-const blockQueueState: BlockQueueState = {
-  isProcessing: false,
-  isStarted: false,
-  nextHeight: toLong(-1),
-};
-
-const txQueueState: TxQueueState = {
-  isProcessing: false,
-  isStarted: false,
-  nextTxIndex: toLong(-1),
-};
-
-const isBlockQueueEmpty = blockQueue.isEmpty.bind(blockQueue);
-const hasBlockQueueNoneLt = blockQueue.hasNoneLt.bind(blockQueue);
-export const getBlockQueueSize = blockQueue.getSize.bind(blockQueue);
-const getBlockQueuePeek = blockQueue.peek.bind(blockQueue);
-const popBlockQueue = blockQueue.pop.bind(blockQueue);
-const sortBlockQueue = blockQueue.sortQueue.bind(blockQueue);
-const enqueueBlockQueue = blockQueue.enqueue.bind(blockQueue);
+// const isBlockQueueEmpty = blockQueue.isEmpty.bind(blockQueue);
+// const hasBlockQueueNoneLt = blockQueue.hasNoneLt.bind(blockQueue);
+// export const getBlockQueueSize = blockQueue.getSize.bind(blockQueue);
+// const getBlockQueuePeek = blockQueue.peek.bind(blockQueue);
+// const popBlockQueue = blockQueue.pop.bind(blockQueue);
+// const sortBlockQueue = blockQueue.sortQueue.bind(blockQueue);
+// const enqueueBlockQueue = blockQueue.enqueue.bind(blockQueue);
 
 // const tagsQueueState: QueueState = { isProcessing: false, isStarted: false };
 
-function processBlockQueue(): void {
-  if (
-    isBlockQueueEmpty() ||
-    isPaused ||
-    blockQueueState.isProcessing ||
-    getIncomingTxQueueSize() > 1000
-  ) {
-    return;
-  }
+// function processBlockQueue(): void {
+//   if (
+//     isBlockQueueEmpty() ||
+//     isPaused ||
+//     blockQueueState.isProcessing ||
+//     getIncomingTxQueueSize() > 1000
+//   ) {
+//     return;
+//   }
 
-  sortBlockQueue();
-  const peek = !isBlockQueueEmpty() && getBlockQueuePeek();
+//   sortBlockQueue();
+//   const peek = !isBlockQueueEmpty() && getBlockQueuePeek();
 
-  if (
-    (CassandraTypes.Long.isLong(peek.height) && isPollingStarted) ||
-    (CassandraTypes.Long.isLong(peek.height) &&
-      hasTxQueueNoneLt(blockQueueState.nextHeight) &&
-      hasIncomingTxQueueNoneLt(blockQueueState.nextHeight) &&
-      (blockQueueState.nextHeight.lt(1) ||
-        peek.height.lt(1) ||
-        peek.height.lessThanOrEqual(blockQueueState.nextHeight) ||
-        hasBlockQueueNoneLt(blockQueueState.nextHeight)))
-  ) {
-    blockQueueState.isProcessing = true;
+//   if (
+//     (CassandraTypes.Long.isLong(peek.height) && isPollingStarted) ||
+//     (CassandraTypes.Long.isLong(peek.height) &&
+//       hasTxQueueNoneLt(blockQueueState.nextHeight) &&
+//       hasIncomingTxQueueNoneLt(blockQueueState.nextHeight) &&
+//       (blockQueueState.nextHeight.lt(1) ||
+//         peek.height.lt(1) ||
+//         peek.height.lessThanOrEqual(blockQueueState.nextHeight) ||
+//         hasBlockQueueNoneLt(blockQueueState.nextHeight)))
+//   ) {
+//     blockQueueState.isProcessing = true;
 
-    peek.callback.call(blockQueue).then(function () {
-      popBlockQueue();
-      blockQueueState.isProcessing = false;
+//     peek.callback.call(blockQueue).then(function () {
+//       popBlockQueue();
+//       blockQueueState.isProcessing = false;
 
-      if (peek.height.gt(topHeight)) {
-        topHeight = peek.height;
-      }
+//       if (peek.height.gt(topHeight)) {
+//         topHeight = peek.height;
+//       }
 
-      sortBlockQueue();
-      blockQueueState.nextHeight =
-        !isBlockQueueEmpty() &&
-        getBlockQueuePeek().nextHeight &&
-        peek.height.lt(getBlockQueuePeek().nextHeight)
-          ? toLong(getBlockQueuePeek().nextHeight)
-          : toLong(-1);
+//       sortBlockQueue();
+//       blockQueueState.nextHeight =
+//         !isBlockQueueEmpty() &&
+//         getBlockQueuePeek().nextHeight &&
+//         peek.height.lt(getBlockQueuePeek().nextHeight)
+//           ? toLong(getBlockQueuePeek().nextHeight)
+//           : toLong(-1);
 
-      peek.fresolve && peek.fresolve();
-      // if (isBlockQueueEmpty() && isTxQueueEmpty()) {
-      // log.info(
-      //   "import queues have been consumed" + isIncomingTxQueueEmpty()
-      //     ? "\n"
-      //     : ", waiting for txs...\n"
-      // );
-      // }
-    });
-  }
-}
+//       peek.fresolve && peek.fresolve();
+//       // if (isBlockQueueEmpty() && isTxQueueEmpty()) {
+//       // log.info(
+//       //   "import queues have been consumed" + isIncomingTxQueueEmpty()
+//       //     ? "\n"
+//       //     : ", waiting for txs...\n"
+//       // );
+//       // }
+//     });
+//   }
+// }
 
-function processTxQueue(): void {
-  if (isTxQueueEmpty() || isPaused || txQueueState.isProcessing) {
-    return;
-  }
-
-  sortTxQueue();
-  const peek = !isTxQueueEmpty() && getTxQueuePeek();
-  const fresolve = peek && peek.fresolve;
-
-  if (CassandraTypes.Long.isLong(peek.txIndex)) {
-    txQueueState.isProcessing = true;
-    txQueueState.nextTxIndex = peek.nextTxIndex;
-
-    peek.callback().then(() => {
-      popTxQueue();
-      txQueueState.isProcessing = false;
-
-      if (peek.txIndex.gt(topTxIndex)) {
-        topTxIndex = peek.txIndex;
-      }
-
-      if (isTxQueueEmpty() && isBlockQueueEmpty()) {
-        log.info("import queues have been consumed");
-      }
-
-      if (fresolve) {
-        txInFlight -= 1;
-        fresolve();
-      }
-    });
-  }
-}
-
-function startQueueProcessors() {
-  if (!blockQueueState.isStarted) {
-    blockQueueState.isStarted = true;
-    let counter = 0;
-    setInterval(() => {
-      counter += 1;
-      if (counter > 10_000 && !isImportCacheGcRunning && counter % 100 === 0) {
-        lastGcImportCacheRun().then(async (secondsAgo) => {
-          if (
-            topHeight.gt(1000) &&
-            secondsAgo > 60 &&
-            !isImportCacheGcRunning
-          ) {
-            isImportCacheGcRunning = true;
-            await gcImportCache();
-            isImportCacheGcRunning = false;
-          }
-        });
-      }
-
-      processBlockQueue();
-    }, 120);
-  }
-  if (!txQueueState.isStarted) {
-    txQueueState.isStarted = true;
-    setInterval(() => {
-      processTxQueue();
-      if (!isIncomingTxQueueEmpty() && isTxQueueEmpty()) {
-        txIncomingParallelConsume();
-      }
-    }, 80);
-  }
-}
-
+/*
 async function resolveFork(previousBlock: any): Promise<void> {
   isPaused = true;
   const pprevBlock = await fetchBlockByHash(previousBlock.previous_block);
@@ -333,7 +218,9 @@ async function resolveFork(previousBlock: any): Promise<void> {
     return await resolveFork(pprevBlock);
   }
 }
+*/
 
+/*
 async function startPolling(): Promise<void> {
   if (SIGINT || SIGKILL) {
     process.exit(1);
@@ -414,6 +301,7 @@ async function startPolling(): Promise<void> {
   }
   return startPolling();
 }
+*/
 
 async function detectFirstRun(): Promise<boolean> {
   const queryResponse = await cassandraClient.execute(
@@ -448,9 +336,7 @@ function findMissingBlocks(
       },
       async function (n, row) {
         gauge.show(`Looking for missing blocks: ${n}/${hashList.length}`);
-        if (SIGINT || SIGKILL) {
-          process.exit(1);
-        }
+
         const matchingRow = hashListObject[row.height];
 
         if (
@@ -489,73 +375,65 @@ function findMissingBlocks(
   });
 }
 
-let txIncomingIsConsuming;
-
-function unlockIncomingQueue() {
-  txIncomingIsConsuming = undefined;
+function filterNpmFlags(obj) {
+  const keyz: string[] = Object.keys(obj);
+  const out = {};
+  for (const key of keyz) {
+    if (!key.startsWith("npm")) {
+      out[key] = obj[key];
+    }
+  }
+  return out;
 }
 
-const handleTxImportError = (reason: any): void => {
-  console.error("Fatal", reason || "");
-  process.exit(1);
-};
+const workerPool = new WorkerPool<typeof import("../workers/import-block")>(
+  process.cwd() + "/src/workers/import-block",
+  {
+    numWorkers: PARALLEL,
+    env: R.mergeAll([
+      {
+        PWD: process.cwd(),
+        TS_NODE_FILES: true,
+        NODE_PATH: process.cwd() + "/node_modules",
+        NODE_OPTIONS: `--require ${
+          process.cwd() + "/node_modules/ts-node/register"
+        }`,
+      },
+      filterNpmFlags(process.env),
+    ]),
 
-const txIncomingParallelConsume = () => {
-  if (txIncomingIsConsuming && !isTxQueueEmpty()) {
-    return;
-  } else {
-    txIncomingIsConsuming = true;
+    // forkOptions: {
+    //   env: ,
+    //   cwd: process.cwd(),
+    //   execArgv: [
+    //     "--trace-warnings",
+    //     "--experimental-specifier-resolution=node",
+    //     "--loader",
+    //     `${process.cwd()}/node_modules/ts-node/esm.mjs`,
+    //   ],
+    // },
   }
-  sortIncomingTxQueue();
-  const entries = [...getEntriesTxIncoming()];
+);
 
-  if (entries.length === 0) {
-    return;
-  }
-  txInFlight += entries.length;
+// workerPool.onMessage( .getStdout().pipe(process.stdout);
 
-  while (
-    getIncomingTxQueuePeek() &&
-    entries.some((entry: any) =>
-      entry.txIndex.equals(getIncomingTxQueuePeek().txIndex)
-    )
-  ) {
-    popIncomingTxQueue();
-  }
-
-  const batch = entries.map((incTx) => {
-    return new (Fluture as (any) => void)((reject, fresolve) => {
-      incTx.next.call(this, fresolve);
-      return () => {
-        log.info("enqueueing of txId " + incTx.txId + " failed!");
-        process.exit(1);
-      };
-    });
-  });
-
-  forkCatch(handleTxImportError)(handleTxImportError)(unlockIncomingQueue)(
-    parallel(PARALLEL * 4)(batch)
-  );
-};
+// workerPool.getStderr().pipe(process.stderr);
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function startSync({ isTesting = false }) {
-  signalHook();
-  startQueueProcessors();
-
   const hashList: string[] = await getHashList({});
   const firstRun = await detectFirstRun();
   let lastBlock: CassandraTypes.Long = toLong(-1);
-  let lastTx: CassandraTypes.Long = toLong(-1);
+  // let lastTx: CassandraTypes.Long = toLong(-1);
 
   if (!firstRun) {
-    await Dr.enqueueUnhandledCache(
-      enqueueIncomingTxQueue,
-      enqueueTxQueue,
-      txImportCallback,
-      incomingTxCallback,
-      txQueue
-    );
+    // await Dr.enqueueUnhandledCache(
+    //   enqueueIncomingTxQueue,
+    //   enqueueTxQueue,
+    //   txImportCallback,
+    //   incomingTxCallback,
+    //   txQueue
+    // );
 
     const isMaybeMissingBlocks = await Dr.checkForBlockGaps();
 
@@ -564,64 +442,29 @@ export async function startSync({ isTesting = false }) {
       if (!R.isEmpty(blockGap)) {
         console.error("Repairing missing block(s):", blockGap);
 
-        const pool = new DynamicThreadPool(numCpus, numCpus > PARALLEL ? numCpus*2 : PARALLEL,
-          './src/workers/store-block.mjs',
-          { 
-            errorHandler: (e) => console.error(e), 
-            onlineHandler: () => console.log('worker is online') 
-          });
-
-        // const pall: Promise<any>[] = [];
-
-        // blockGap.map(function (gap) {
-        //   pall.push(pool.execute({
-        //     height: gap,
-        //     next: toLong(-1),
-        //   }));
-        // });
-
-        // try {
-        //   await Promise.all(pall);
-        //   console.log("Block repair done!");
-        // } catch (e) {
-        //   console.log(e);
-        // }
-        // await pool.destroy();
-
         let doneSignalResolve;
         const doneSignal = new Promise(function (resolve) {
           doneSignalResolve = resolve;
         });
-        
+
         fork((error) => console.error(error))(() => {
           doneSignalResolve();
           console.log("Block repair done!");
         })(
           (parallel as any)(PARALLEL)(
-            blockGap.map(function (gap) {
-              return storeBlock({
-                height: gap,
-                next: toLong(-1),
-                pool,
-              });
-            })
+            blockGap.map((height) =>
+              Fluture(function (reject: any, fresolve: any) {
+                workerPool.single.default(height).then(fresolve).catch(reject);
+                return (error) => {
+                  console.error(error);
+                  process.exit(1);
+                };
+              })
+            )
           )
         );
         await doneSignal;
-        await pool.destroy();
-
-        blockQueueState.nextHeight = toLong(R.head(blockGap) + 1);
-        await pWaitFor(
-          function () {
-            return isBlockQueueEmpty() && isTxQueueEmpty();
-          },
-          {
-            interval: 1000,
-          }
-        );
-        blockQueueState.nextHeight = toLong(-1);
       }
-      // process.exit(1);
     }
 
     // await Dr.findTxGaps();
@@ -632,12 +475,6 @@ export async function startSync({ isTesting = false }) {
            FROM ${KEYSPACE}.block_gql_desc LIMIT 1`
         )
       ).rows[0].height;
-      lastTx = (
-        await cassandraClient.execute(
-          `SELECT tx_index
-           FROM ${KEYSPACE}.tx_id_gql_desc LIMIT 1`
-        )
-      ).rows[0].tx_index;
     } catch {
       // console.error(error);
     }
@@ -670,17 +507,15 @@ export async function startSync({ isTesting = false }) {
     );
 
     // initialLastBlock = toLong(developmentSyncLength).sub(1);
-    topTxIndex = initialLastBlock.mul(MAX_TX_PER_BLOCK);
     topHeight = initialLastBlock;
   } else {
-    topTxIndex = lastTx;
     topHeight = lastBlock;
   }
 
-  blockQueueState.nextHeight = initialLastBlock.lt(1)
-    ? toLong(1)
-    : initialLastBlock;
-  txQueueState.nextTxIndex = initialLastBlock.mul(MAX_TX_PER_BLOCK);
+  // blockQueueState.nextHeight = initialLastBlock.lt(1)
+  //   ? toLong(1)
+  //   : initialLastBlock;
+  // txQueueState.nextTxIndex = initialLastBlock.mul(MAX_TX_PER_BLOCK);
   isImportCacheGcRunning = false;
 
   if (firstRun) {
@@ -689,7 +524,7 @@ export async function startSync({ isTesting = false }) {
     );
   } else if (R.isEmpty(unsyncedBlocks)) {
     log.info("[sync] fully synced db");
-    startPolling();
+    // startPolling();
     return;
   } else {
     log.info(
@@ -703,67 +538,12 @@ export async function startSync({ isTesting = false }) {
 
   gauge.enable();
 
-  const pool = new DynamicThreadPool(numCpus, numCpus > PARALLEL ? numCpus*2 : PARALLEL,
-    './src/workers/store-block.mjs',
-    { 
-      errorHandler: (e) => console.error(e), 
-      onlineHandler: () => console.log('worker is online') 
-    });
-
-  // const pall: Promise<any>[] = [];
-
-  // unsyncedBlocks.map(({
-  //   height,
-  //   hash,
-  //   next,
-  // }: {
-  //   height: number;
-  //   hash: string;
-  //   next: number;
-  // }): any => {
-  //     const getProgress = () => {
-  //       return `blocks: ${height}/${
-  //         hashList.length
-  //       }/${getBlockQueueSize()} txs: ${getIncomingTxQueueSize()}/${txInFlight}/${getTxQueueSize()}`;
-  //     };
-
-  //     pall.push(pool.execute({
-  //       height,
-  //       hash,
-  //       next: toLong(next || -1),
-  //       getProgress: JSON.stringify(getProgress),
-  //       gauge: JSON.stringify(gauge),
-  //     }));
-  // });
-
-  // try {
-  //   await Promise.all(pall);
-  // } catch (e) {
-  //   console.error("Fatal", e);
-  //   process.exit(1);
-  // }
-  
-
   fork(function (reason: string | void) {
     console.error("Fatal", reason || "");
-    pool.destroy();
     process.exit(1);
   })(function () {
-    gauge.disable();
-    pool.destroy();
-    pWaitFor(
-      function () {
-        return (
-          isIncomingTxQueueEmpty() && isBlockQueueEmpty() && isTxQueueEmpty()
-        );
-      },
-      {
-        interval: 1000,
-      }
-    ).then(function () {
-      log.info("Database fully in sync with block_list");
-      !isPollingStarted && startPolling();
-    });
+    log.info("Database fully in sync with block_list");
+    // !isPollingStarted && startPolling();
   })(
     parallel(PARALLEL)(
       (unsyncedBlocks as any).map(
@@ -776,257 +556,24 @@ export async function startSync({ isTesting = false }) {
           hash: string;
           next: number;
         }): any => {
-          const getProgress = () => {
-            return `blocks: ${height}/${
-              hashList.length
-            }/${getBlockQueueSize()} txs: ${getIncomingTxQueueSize()}/${txInFlight}/${getTxQueueSize()}`;
-          };
+          return Fluture(function (reject: any, fresolve: any) {
+            workerPool.single
+              .default(height)
+              .then(() => {
+                fresolve();
+                gauge.show(`blocks: ${height}/${hashList.length}`);
+              })
+              .catch(reject);
 
-          return storeBlock({
-            height,
-            hash,
-            next: toLong(next || -1),
-            getProgress,
-            gauge,
-            pool,
+            return () => {
+              console.error(
+                "Fatal error while importing block at height",
+                height
+              );
+            };
           });
         }
       )
     )
   );
-}
-
-function incomingTxCallback(
-  integrity: string,
-  txIndex_: CassandraTypes.Long,
-  gauge?: any,
-  getProgress?: () => string
-) {
-  return async function (fresolve?: () => void) {
-    gauge && gauge.show(`${getProgress ? getProgress() || "" : ""}`);
-    let cacheData;
-    let retry = 0;
-
-    while (!cacheData && retry < 100) {
-      cacheData = await getCache(integrity);
-      await new Promise((resolve) => setTimeout(resolve, 1));
-      retry += 1;
-    }
-
-    if (!cacheData) {
-      console.error("Cache disappeared with txIndex", txIndex_.toString());
-    }
-
-    const {
-      txId,
-      block: txNewSyncBlock,
-      height: txNewSyncBlockHeight,
-      txIndex,
-    } = JSON.parse(cacheData.toString());
-
-    await storeTransaction(
-      txId,
-      toLong(txIndex || txIndex_),
-      toLong(txNewSyncBlockHeight),
-      txNewSyncBlock,
-      fresolve
-    );
-    await rmCache("inconming:" + (txIndex || txIndex_).toString());
-  };
-}
-
-export function storeBlock({
-  height,
-  hash,
-  next,
-  getProgress,
-  gauge,
-  pool,
-}: {
-  height: number;
-  next: CassandraTypes.Long;
-  hash?: string;
-  getProgress?: () => string;
-  gauge?: any;
-  pool?: DynamicThreadPool;
-}): unknown {
-  let isCancelled = false;
-  return Fluture(function (reject: any, fresolve: any) {
-    fresolve = fresolve.bind(this);
-
-    const getBlock = async (retry = 0) => {
-      if (isPaused || isCancelled) {
-        return;
-      }
-
-      let newSyncBlock;
-      if(pool) {
-        newSyncBlock = await pool.execute({
-          hash,
-          height,
-          gauge: JSON.stringify(gauge),
-          getProgress: JSON.stringify(getProgress),
-        }) as BlockType;
-      } else {
-        newSyncBlock = await queryGetBlock({
-          hash,
-          height,
-          gauge,
-          getProgress,
-        });
-      }
-
-      if (newSyncBlock && newSyncBlock.height === height) {
-        const newSyncBlockHeight = toLong(newSyncBlock.height);
-
-        await Promise.all(
-          R.uniq(newSyncBlock.txs || []).map(async function (
-            txId: string,
-            index: number
-          ) {
-            const txIndex = newSyncBlockHeight.mul(MAX_TX_PER_BLOCK).add(index);
-            // log.info("TXINDX " + txIndex.toString() + " " + index);
-
-            const txIncomingIntegrity = await putCache(
-              "inconming:" + txIndex.toString(),
-              JSON.stringify({
-                type: "incoming" + index,
-                txId,
-                block: R.dissoc("nextHeight", newSyncBlock),
-                height: newSyncBlockHeight.toString(),
-                txIndex: txIndex.toString(),
-              })
-            );
-
-            enqueueIncomingTxQueue({
-              height: newSyncBlockHeight,
-              txIndex,
-              next: incomingTxCallback(
-                txIncomingIntegrity,
-                txIndex,
-                gauge,
-                getProgress
-              ),
-            });
-          })
-        );
-
-        const nextHeightString = next
-          ? next.toString()
-          : newSyncBlockHeight.add(1).toString();
-
-        const integrity = await putCache(
-          newSyncBlock.indep_hash,
-          JSON.stringify({
-            block: R.assoc("next_height", nextHeightString, newSyncBlock),
-            height: newSyncBlockHeight.toString(),
-            nextHeight: nextHeightString,
-          })
-        );
-
-        const blockCallback = async function () {
-          const { block } = JSON.parse(await getCache(integrity));
-          await makeBlockImportQuery(block)();
-          await rmCache(block.indep_hash);
-        };
-        await new Promise(function (resolve) {
-          setTimeout(resolve, 0);
-        });
-        enqueueBlockQueue({
-          callback: blockCallback.bind(blockQueue),
-          height: newSyncBlockHeight,
-          txCount: newSyncBlock.txs ? newSyncBlock.txs.length : 0,
-          nextHeight: toLong(next),
-          fresolve,
-          type: "block",
-        });
-      } else {
-        await new Promise(function (resolve) {
-          setTimeout(resolve, 100);
-        });
-        if (retry >= 250) {
-          log.info(`Could not retrieve block at height ${height}`);
-          reject("Failed to fetch block after 250 retries");
-        } else {
-          return await getBlock(retry + 1);
-        }
-      }
-    };
-
-    sortBlockQueue();
-    getBlock();
-
-    return () => {
-      isCancelled = true;
-    };
-  });
-}
-
-function txImportCallback(integrity: string) {
-  return async function () {
-    const cached = await getCache(integrity);
-    const { height, index, tx, block } = JSON.parse(cached);
-
-    await makeTxImportQuery(toLong(height), toLong(index), tx, block)();
-    await rmCache("tx:" + tx.id);
-  };
-}
-
-export async function storeTransaction(
-  txId: string,
-  txIndex: CassandraTypes.Long,
-  height: CassandraTypes.Long,
-  blockData: { [k: string]: any },
-  fresolve: () => void
-) {
-  const currentTransaction = await getTransaction({ txId });
-
-  if (!currentTransaction) {
-    fresolve(); // error message has alrady been printed
-  } else {
-    let maybeTxOffset;
-    const dataSize = toLong(currentTransaction.data_size);
-    if (dataSize && dataSize.gt(0)) {
-      maybeTxOffset = await getTxOffset({ txId });
-    }
-
-    const integrity = await putCache(
-      "tx:" + txId,
-      JSON.stringify({
-        block: R.dissoc("nextHeight", blockData),
-        tx: R.mergeAll([
-          currentTransaction,
-          maybeTxOffset ? { tx_offset: maybeTxOffset } : {},
-        ]),
-        txId,
-        height: height.toString(),
-        index: txIndex.toString(),
-      })
-    );
-
-    // console.error("POST |", txIndex.toString(), "|");
-    enqueueTxQueue({
-      height,
-      callback: txImportCallback(integrity),
-      fresolve,
-      txIndex,
-      type: "tx",
-    });
-  }
-}
-
-export function signalHook() {
-  process.on("SIGINT", () => {
-    log.info(
-      "[database] ensuring all blocks are stored before exit, you may see some extra output in console"
-    );
-    SIGKILL = true;
-    setInterval(() => {
-      if (SIGINT === false) {
-        log.info("[database] block sync state preserved, now exiting");
-        console.log("");
-        process.exit();
-      }
-    }, 100);
-  });
 }

@@ -4,3 +4,4 @@ declare module "gauge/themes";
 declare module "random-weighted-choice";
 declare module "fluture";
 declare module "fluture/index.js";
+declare module "cjs";

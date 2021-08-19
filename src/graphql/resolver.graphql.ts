@@ -3,7 +3,7 @@ import * as R from "rambda";
 import moment from "moment";
 import { types as CassandraTypes } from "cassandra-driver";
 import { cassandraClient, toLong } from "../database/cassandra.database";
-import { topHeight, topTxIndex } from "../database/sync.database";
+import { topHeight } from "../database/sync.database";
 import graphqlFields from "graphql-fields";
 import { config } from "dotenv";
 import {
@@ -268,7 +268,7 @@ export const resolvers = {
         Math.min(queryParameters.first || DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE) + 1;
 
       let minHeight = toLong(0);
-      let maxHeight = toLong(topTxIndex);
+      let maxHeight = toLong(750_000); // FIXME poll for topTxIndex
 
       if (queryParameters.block && queryParameters.block.min) {
         minHeight = toLong(queryParameters.block.min).mul(1000);

@@ -37,7 +37,7 @@ export async function getBlock({
   gauge,
   getProgress,
 }: {
-  hash: string | undefined;
+  hash?: string | undefined;
   height: number;
   gauge?: any;
   getProgress?: () => string;

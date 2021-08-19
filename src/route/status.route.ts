@@ -1,11 +1,5 @@
 import { Request, Response } from "express";
-import {
-  topHeight,
-  txInFlight,
-  getIncomingTxQueueSize,
-  getTxQueueSize,
-  getBlockQueueSize,
-} from "../database/sync.database.js";
+import { topHeight } from "../database/sync.database.js";
 import { toLong } from "../database/cassandra.database.js";
 import { getNodeInfo } from "../query/node.query.js";
 import gitRev from "git-rev-sync";
@@ -27,12 +21,12 @@ export async function statusRoute(request: Request, response: Response) {
       gatewayHeight: topHeight.toString(),
       arweaveHeight: info.height,
       delta,
-      importWorkload: {
-        txsInFlight: txInFlight,
-        unqueuedTxs: getIncomingTxQueueSize(),
-        queuedTxs: getTxQueueSize(),
-        queuedBlocks: getBlockQueueSize(),
-      },
+      // importWorkload: {
+      //   txsInFlight: txInFlight,
+      //   unqueuedTxs: getIncomingTxQueueSize(),
+      //   queuedTxs: getTxQueueSize(),
+      //   queuedBlocks: getBlockQueueSize(),
+      // },
       vartex_git_revision: gitRevision,
     });
   } catch (error) {

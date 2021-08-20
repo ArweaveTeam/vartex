@@ -5,6 +5,8 @@ import fs from "node:fs";
 import mkdirp from "mkdirp";
 import rimraf from "rimraf";
 
+const startupTimeSeconds = Math.floor(new Date().getTime() / 1000);
+
 const importCacheDirectory = process.env.CACHE_IMPORT_PATH
   ? process.env.CACHE_IMPORT_PATH
   : path.resolve(process.cwd(), "cache/imports");
@@ -56,11 +58,15 @@ export const rmCache = async (key: string): Promise<void> => {
 };
 
 export const gcImportCache = async (): Promise<void> => {
+  const now = new Date();
+  const nowSeconds = Math.floor(now.getTime() / 1000);
+
+  if (nowSeconds - startupTimeSeconds < 60 * 5) {
+    return;
+  }
   try {
     await cacache.verify(importCacheDirectory, {
       filter: ({ time, path }) => {
-        const now = new Date();
-        const nowSeconds = Math.floor(now.getTime() / 1000);
         const pathExists = fs.existsSync(path);
         const fiveMinsPassed = nowSeconds - time / 1000 > 60 * 5;
 

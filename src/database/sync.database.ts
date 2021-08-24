@@ -455,8 +455,8 @@ export async function startSync({ isTesting = false }) {
             blockGap.map((height) =>
               Fluture(function (reject: any, fresolve: any) {
                 workerPool.single.default(height).then(fresolve).catch(reject);
-                return (error) => {
-                  console.error(error);
+                return () => {
+                  console.error(`Fluture.Parallel crashed`);
                   process.exit(1);
                 };
               })

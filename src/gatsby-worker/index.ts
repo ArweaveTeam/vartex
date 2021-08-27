@@ -159,15 +159,16 @@ export class WorkerPool<
           ) as unknown) as WorkerPool<WorkerModuleExports>["all"][typeof exportName];
         }
       });
-    }
 
-    this.single = single as WorkerPool<WorkerModuleExports>["single"];
-    this.all = all as WorkerPool<WorkerModuleExports>["all"];
-    this.startAll();
+      this.single = single as WorkerPool<WorkerModuleExports>["single"];
+      this.all = all as WorkerPool<WorkerModuleExports>["all"];
+      this.startAll();
+    }
   }
   private startAll(): void {
     const options = this.options;
     for (let workerId = 1; workerId <= (options?.numWorkers ?? 1); workerId++) {
+      console.error("WORKERID", workerId);
       const worker = fork(childWrapperPath, {
         cwd: process.cwd(),
         env: {
@@ -180,8 +181,8 @@ export class WorkerPool<
         silent: true,
       });
 
-      // worker.stdout.on("data", (data) => process.stdout.write(data + "\n"));
-      // worker.stderr.on("data", (data) => process.stdout.write(data + "\n"));
+      worker.stdout.on("data", (data) => process.stdout.write(data + "\n"));
+      worker.stderr.on("data", (data) => process.stdout.write(data + "\n"));
 
       const workerInfo: IWorkerInfo<keyof WorkerModuleExports> = {
         workerId,
@@ -387,6 +388,7 @@ export class WorkerPool<
   }
 
   sendMessage(msg: MessagesFromParent, workerId: number): void {
+    // console.error("send message", msg);
     const worker = this.workers[workerId - 1];
     if (!worker) {
       throw new Error(`There is no worker with "${workerId}" id.`);

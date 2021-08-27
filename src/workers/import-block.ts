@@ -1,11 +1,13 @@
 import * as R from "rambda";
+import { getMessenger } from "../gatsby-worker/child";
+import { MessagesFromParent, MessagesFromWorker } from "./message-types";
 import Fluture, { forkCatch, parallel } from "fluture/index.js";
 import PriorityQueue from "../utility/priority.queue";
 import pWaitFor from "p-wait-for";
 import { types as CassandraTypes } from "cassandra-driver";
 import { getCache, putCache, rmCache } from "../caching/cacache";
 import { MAX_TX_PER_BLOCK } from "../database/constants.database";
-import { log } from "../utility/log.utility";
+import { mkWorkerLog } from "../utility/log.utility";
 import { getBlock as queryGetBlock } from "../query/block.query";
 import { getTransaction, getTxOffset } from "../query/transaction.query";
 import { TxQueueState } from "../types/cassandra.types";
@@ -15,6 +17,24 @@ import {
   toLong,
 } from "../database/cassandra.database";
 
+const messenger = getMessenger<MessagesFromParent, MessagesFromWorker>();
+
+let sendMessage;
+
+if (messenger) {
+  sendMessage = (msg: any) =>
+    ((messenger as any).sendMessage as any)({
+      type: "log:info",
+      payload: `[worker:${process.env.GATSBY_WORKER_ID}] ` + msg,
+    } as any);
+
+  messenger.sendMessage({
+    type: "worker:ready",
+    workerId: process.env.GATSBY_WORKER_ID,
+  });
+}
+
+const log = mkWorkerLog(messenger);
 let topTxIndex: CassandraTypes.Long = toLong(0);
 let txInFlight: number = 0;
 
@@ -74,7 +94,7 @@ function unlockIncomingQueue() {
 }
 
 const handleTxImportError = (reason: any): void => {
-  console.error("Fatal", reason || "");
+  log("Fatal", reason || "");
   process.exit(1);
 };
 
@@ -105,14 +125,14 @@ const txIncomingParallelConsume = () => {
     return new (Fluture as (any) => void)((reject, fresolve) => {
       incTx.next.call(this, fresolve);
       return () => {
-        log.info("enqueueing of txId " + incTx.txId + " failed!");
+        log("enqueueing of txId " + incTx.txId + " failed!");
         process.exit(1);
       };
     });
   });
 
   forkCatch(handleTxImportError)(handleTxImportError)(unlockIncomingQueue)(
-    parallel(PARALLEL * 4)(batch)
+    parallel(4)(batch)
   );
 };
 
@@ -138,7 +158,7 @@ function processTxQueue(): void {
       }
 
       if (isTxQueueEmpty()) {
-        log.info("import queues have been consumed");
+        log("import queues have been consumed");
       }
 
       if (fresolve) {
@@ -168,7 +188,7 @@ function incomingTxCallback(integrity: string, txIndex_: CassandraTypes.Long) {
     }
 
     if (!cacheData) {
-      console.error("Cache disappeared with txIndex", txIndex_.toString());
+      log("Cache disappeared with txIndex", txIndex_.toString());
     }
 
     const {
@@ -193,7 +213,7 @@ function txImportCallback(integrity: string) {
   return async function () {
     const cached = await getCache(integrity);
     const { height, index, tx, block } = JSON.parse(cached);
-    log.info(JSON.stringify(cached));
+    log(JSON.stringify(cached));
     await makeTxImportQuery(toLong(height), toLong(index), tx, block)();
     await rmCache("tx:" + tx.id);
   };
@@ -231,7 +251,6 @@ export async function storeTransaction(
       })
     );
 
-    // console.error("POST |", txIndex.toString(), "|");
     enqueueTxQueue({
       height,
       callback: txImportCallback(integrity),
@@ -290,8 +309,7 @@ async function getNewBlock(height: number) {
   }
 }
 
-export default async function importBlock(height: number): Promise<boolean> {
-  console.error("HEY WORKER!");
+export async function importBlock(height: number): Promise<boolean> {
   let success = false;
   let blockCacheIntegrity = "";
 
@@ -299,7 +317,7 @@ export default async function importBlock(height: number): Promise<boolean> {
     blockCacheIntegrity = await getNewBlock(height);
     success = true;
   } catch (error) {
-    console.error(error);
+    log(error.toString());
   }
 
   if (!success) {
@@ -313,7 +331,7 @@ export default async function importBlock(height: number): Promise<boolean> {
     await makeBlockImportQuery(block)();
     await rmCache(block.indep_hash);
   } catch (error) {
-    console.error(error);
+    log(error.toString());
     success = false;
   }
 

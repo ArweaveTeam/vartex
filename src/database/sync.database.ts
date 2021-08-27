@@ -4,8 +4,8 @@ import Fluture, { fork, forkCatch, parallel } from "fluture/index.js";
 import PriorityQueue from "../utility/priority.queue";
 import pWaitFor from "p-wait-for";
 // import { DataItemJson } from "arweave-bundles";
-import Gauge from "gauge";
-import GaugeThemes from "gauge/themes";
+// import Gauge from "gauge";
+// import GaugeThemes from "gauge/themes";
 import { config } from "dotenv";
 import { types as CassandraTypes } from "cassandra-driver";
 import {
@@ -20,6 +20,10 @@ import { MAX_TX_PER_BLOCK } from "./constants.database";
 import { log } from "../utility/log.utility";
 import mkdirp from "mkdirp";
 import { WorkerPool } from "../gatsby-worker";
+import {
+  MessagesFromParent,
+  MessagesFromWorker,
+} from "../workers/message-types";
 import os from "os";
 
 import {
@@ -50,12 +54,12 @@ import * as Dr from "./doctor.database";
 process.env.NODE_ENV !== "test" && config();
 mkdirp.sync("cache");
 
-const trackerTheme = GaugeThemes.newTheme(
-  GaugeThemes({
-    hasUnicode: false,
-    hasColor: true,
-  })
-);
+//  const trackerTheme = GaugeThemes.newTheme(
+//   GaugeThemes({
+//     hasUnicode: false,
+//     hasColor: true,
+//   })
+// );
 
 const PARALLEL = (Number.isNaN as any)(process.env["PARALLEL"])
   ? 36
@@ -311,15 +315,12 @@ async function detectFirstRun(): Promise<boolean> {
   return queryResponse && queryResponse.rowLength > 0 ? false : true;
 }
 
-function findMissingBlocks(
-  hashList: string[],
-  gauge: any
-): Promise<UnsyncedBlock[]> {
+function findMissingBlocks(hashList: string[]): Promise<UnsyncedBlock[]> {
   const hashListObject = hashList.reduce((accumulator, hash, height) => {
     accumulator[height] = { height, hash };
     return accumulator;
   }, {});
-  gauge.enable();
+
   log.info("[database] Looking for missing blocks...");
   return new Promise(function (
     resolve: (value: any) => void,
@@ -335,7 +336,7 @@ function findMissingBlocks(
         executionProfile: "fast",
       },
       async function (n, row) {
-        gauge.show(`Looking for missing blocks: ${n}/${hashList.length}`);
+        log.info(`Looking for missing blocks: ${n}/${hashList.length}`);
 
         const matchingRow = hashListObject[row.height];
 
@@ -349,7 +350,6 @@ function findMissingBlocks(
         }
       },
       async function (error) {
-        gauge.disable();
         if (error) {
           reject((error || "").toString());
         } else {
@@ -386,6 +386,15 @@ function filterNpmFlags(obj) {
   return out;
 }
 
+const workerReadyPromises = R.range(1, PARALLEL + 1).reduce((acc, idx) => {
+  let resolve: () => void;
+  const promise = new Promise((resolve_: unknown) => {
+    resolve = resolve_ as () => void;
+  });
+  acc[idx] = { promise, resolve };
+  return acc;
+}, {});
+
 const workerPool = new WorkerPool<typeof import("../workers/import-block")>(
   process.cwd() + "/src/workers/import-block",
   {
@@ -415,12 +424,30 @@ const workerPool = new WorkerPool<typeof import("../workers/import-block")>(
   }
 );
 
+workerPool.onMessage((msg: MessagesFromWorker, workerId: number): void => {
+  switch (msg.type) {
+    case "worker:ready": {
+      workerReadyPromises[msg.workerId].resolve();
+      break;
+    }
+    case "log:info": {
+      log.info(`${msg.payload}`);
+      break;
+    }
+    default: {
+      console.error("unknown worker message arrived", msg);
+    }
+  }
+});
+
 // workerPool.onMessage( .getStdout().pipe(process.stdout);
 
 // workerPool.getStderr().pipe(process.stderr);
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function startSync({ isTesting = false }) {
+  // wait until worker threads are ready
+  await Promise.all((R.pluck as any)("promise", workerReadyPromises));
   const hashList: string[] = await getHashList({});
   const firstRun = await detectFirstRun();
   let lastBlock: CassandraTypes.Long = toLong(-1);
@@ -454,7 +481,10 @@ export async function startSync({ isTesting = false }) {
           (parallel as any)(PARALLEL)(
             blockGap.map((height) =>
               Fluture(function (reject: any, fresolve: any) {
-                workerPool.single.default(height).then(fresolve).catch(reject);
+                workerPool.single
+                  .importBlock(height)
+                  .then(fresolve)
+                  .catch(reject);
                 return () => {
                   console.error(`Fluture.Parallel crashed`);
                   process.exit(1);
@@ -480,20 +510,20 @@ export async function startSync({ isTesting = false }) {
     }
   }
 
-  const gauge = new Gauge(process.stderr, {
-    // tty: 79,
-    template: [
-      { type: "progressbar", length: 0 },
-      { type: "activityIndicator", kerning: 1, length: 2 },
-      { type: "section", kerning: 1, default: "" },
-      { type: "subsection", kerning: 1, default: "" },
-    ],
-  });
-  gauge.setTheme(trackerTheme);
+  // const gauge = new Gauge(process.stderr, {
+  //   // tty: 79,
+  //   template: [
+  //     { type: "progressbar", length: 0 },
+  //     { type: "activityIndicator", kerning: 1, length: 2 },
+  //     { type: "section", kerning: 1, default: "" },
+  //     { type: "subsection", kerning: 1, default: "" },
+  //   ],
+  // });
+  // gauge.setTheme(trackerTheme);
 
   let unsyncedBlocks: UnsyncedBlock[] = firstRun
     ? hashList.map((hash, height) => ({ hash, height }))
-    : await findMissingBlocks(hashList, gauge);
+    : await findMissingBlocks(hashList);
 
   const initialLastBlock = toLong(
     unsyncedBlocks[0] ? unsyncedBlocks[0].height : 0
@@ -536,7 +566,7 @@ export async function startSync({ isTesting = false }) {
   //   await Dr.fixNonLinearBlockOrder();
   // }
 
-  gauge.enable();
+  // gauge.enable();
 
   fork(function (reason: string | void) {
     console.error("Fatal", reason || "");
@@ -557,11 +587,26 @@ export async function startSync({ isTesting = false }) {
           next: number;
         }): any => {
           return Fluture(function (reject: any, fresolve: any) {
-            workerPool.single
-              .default(height)
-              .then(() => {
+            log.info("into pool block: " + height);
+            const singleJob = workerPool.single; // you have 1 job!
+
+            const blockPromise = singleJob.importBlock(height);
+            console.error({ blockPromise, workerPool, singleJob });
+            workerPool.sendMessage(
+              {
+                type: `OTHER_MESSAGE_FROM_PARENT`,
+                payload: {
+                  foo: `baz`,
+                },
+              },
+              1
+            );
+            blockPromise
+              .then((x: any) => {
+                console.error("RESOLVED!", x);
                 fresolve();
-                gauge.show(`blocks: ${height}/${hashList.length}`);
+                log.info(`blocks: ${height}/${hashList.length}`);
+                // gauge.show(`blocks: ${height}/${hashList.length}`);
               })
               .catch(reject);
 

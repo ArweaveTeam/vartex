@@ -59,6 +59,7 @@
     "gauge": "^3.0.0",
     "git-rev-sync": "^3.0.1",
     "got": "^11.8.2",
+    "graceful-fs": "^4.2.8",
     "graphql": "15.x",
     "graphql-fields": "^2.0.3",
     "graphql-playground-middleware-express": "^1.7.22",

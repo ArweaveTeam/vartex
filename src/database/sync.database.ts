@@ -443,7 +443,7 @@ export async function startSync({
 
           blockPromise
             .then(() => {
-              fresolve();
+              fresolve({});
               // log.info(`blocks: ${height}/${hashList.length}`);
               gauge.show(`blocks: ${height}/${hashList.length}`);
             })

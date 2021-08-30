@@ -80,7 +80,7 @@ function unlockIncomingQueue() {
   txIncomingIsConsuming = undefined;
 }
 
-const handleTxImportError = (reason: string | undefined): void => {
+const handleTxImportError = (reason: Error | string | undefined): void => {
   log("Fatal", reason || "");
   process.exit(1);
 };

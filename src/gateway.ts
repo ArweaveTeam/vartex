@@ -1,3 +1,6 @@
+import realFs from "fs";
+import gracefulFs from "graceful-fs";
+gracefulFs.gracefulify(realFs);
 import "colors";
 import exitHook from "exit-hook";
 import killPort from "kill-port";

@@ -5,7 +5,7 @@ import fs from "node:fs";
 import mkdirp from "mkdirp";
 import rimraf from "rimraf";
 
-const startupTimeSeconds = Math.floor(new Date().getTime() / 1000);
+const startupTimeSeconds = Math.floor(Date.now() / 1000);
 
 const importCacheDirectory = process.env.CACHE_IMPORT_PATH
   ? process.env.CACHE_IMPORT_PATH
@@ -58,8 +58,8 @@ export const rmCache = async (key: string): Promise<void> => {
 };
 
 export const gcImportCache = async (): Promise<void> => {
-  const now = new Date();
-  const nowSeconds = Math.floor(now.getTime() / 1000);
+  const now = Date.now();
+  const nowSeconds = Math.floor(now / 1000);
 
   if (nowSeconds - startupTimeSeconds < 60 * 5) {
     return;
@@ -70,13 +70,7 @@ export const gcImportCache = async (): Promise<void> => {
         const pathExists = fs.existsSync(path);
         const fiveMinsPassed = nowSeconds - time / 1000 > 60 * 5;
 
-        if (!pathExists) {
-          // never try to delete non existing paths
-          return true;
-        } else {
-          // for safety, keep all 5 minute old cache, just in case of slowness causing purge before read
-          return !fiveMinsPassed;
-        }
+        return !pathExists ? true : !fiveMinsPassed;
       },
     });
   } catch {}

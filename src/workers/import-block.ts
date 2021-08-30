@@ -2,7 +2,7 @@ import * as R from "rambda";
 import { getMessenger } from "../gatsby-worker/child";
 import { MessagesFromParent, MessagesFromWorker } from "./message-types";
 import Fluture, { forkCatch, parallel } from "fluture/index.js";
-import PriorityQueue from "../utility/priority.queue";
+import PriorityQueue, { ITxIncoming } from "../utility/priority.queue";
 import pWaitFor from "p-wait-for";
 import { types as CassandraTypes } from "cassandra-driver";
 import { getCache, putCache, rmCache } from "../caching/cacache";
@@ -80,7 +80,7 @@ function unlockIncomingQueue() {
   txIncomingIsConsuming = undefined;
 }
 
-const handleTxImportError = (reason: any): void => {
+const handleTxImportError = (reason: string | undefined): void => {
   log("Fatal", reason || "");
   process.exit(1);
 };
@@ -92,7 +92,7 @@ const txIncomingParallelConsume = () => {
     txIncomingIsConsuming = true;
   }
   sortIncomingTxQueue();
-  const entries = [...getEntriesTxIncoming()];
+  const entries: ITxIncoming[] = [...getEntriesTxIncoming()];
 
   if (entries.length === 0) {
     return;
@@ -101,7 +101,7 @@ const txIncomingParallelConsume = () => {
 
   while (
     getIncomingTxQueuePeek() &&
-    entries.some((entry: any) =>
+    entries.some((entry: ITxIncoming) =>
       entry.txIndex.equals(getIncomingTxQueuePeek().txIndex)
     )
   ) {
@@ -210,9 +210,9 @@ export async function storeTransaction(
   txId: string,
   txIndex: CassandraTypes.Long,
   height: CassandraTypes.Long,
-  blockData: { [k: string]: any },
+  blockData: { [k: string]: unknown },
   fresolve: () => void
-) {
+): Promise<void> {
   const currentTransaction = await getTransaction({ txId });
 
   if (!currentTransaction) {

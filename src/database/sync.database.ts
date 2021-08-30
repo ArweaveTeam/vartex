@@ -10,15 +10,11 @@ import mkdirp from "mkdirp";
 import { WorkerPool } from "../gatsby-worker";
 import { MessagesFromWorker } from "../workers/message-types";
 import { getHashList, getNodeInfo } from "../query/node.query";
-import {
-  fetchBlockByHash,
-  getBlock as queryGetBlock,
-} from "../query/block.query";
+import { fetchBlockByHash } from "../query/block.query";
 import { UnsyncedBlock } from "../types/cassandra.types";
 import {
   cassandraClient,
   getMaxHeightBlock,
-  makeBlockImportQuery,
   toLong,
 } from "./cassandra.database";
 import * as Dr from "./doctor.database";

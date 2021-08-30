@@ -12,7 +12,7 @@ module.exports = {
   globals: {
     'ts-jest': {
       useESM: true,
-      tsConfig: {
+      tsconfig: {
         allowSyntheticDefaultImports: true,
         target: 'es2019',
         esModuleInterop: true,

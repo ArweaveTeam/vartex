@@ -60,7 +60,7 @@ export const cassandraClient = new cassandra.Client({
   //   set: Set,
   // },
   socketOptions: {
-    connectTimeout: 5000,
+    connectTimeout: 50000,
     defunctReadTimeoutThreshold: 64,
     keepAlive: true,
     keepAliveDelay: 0,

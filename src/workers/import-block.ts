@@ -19,28 +19,15 @@ import {
 
 const messenger = getMessenger<MessagesFromParent, MessagesFromWorker>();
 
-let sendMessage;
-
 if (messenger) {
-  sendMessage = (msg: any) =>
-    ((messenger as any).sendMessage as any)({
-      type: "log:info",
-      payload: `[worker:${process.env.GATSBY_WORKER_ID}] ` + msg,
-    } as any);
-
   messenger.sendMessage({
     type: "worker:ready",
-    workerId: process.env.GATSBY_WORKER_ID,
   });
 }
 
 const log = mkWorkerLog(messenger);
 let topTxIndex: CassandraTypes.Long = toLong(0);
-let txInFlight: number = 0;
-
-const PARALLEL = (Number.isNaN as any)(process.env["PARALLEL"])
-  ? 36
-  : Number.parseInt(process.env["PARALLEL"] || "36");
+// let txInFlight = 0;
 
 const txIncomingQueue = new PriorityQueue(function (
   a: { txIndex: CassandraTypes.Long },
@@ -75,7 +62,7 @@ const txQueue = new PriorityQueue(function (
 
 const isTxQueueEmpty = txQueue.isEmpty.bind(txQueue);
 // const hasTxQueueNoneLt = txQueue.hasNoneLt.bind(txQueue);
-const getTxQueueSize = txQueue.getSize.bind(txQueue);
+// const getTxQueueSize = txQueue.getSize.bind(txQueue);
 const getTxQueuePeek = txQueue.peek.bind(txQueue);
 const popTxQueue = txQueue.pop.bind(txQueue);
 const sortTxQueue = txQueue.sortQueue.bind(txQueue);
@@ -162,7 +149,7 @@ function processTxQueue(): void {
       }
 
       if (fresolve) {
-        txInFlight -= 1;
+        // txInFlight -= 1;
         fresolve();
       }
     });

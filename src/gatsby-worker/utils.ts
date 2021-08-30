@@ -1,7 +1,7 @@
-export const isPromise = (obj: any): obj is PromiseLike<unknown> =>
-  !!obj &&
-  (typeof obj === `object` || typeof obj === `function`) &&
-  typeof obj.then === `function`;
+export const isPromise = (object: any): object is PromiseLike<unknown> =>
+  !!object &&
+  (typeof object === `object` || typeof object === `function`) &&
+  typeof object.then === `function`;
 
 export const isRunning = (pid: number): boolean => {
   try {
@@ -9,7 +9,7 @@ export const isRunning = (pid: number): boolean => {
     // See https://nodejs.org/api/process.html#process_process_kill_pid_signal
     process.kill(pid, 0);
     return true;
-  } catch (e) {
+  } catch {
     return false;
   }
 };

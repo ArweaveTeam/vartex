@@ -7,9 +7,9 @@ export const CUSTOM_MESSAGE = 0b100;
 type CustomMessage = [typeof CUSTOM_MESSAGE, unknown];
 
 type FunctionName = string | number | symbol;
-type FunctionArgs = Array<any>;
+type FunctionArguments = Array<any>;
 
-type ExecuteMessage = [typeof EXECUTE, FunctionName, FunctionArgs];
+type ExecuteMessage = [typeof EXECUTE, FunctionName, FunctionArguments];
 type EndMessage = [typeof END];
 
 export type ParentMessageUnion = ExecuteMessage | EndMessage | CustomMessage;

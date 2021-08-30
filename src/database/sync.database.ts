@@ -1,69 +1,109 @@
 import * as R from "rambda";
-import path from "path";
-import Fluture, { fork, forkCatch, parallel } from "fluture/index.js";
-import PriorityQueue from "../utility/priority.queue";
-import pWaitFor from "p-wait-for";
-// import { DataItemJson } from "arweave-bundles";
-// import Gauge from "gauge";
-// import GaugeThemes from "gauge/themes";
+import Fluture, { fork, parallel } from "fluture/index.js";
+import Gauge from "gauge";
+import GaugeThemes from "gauge/themes";
 import { config } from "dotenv";
 import { types as CassandraTypes } from "cassandra-driver";
-import {
-  getCache,
-  putCache,
-  gcImportCache,
-  lastGcImportCacheRun,
-  rmCache,
-} from "../caching/cacache";
 import { KEYSPACE, POLLTIME_DELAY_SECONDS } from "../constants";
-import { MAX_TX_PER_BLOCK } from "./constants.database";
 import { log } from "../utility/log.utility";
 import mkdirp from "mkdirp";
 import { WorkerPool } from "../gatsby-worker";
+import { MessagesFromWorker } from "../workers/message-types";
+import { getHashList, getNodeInfo } from "../query/node.query";
 import {
-  MessagesFromParent,
-  MessagesFromWorker,
-} from "../workers/message-types";
-import os from "os";
-
-import {
-  // getDataFromChunks,
-  getHashList,
-  getNodeInfo,
-} from "../query/node.query";
-import {
-  BlockType,
   fetchBlockByHash,
   getBlock as queryGetBlock,
 } from "../query/block.query";
-import { getTransaction, getTxOffset } from "../query/transaction.query";
-import {
-  UnsyncedBlock,
-  TxQueueState,
-  BlockQueueState,
-} from "../types/cassandra.types";
+import { UnsyncedBlock } from "../types/cassandra.types";
 import {
   cassandraClient,
   getMaxHeightBlock,
   makeBlockImportQuery,
-  makeTxImportQuery,
   toLong,
 } from "./cassandra.database";
 import * as Dr from "./doctor.database";
 
-process.env.NODE_ENV !== "test" && config();
-mkdirp.sync("cache");
-
-//  const trackerTheme = GaugeThemes.newTheme(
-//   GaugeThemes({
-//     hasUnicode: false,
-//     hasColor: true,
-//   })
-// );
-
 const PARALLEL = (Number.isNaN as any)(process.env["PARALLEL"])
   ? 36
   : Number.parseInt(process.env["PARALLEL"] || "36");
+
+process.env.NODE_ENV !== "test" && config();
+mkdirp.sync("cache");
+
+function filterNpmFlags(object) {
+  const keyz: string[] = Object.keys(object);
+  const out = {};
+  for (const key of keyz) {
+    if (!key.startsWith("npm")) {
+      out[key] = object[key];
+    }
+  }
+  return out;
+}
+
+const workerReadyPromises = R.range(1, PARALLEL + 1).reduce(
+  (accumulator, index) => {
+    let resolve: () => void;
+    const promise = new Promise((resolve_: unknown) => {
+      resolve = resolve_ as () => void;
+    });
+    accumulator[index] = { promise, resolve };
+    return accumulator;
+  },
+  {}
+);
+
+const workerPool = new WorkerPool<typeof import("../workers/import-block")>(
+  process.cwd() + "/src/workers/import-block",
+  {
+    numWorkers: PARALLEL,
+    logFilter: (data) =>
+      !/ExperimentalWarning:/.test(data) && !/node --trace-warnings/.test(data),
+    env: R.mergeAll([
+      {
+        PWD: process.cwd(),
+        TS_NODE_FILES: true,
+        NODE_PATH: process.cwd() + "/node_modules",
+        NODE_OPTIONS: `--require ${
+          process.cwd() + "/node_modules/ts-node/register"
+        }`,
+      },
+      filterNpmFlags(process.env),
+    ]),
+  }
+);
+
+const messagePromiseReceivers = {};
+
+workerPool.onMessage((message: MessagesFromWorker, workerId: number): void => {
+  switch (message.type) {
+    case "worker:ready": {
+      workerReadyPromises[workerId].resolve();
+      break;
+    }
+    case "log:info": {
+      log.info(`${message.payload}`);
+      break;
+    }
+    case "block:new": {
+      if (typeof messagePromiseReceivers[workerId] === "function") {
+        messagePromiseReceivers[workerId](message.payload);
+        delete messagePromiseReceivers[workerId];
+      }
+      break;
+    }
+    default: {
+      console.error("unknown worker message arrived", message);
+    }
+  }
+});
+
+const trackerTheme = GaugeThemes.newTheme(
+  GaugeThemes({
+    hasUnicode: false,
+    hasColor: true,
+  })
+);
 
 export let topHash = "";
 export let topHeight: CassandraTypes.Long = toLong(0);
@@ -84,7 +124,7 @@ if (developmentSyncLength === Number.NaN) {
 }
 
 let isPollingStarted = false;
-let isImportCacheGcRunning = true; // true because we want to wait before starting periodic gc runs
+// let isImportCacheGcRunning = true; // true because we want to wait before starting periodic gc runs
 let isPaused = false;
 
 export function togglePause(): void {
@@ -168,7 +208,6 @@ export function togglePause(): void {
 //   }
 // }
 
-/*
 async function resolveFork(previousBlock: any): Promise<void> {
   isPaused = true;
   const pprevBlock = await fetchBlockByHash(previousBlock.previous_block);
@@ -207,28 +246,12 @@ async function resolveFork(previousBlock: any): Promise<void> {
       }
     );
   } else {
-    const blockQueryCallback = makeBlockImportQuery(pprevBlock);
-    enqueueBlockQueue({
-      callback: blockQueryCallback.bind(blockQueue),
-      height:
-        pprevBlock.height !== null && !Number.isNaN(pprevBlock.height)
-          ? toLong(pprevBlock.height)
-          : toLong(0),
-      type: "block",
-      nextHeight: toLong(-1),
-      txCount: pprevBlock.txs ? pprevBlock.txs.length : 0,
-    });
-
+    workerPool.single.importBlock(pprevBlock.height);
     return await resolveFork(pprevBlock);
   }
 }
-*/
 
-/*
 async function startPolling(): Promise<void> {
-  if (SIGINT || SIGKILL) {
-    process.exit(1);
-  }
   if (!isPollingStarted) {
     isPollingStarted = true;
     log.info(
@@ -269,43 +292,38 @@ async function startPolling(): Promise<void> {
           topHash
       );
       await resolveFork(currentRemoteBlock);
-      await pWaitFor(
-        function () {
-          return isBlockQueueEmpty();
-        },
-        { interval: 500 }
-      );
       log.info("blocks are back in sync!");
     } else {
-      const newBlock = await queryGetBlock({
-        height: nodeInfo.height,
-        hash: nodeInfo.current,
-      });
-      if (newBlock !== undefined) {
-        const newBlockHeight =
-          newBlock.height !== null && !Number.isNaN(newBlock.height)
-            ? toLong(newBlock.height)
-            : toLong(0);
-        log.info("new block arrived at height " + newBlockHeight.toString());
-        const blockQueryCallback = makeBlockImportQuery(newBlock);
-        enqueueBlockQueue({
-          nextHeight: toLong(-1),
-          callback: blockQueryCallback.bind(blockQueue),
-          height: newBlockHeight,
-          type: "block",
-          txCount: newBlock.txs ? newBlock.txs.length : 0,
-        });
-      } else {
-        console.error("Querying for new tx failed");
-      }
+      await workerPool.single.importBlock(nodeInfo.height);
       await new Promise(function (resolve) {
         setTimeout(resolve, POLLTIME_DELAY_SECONDS * 1000);
       });
+
+      // const newBlock = await queryGetBlock({
+      //   height: nodeInfo.height,
+      //   hash: nodeInfo.current,
+      // });
+      // if (newBlock !== undefined) {
+      //   const newBlockHeight =
+      //     newBlock.height !== null && !Number.isNaN(newBlock.height)
+      //       ? toLong(newBlock.height)
+      //       : toLong(0);
+      //   log.info("new block arrived at height " + newBlockHeight.toString());
+      //   const blockQueryCallback = makeBlockImportQuery(newBlock);
+      // enqueueBlockQueue({
+      //   nextHeight: toLong(-1),
+      //   callback: blockQueryCallback.bind(blockQueue),
+      //   height: newBlockHeight,
+      //   type: "block",
+      //   txCount: newBlock.txs ? newBlock.txs.length : 0,
+      // });
+      // } else {
+      //   console.error("Querying for new tx failed");
+      // }
     }
   }
   return startPolling();
 }
-*/
 
 async function detectFirstRun(): Promise<boolean> {
   const queryResponse = await cassandraClient.execute(
@@ -374,71 +392,6 @@ function findMissingBlocks(hashList: string[]): Promise<UnsyncedBlock[]> {
     );
   });
 }
-
-function filterNpmFlags(obj) {
-  const keyz: string[] = Object.keys(obj);
-  const out = {};
-  for (const key of keyz) {
-    if (!key.startsWith("npm")) {
-      out[key] = obj[key];
-    }
-  }
-  return out;
-}
-
-const workerReadyPromises = R.range(1, PARALLEL + 1).reduce((acc, idx) => {
-  let resolve: () => void;
-  const promise = new Promise((resolve_: unknown) => {
-    resolve = resolve_ as () => void;
-  });
-  acc[idx] = { promise, resolve };
-  return acc;
-}, {});
-
-const workerPool = new WorkerPool<typeof import("../workers/import-block")>(
-  process.cwd() + "/src/workers/import-block",
-  {
-    numWorkers: PARALLEL,
-    env: R.mergeAll([
-      {
-        PWD: process.cwd(),
-        TS_NODE_FILES: true,
-        NODE_PATH: process.cwd() + "/node_modules",
-        NODE_OPTIONS: `--require ${
-          process.cwd() + "/node_modules/ts-node/register"
-        }`,
-      },
-      filterNpmFlags(process.env),
-    ]),
-
-    // forkOptions: {
-    //   env: ,
-    //   cwd: process.cwd(),
-    //   execArgv: [
-    //     "--trace-warnings",
-    //     "--experimental-specifier-resolution=node",
-    //     "--loader",
-    //     `${process.cwd()}/node_modules/ts-node/esm.mjs`,
-    //   ],
-    // },
-  }
-);
-
-workerPool.onMessage((msg: MessagesFromWorker, workerId: number): void => {
-  switch (msg.type) {
-    case "worker:ready": {
-      workerReadyPromises[msg.workerId].resolve();
-      break;
-    }
-    case "log:info": {
-      log.info(`${msg.payload}`);
-      break;
-    }
-    default: {
-      console.error("unknown worker message arrived", msg);
-    }
-  }
-});
 
 // workerPool.onMessage( .getStdout().pipe(process.stdout);
 
@@ -510,16 +463,16 @@ export async function startSync({ isTesting = false }) {
     }
   }
 
-  // const gauge = new Gauge(process.stderr, {
-  //   // tty: 79,
-  //   template: [
-  //     { type: "progressbar", length: 0 },
-  //     { type: "activityIndicator", kerning: 1, length: 2 },
-  //     { type: "section", kerning: 1, default: "" },
-  //     { type: "subsection", kerning: 1, default: "" },
-  //   ],
-  // });
-  // gauge.setTheme(trackerTheme);
+  const gauge = new Gauge(process.stderr, {
+    // tty: 79,
+    template: [
+      { type: "progressbar", length: 0 },
+      { type: "activityIndicator", kerning: 1, length: 2 },
+      { type: "section", kerning: 1, default: "" },
+      { type: "subsection", kerning: 1, default: "" },
+    ],
+  });
+  gauge.setTheme(trackerTheme);
 
   let unsyncedBlocks: UnsyncedBlock[] = firstRun
     ? hashList.map((hash, height) => ({ hash, height }))
@@ -546,7 +499,7 @@ export async function startSync({ isTesting = false }) {
   //   ? toLong(1)
   //   : initialLastBlock;
   // txQueueState.nextTxIndex = initialLastBlock.mul(MAX_TX_PER_BLOCK);
-  isImportCacheGcRunning = false;
+  // isImportCacheGcRunning = false;
 
   if (firstRun) {
     log.info(
@@ -554,7 +507,7 @@ export async function startSync({ isTesting = false }) {
     );
   } else if (R.isEmpty(unsyncedBlocks)) {
     log.info("[sync] fully synced db");
-    // startPolling();
+    startPolling();
     return;
   } else {
     log.info(
@@ -566,59 +519,37 @@ export async function startSync({ isTesting = false }) {
   //   await Dr.fixNonLinearBlockOrder();
   // }
 
-  // gauge.enable();
+  gauge.enable();
 
   fork(function (reason: string | void) {
     console.error("Fatal", reason || "");
     process.exit(1);
   })(function () {
     log.info("Database fully in sync with block_list");
-    // !isPollingStarted && startPolling();
+    !isPollingStarted && startPolling();
   })(
     parallel(PARALLEL)(
-      (unsyncedBlocks as any).map(
-        ({
-          height,
-          hash,
-          next,
-        }: {
-          height: number;
-          hash: string;
-          next: number;
-        }): any => {
-          return Fluture(function (reject: any, fresolve: any) {
-            log.info("into pool block: " + height);
-            const singleJob = workerPool.single; // you have 1 job!
+      (unsyncedBlocks as any).map(({ height }: { height: number }): any => {
+        return Fluture(function (reject: any, fresolve: any) {
+          const singleJob = workerPool.single; // you have 1 job!
+          const blockPromise = singleJob.importBlock(height);
 
-            const blockPromise = singleJob.importBlock(height);
-            console.error({ blockPromise, workerPool, singleJob });
-            workerPool.sendMessage(
-              {
-                type: `OTHER_MESSAGE_FROM_PARENT`,
-                payload: {
-                  foo: `baz`,
-                },
-              },
-              1
+          blockPromise
+            .then(() => {
+              fresolve();
+              // log.info(`blocks: ${height}/${hashList.length}`);
+              gauge.show(`blocks: ${height}/${hashList.length}`);
+            })
+            .catch(reject);
+
+          return () => {
+            console.error(
+              "Fatal error while importing block at height",
+              height
             );
-            blockPromise
-              .then((x: any) => {
-                console.error("RESOLVED!", x);
-                fresolve();
-                log.info(`blocks: ${height}/${hashList.length}`);
-                // gauge.show(`blocks: ${height}/${hashList.length}`);
-              })
-              .catch(reject);
-
-            return () => {
-              console.error(
-                "Fatal error while importing block at height",
-                height
-              );
-            };
-          });
-        }
-      )
+          };
+        });
+      })
     )
   );
 }

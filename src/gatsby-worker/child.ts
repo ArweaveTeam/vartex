@@ -13,8 +13,8 @@ export interface IGatsbyWorkerMessenger<
   MessagesFromParent = unknown,
   MessagesFromChild = MessagesFromParent
 > {
-  onMessage: (listener: (msg: MessagesFromParent) => void) => void;
-  sendMessage: (msg: MessagesFromChild) => void;
+  onMessage: (listener: (message: MessagesFromParent) => void) => void;
+  sendMessage: (message: MessagesFromChild) => void;
   messagingVersion: 1;
 }
 
@@ -31,17 +31,17 @@ let getMessenger = function <
 
 if (process.send && process.env.GATSBY_WORKER_MODULE_PATH) {
   isWorker = true;
-  const listeners: Array<(msg: any) => void> = [];
+  const listeners: Array<(message: any) => void> = [];
   const ensuredSendToMain = process.send.bind(process) as (
-    msg: ChildMessageUnion
+    message: ChildMessageUnion
   ) => void;
 
   function onError(error: Error): void {
-    if (error == null) {
+    if (error == undefined) {
       error = new Error(`"null" or "undefined" thrown`);
     }
 
-    const msg: ChildMessageUnion = [
+    const message: ChildMessageUnion = [
       ERROR,
       error.constructor && error.constructor.name,
       error.message,
@@ -49,12 +49,12 @@ if (process.send && process.env.GATSBY_WORKER_MODULE_PATH) {
       error,
     ];
 
-    ensuredSendToMain(msg);
+    ensuredSendToMain(message);
   }
 
   function onResult(result: unknown): void {
-    const msg: ChildMessageUnion = [RESULT, result];
-    ensuredSendToMain(msg);
+    const message: ChildMessageUnion = [RESULT, result];
+    ensuredSendToMain(message);
   }
 
   const MESSAGING_VERSION = 1;
@@ -64,25 +64,26 @@ if (process.send && process.env.GATSBY_WORKER_MODULE_PATH) {
     MessagesFromChild = MessagesFromParent
   >(): IGatsbyWorkerMessenger<MessagesFromParent, MessagesFromChild> {
     return {
-      onMessage(listener: (msg: MessagesFromParent) => void): void {
+      onMessage(listener: (message: MessagesFromParent) => void): void {
         listeners.push(listener);
       },
-      sendMessage(msg: MessagesFromChild): void {
-        const poolMsg: ChildMessageUnion = [CUSTOM_MESSAGE, msg];
-        ensuredSendToMain(poolMsg);
+      sendMessage(message: MessagesFromChild): void {
+        const poolMessage: ChildMessageUnion = [CUSTOM_MESSAGE, message];
+        ensuredSendToMain(poolMessage);
       },
       messagingVersion: MESSAGING_VERSION,
     };
   };
 
   import(process.env.GATSBY_WORKER_MODULE_PATH).then((child) => {
-    function messageHandler(msg: ParentMessageUnion): void {
-      if (msg[0] === EXECUTE) {
+    function messageHandler(message: ParentMessageUnion): void {
+      switch (message[0]) {
+      case EXECUTE: {
         let result;
         try {
-          result = child[msg[1]].call(child, ...msg[2]);
-        } catch (e) {
-          onError(e);
+          result = child[message[1]].call(child, ...message[2]);
+        } catch (error) {
+          onError(error);
           return;
         }
 
@@ -91,12 +92,22 @@ if (process.send && process.env.GATSBY_WORKER_MODULE_PATH) {
         } else {
           onResult(result);
         }
-      } else if (msg[0] === END) {
+      
+      break;
+      }
+      case END: {
         process.off(`message`, messageHandler);
-      } else if (msg[0] === CUSTOM_MESSAGE) {
+      
+      break;
+      }
+      case CUSTOM_MESSAGE: {
         for (const listener of listeners) {
-          listener(msg[1]);
+          listener(message[1]);
         }
+      
+      break;
+      }
+      // No default
       }
     }
 

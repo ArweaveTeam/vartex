@@ -1,4 +1,3 @@
-import { curry } from "rambda";
 import winston from "winston";
 const { createLogger, transports, format } = winston;
 
@@ -10,10 +9,12 @@ export const log = createLogger({
 });
 
 export const mkWorkerLog = (messenger: any) => {
-  return function (msg: string, ctx?: any) {
+  return function (message: string, context?: any) {
     messenger.sendMessage({
       type: "log:info",
-      message: `${msg}\n${typeof ctx === "object" ? JSON.stringify(ctx) : ctx}`,
+      message: `${message}\n${
+        typeof context === "object" ? JSON.stringify(context) : context
+      }`,
     });
   };
 };

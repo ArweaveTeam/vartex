@@ -23,7 +23,7 @@
     "guard-for-in": 0,
     "prefer-spread": 0,
     "no-empty": 0,
-    "quotes": ["error", "double"],
+    "quotes": 0,
     "object-curly-spacing": ["error", "always"],
     "unicorn/no-process-exit": 0,
     "unicorn/no-array-reduce": 0,

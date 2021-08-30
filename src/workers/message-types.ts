@@ -1,20 +1,25 @@
 interface WorkerReady {
   type: `worker:ready`;
-  workerId?: any;
 }
 
 interface WorkerInfoLog {
   type: `log:info`;
-  message: any;
-  payload?: any;
+  message: string;
+  payload?: unknown;
 }
 
 interface WorkerProgressLog {
   type: `log:progress`;
-  payload: any;
+  payload: unknown;
+}
+
+interface WorkerNewBlockResponse {
+  type: "block:new";
+  payload: unknown;
 }
 
 export type MessagesFromWorker =
+  | WorkerNewBlockResponse
   | WorkerProgressLog
   | WorkerInfoLog
   | WorkerReady;

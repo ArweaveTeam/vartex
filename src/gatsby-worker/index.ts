@@ -1,4 +1,4 @@
-import { fork, ChildProcess } from "child_process";
+import { fork, ChildProcess } from "node:child_process";
 
 import { TaskQueue } from "./task-queue";
 import {
@@ -14,10 +14,11 @@ import {
 interface IWorkerOptions {
   numWorkers?: number;
   env?: Record<string, string>;
+  logFilter?: (data: string) => boolean;
 }
 
 type WrapReturnOfAFunctionInAPromise<
-  FunctionThatDoesNotReturnAPromise extends (...args: Array<any>) => any
+  FunctionThatDoesNotReturnAPromise extends (...arguments_: Array<any>) => any
 > = (
   ...a: Parameters<FunctionThatDoesNotReturnAPromise>
 ) => Promise<ReturnType<FunctionThatDoesNotReturnAPromise>>;
@@ -25,15 +26,15 @@ type WrapReturnOfAFunctionInAPromise<
 // gatsby-worker will make sync function async, so to keep proper types we need to adjust types so all functions
 // on worker pool are async
 type EnsureFunctionReturnsAPromise<MaybeFunction> = MaybeFunction extends (
-  ...args: Array<any>
+  ...arguments_: Array<any>
 ) => Promise<any>
   ? MaybeFunction
-  : MaybeFunction extends (...args: Array<any>) => any
+  : MaybeFunction extends (...arguments_: Array<any>) => any
   ? WrapReturnOfAFunctionInAPromise<MaybeFunction>
   : never;
 
 type WrapReturnInArray<MaybeFunction> = MaybeFunction extends (
-  ...args: Array<any>
+  ...arguments_: Array<any>
 ) => any
   ? (...a: Parameters<MaybeFunction>) => Array<ReturnType<MaybeFunction>>
   : never;
@@ -61,14 +62,14 @@ class TaskInfo<T> {
   resolve!: (r: any) => void;
   reject!: (e: Error) => void;
 
-  constructor(opts: {
+  constructor(options: {
     functionName: T;
     args: Array<any>;
     assignedToWorker?: IWorkerInfo<T>;
   }) {
-    this.functionName = opts.functionName;
-    this.args = opts.args;
-    this.assignedToWorker = opts.assignedToWorker;
+    this.functionName = options.functionName;
+    this.args = options.args;
+    this.assignedToWorker = options.assignedToWorker;
     this.promise = new Promise((resolve, reject) => {
       this.resolve = resolve;
       this.reject = reject;
@@ -125,7 +126,7 @@ export class WorkerPool<
   private taskQueue = new TaskQueue<TaskInfo<keyof WorkerModuleExports>>();
   private idleWorkers: Set<IWorkerInfo<keyof WorkerModuleExports>> = new Set();
   private listeners: Array<
-    (msg: MessagesFromChild, workerId: number) => void
+    (message: MessagesFromChild, workerId: number) => void
   > = [];
 
   constructor(private workerPath: string, private options?: IWorkerOptions) {
@@ -168,7 +169,6 @@ export class WorkerPool<
   private startAll(): void {
     const options = this.options;
     for (let workerId = 1; workerId <= (options?.numWorkers ?? 1); workerId++) {
-      console.error("WORKERID", workerId);
       const worker = fork(childWrapperPath, {
         cwd: process.cwd(),
         env: {
@@ -181,8 +181,14 @@ export class WorkerPool<
         silent: true,
       });
 
-      worker.stdout.on("data", (data) => process.stdout.write(data + "\n"));
-      worker.stderr.on("data", (data) => process.stdout.write(data + "\n"));
+      worker.stdout.on(
+        "data",
+        (data) => options.logFilter(data) && process.stdout.write(data + "\n")
+      );
+      worker.stderr.on(
+        "data",
+        (data) => options.logFilter(data) && process.stdout.write(data + "\n")
+      );
 
       const workerInfo: IWorkerInfo<keyof WorkerModuleExports> = {
         workerId,
@@ -202,8 +208,9 @@ export class WorkerPool<
         }),
       };
 
-      worker.on(`message`, (msg: ChildMessageUnion) => {
-        if (msg[0] === RESULT) {
+      worker.on(`message`, (message: ChildMessageUnion) => {
+        switch (message[0]) {
+        case RESULT: {
           if (!workerInfo.currentTask) {
             throw new Error(
               `Invariant: gatsby-worker received execution result, but it wasn't expecting it.`
@@ -212,26 +219,29 @@ export class WorkerPool<
           const task = workerInfo.currentTask;
           workerInfo.currentTask = undefined;
           this.checkForWork(workerInfo);
-          task.resolve(msg[1]);
-        } else if (msg[0] === ERROR) {
+          task.resolve(message[1]);
+        
+        break;
+        }
+        case ERROR: {
           if (!workerInfo.currentTask) {
             throw new Error(
               `Invariant: gatsby-worker received execution rejection, but it wasn't expecting it.`
             );
           }
 
-          let error = msg[4];
+          let error = message[4];
 
           if (error !== null && typeof error === `object`) {
             const extra = error;
 
-            const NativeCtor = global[msg[1]];
+            const NativeCtor = global[message[1]];
             const Ctor = typeof NativeCtor === `function` ? NativeCtor : Error;
 
-            error = new Ctor(msg[2]);
+            error = new Ctor(message[2]);
             // @ts-ignore type doesn't exist on Error, but that's what jest-worker does for errors :shrug:
-            error.type = msg[1];
-            error.stack = msg[3];
+            error.type = message[1];
+            error.stack = message[3];
 
             for (const key in extra) {
               if (Object.prototype.hasOwnProperty.call(extra, key)) {
@@ -244,10 +254,17 @@ export class WorkerPool<
           workerInfo.currentTask = undefined;
           this.checkForWork(workerInfo);
           task.reject(error);
-        } else if (msg[0] === CUSTOM_MESSAGE) {
+        
+        break;
+        }
+        case CUSTOM_MESSAGE: {
           for (const listener of this.listeners) {
-            listener(msg[1] as MessagesFromChild, workerId);
+            listener(message[1] as MessagesFromChild, workerId);
           }
+        
+        break;
+        }
+        // No default
         }
       });
 
@@ -331,12 +348,12 @@ export class WorkerPool<
     workerInfo.currentTask = taskInfo;
     this.idleWorkers.delete(workerInfo);
 
-    const msg: ParentMessageUnion = [
+    const message: ParentMessageUnion = [
       EXECUTE,
       taskInfo.functionName,
       taskInfo.args,
     ];
-    workerInfo.worker.send(msg);
+    workerInfo.worker.send(message);
   }
 
   private scheduleWork<T extends keyof WorkerModuleExports>(
@@ -365,37 +382,37 @@ export class WorkerPool<
 
   private scheduleWorkSingle<T extends keyof WorkerModuleExports>(
     functionName: T,
-    ...args: Array<unknown>
+    ...arguments_: Array<unknown>
   ): Promise<unknown> {
-    return this.scheduleWork(new TaskInfo({ functionName, args }));
+    return this.scheduleWork(new TaskInfo({ functionName, args: arguments_ }));
   }
 
   private scheduleWorkAll<T extends keyof WorkerModuleExports>(
     functionName: T,
-    ...args: Array<unknown>
+    ...arguments_: Array<unknown>
   ): Array<Promise<unknown>> {
     return this.workers.map((workerInfo) =>
       this.scheduleWork(
-        new TaskInfo({ assignedToWorker: workerInfo, functionName, args })
+        new TaskInfo({ assignedToWorker: workerInfo, functionName, args: arguments_ })
       )
     );
   }
 
   onMessage(
-    listener: (msg: MessagesFromChild, workerId: number) => void
+    listener: (message: MessagesFromChild, workerId: number) => void
   ): void {
     this.listeners.push(listener);
   }
 
-  sendMessage(msg: MessagesFromParent, workerId: number): void {
+  sendMessage(message: MessagesFromParent, workerId: number): void {
     // console.error("send message", msg);
     const worker = this.workers[workerId - 1];
     if (!worker) {
       throw new Error(`There is no worker with "${workerId}" id.`);
     }
 
-    const poolMsg = [CUSTOM_MESSAGE, msg];
-    worker.worker.send(poolMsg);
+    const poolMessage = [CUSTOM_MESSAGE, message];
+    worker.worker.send(poolMessage);
   }
 }
 

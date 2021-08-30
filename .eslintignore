@@ -1,2 +1,3 @@
 src/express.d.ts
 src/graphql/types.ts
+src/gatsby-worker/*

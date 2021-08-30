@@ -1,8 +1,11 @@
 import * as R from "rambda";
 import cacache from "cacache";
 import path from "node:path";
+import fs from "node:fs";
 import mkdirp from "mkdirp";
 import rimraf from "rimraf";
+
+const startupTimeSeconds = Math.floor(new Date().getTime() / 1000);
 
 const importCacheDirectory = process.env.CACHE_IMPORT_PATH
   ? process.env.CACHE_IMPORT_PATH
@@ -50,18 +53,30 @@ export const getCacheByKey = async (key: string): Promise<any> => {
 
 export const rmCache = async (key: string): Promise<void> => {
   try {
-    await cacache.rm.entry(importCacheDirectory, key);
+    await cacache.rm.entry(importCacheDirectory, key, { removeFully: true });
   } catch {}
 };
 
 export const gcImportCache = async (): Promise<void> => {
+  const now = new Date();
+  const nowSeconds = Math.floor(now.getTime() / 1000);
+
+  if (nowSeconds - startupTimeSeconds < 60 * 5) {
+    return;
+  }
   try {
     await cacache.verify(importCacheDirectory, {
-      filter: ({ time }) => {
-        const now = new Date();
-        const nowSeconds = Math.floor(now.getTime() / 1000);
-        // for safety, keep all 5 minute old cache, just in case of slowness causing purge before read
-        return nowSeconds - time > 60 * 5;
+      filter: ({ time, path }) => {
+        const pathExists = fs.existsSync(path);
+        const fiveMinsPassed = nowSeconds - time / 1000 > 60 * 5;
+
+        if (!pathExists) {
+          // never try to delete non existing paths
+          return true;
+        } else {
+          // for safety, keep all 5 minute old cache, just in case of slowness causing purge before read
+          return !fiveMinsPassed;
+        }
       },
     });
   } catch {}

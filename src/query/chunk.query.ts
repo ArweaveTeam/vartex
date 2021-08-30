@@ -44,7 +44,7 @@ export async function getChunk({
   retryCount?: number;
 }): Promise<ChunkType> {
   try {
-    const body: any = await got.get(`${grabNode()}/chunk/${offset}`, {
+    const body: ChunkType = await got.get(`${grabNode()}/chunk/${offset}`, {
       responseType: "json",
       resolveBodyOnly: true,
       timeout: HTTP_TIMEOUT_SECONDS * 1000,

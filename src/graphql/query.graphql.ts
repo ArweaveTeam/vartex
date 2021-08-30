@@ -3,8 +3,6 @@ import { types as CassandraTypes } from "cassandra-driver";
 import * as Constants from "../database/constants.database";
 import { config } from "dotenv";
 import { KEYSPACE } from "../constants";
-// import { indices } from "../utility/order.utility";
-// import { ISO8601DateTimeString } from "../utility/encoding.utility";
 import { TagFilter } from "./types";
 import { toB64url } from "../query/transaction.query";
 import { default as cqlBuilder } from "@ridi/cql-builder";
@@ -22,7 +20,7 @@ export interface QueryParameters {
   ids?: string[];
   limit?: number;
   offset?: number;
-  select?: any;
+  select?: any; // eslint-disable-line @typescript-eslint/no-explicit-any
   blocks?: boolean;
   since?: string;
   before?: string;
@@ -34,7 +32,14 @@ export interface QueryParameters {
   maxHeight?: CassandraTypes.Long;
 }
 
-export function generateTransactionQuery(parameters: QueryParameters): any {
+interface CqlQuery {
+  query: string;
+  params: unknown[];
+}
+
+export function generateTransactionQuery(
+  parameters: QueryParameters
+): CqlQuery {
   let table = "tx_id_gql_desc";
 
   table =
@@ -129,7 +134,7 @@ export function generateTransactionQuery(parameters: QueryParameters): any {
 export interface BlockQueryParameters {
   id?: string;
   ids?: string[];
-  select?: any;
+  select?: any; // eslint-disable-line @typescript-eslint/no-explicit-any
   before?: string;
   offset: number;
   fetchSize: number;
@@ -138,7 +143,7 @@ export interface BlockQueryParameters {
   sortOrder?: TxSortOrder;
 }
 
-export function generateBlockQuery(parameters: BlockQueryParameters): any {
+export function generateBlockQuery(parameters: BlockQueryParameters): CqlQuery {
   const {
     id,
     ids,
@@ -192,7 +197,7 @@ export function generateBlockQuery(parameters: BlockQueryParameters): any {
   cql.where(
     "height <= ?",
     sortOrder === "HEIGHT_DESC"
-      ? (maxHeight as any).sub(offset).toString()
+      ? (maxHeight as CassandraTypes.Long).sub(offset).toString()
       : maxHeight.toString()
   );
 
@@ -208,7 +213,7 @@ export interface DeferedBlockQueryParameters {
 
 export function generateDeferedBlockQuery(
   parameters: DeferedBlockQueryParameters
-): any {
+): CqlQuery {
   return Select()
     .table("block", KEYSPACE)
     .where("indep_hash = ?", parameters.indep_hash)
@@ -216,7 +221,10 @@ export function generateDeferedBlockQuery(
     .build();
 }
 
-export function generateDeferedTxQuery(parameters: any): any {
+export function generateDeferedTxQuery(parameters: {
+  tx_id: string;
+  deferedSelect: unknown;
+}): CqlQuery {
   return Select()
     .table("transaction", KEYSPACE)
     .where("tx_id = ?", parameters.tx_id)
@@ -226,8 +234,8 @@ export function generateDeferedTxQuery(parameters: any): any {
 
 export function generateDeferedTxBlockQuery(
   height: CassandraTypes.Long,
-  fieldSelect: any
-): any {
+  fieldSelect: unknown
+): CqlQuery {
   return Select()
     .table("block_gql_asc", KEYSPACE)
     .field(fieldSelect)
@@ -240,7 +248,7 @@ export function generateDeferedTxBlockQuery(
     .build();
 }
 
-export function generateTagQuery(tags: TagFilter[]) {
+export function generateTagQuery(tags: TagFilter[]): CqlQuery {
   const cql = Select().table("tx_tag", KEYSPACE).field("tx_id").filtering();
   for (const tag of tags) {
     cql.where("name = ?", tag.name.toString());
@@ -256,8 +264,6 @@ export function generateTagQuery(tags: TagFilter[]) {
           tag.values
         )
       );
-    } else {
-      cql.where("value = ?", (tag.values as any).toString());
     }
   }
   return cql.build();

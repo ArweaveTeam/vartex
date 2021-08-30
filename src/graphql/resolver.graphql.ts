@@ -1,20 +1,32 @@
 /* eslint-disable unicorn/no-null */
 import * as R from "rambda";
+import { Request } from "express";
 import moment from "moment";
 import { types as CassandraTypes } from "cassandra-driver";
 import { cassandraClient, toLong } from "../database/cassandra.database";
 import { topHeight } from "../database/sync.database";
+import { GraphQLResolveInfo } from "graphql";
 import graphqlFields from "graphql-fields";
 import { config } from "dotenv";
 import {
-  QueryTransactionsArgs as QueryTransactionsArguments,
+  Amount,
+  Block,
+  Maybe,
+  MetaData,
+  Owner,
+  Parent,
+  Query,
   QueryBlockArgs as QueryBlockArguments,
   QueryBlocksArgs as QueryBlocksArguments,
+  QueryTransactionArgs as QueryTransactionArguments,
+  QueryTransactionsArgs as QueryTransactionsArguments,
+  Transaction,
 } from "./types";
+import { Tag } from "../types/arweave.types";
 import {
   ownerToAddress,
   winstonToAr,
-  utf8DecodeTag,
+  utf8DecodeTupleTag,
 } from "../utility/encoding.utility";
 import {
   QueryParameters,
@@ -52,19 +64,19 @@ interface FieldMap {
   tx_id: string;
   anchor: string;
   recipient: string;
-  tags: any[];
+  tags: CassandraTypes.Tuple[];
   fee: string;
   height: CassandraTypes.Long;
   quantity: string;
-  data_size: number;
-  data_type: string;
-  parent: FieldMap;
+  data_size: MetaData["size"];
+  data_type: MetaData["type"];
+  parent: Parent;
   owner: string;
   owner_address: string;
   signature: string;
   timestamp: CassandraTypes.Long;
   previous: string;
-  block: any;
+  block: unknown;
   block_id: string;
   block_timestamp: string;
   block_height: string;
@@ -99,13 +111,16 @@ const blockFieldMap = {
   // extended: 'blocks.extended',
 };
 
-const resolveGqlTxSelect = (userFields: any, singleTx = false): string[] => {
+const resolveGqlTxSelect = (
+  userFields: unknown,
+  singleTx = false
+): string[] => {
   const select = [];
   for (const keyPath of R.keys(edgeFieldMapTx)) {
     if (
       R.hasPath(
         singleTx ? keyPath.replace("edges.node.", "") : keyPath,
-        userFields
+        userFields as Record<string, unknown>
       )
     ) {
       select.push(edgeFieldMapTx[keyPath]);
@@ -114,11 +129,11 @@ const resolveGqlTxSelect = (userFields: any, singleTx = false): string[] => {
   return select;
 };
 
-const resolveGqlBlockSelect = (userFields: any): string[] => {
+const resolveGqlBlockSelect = (userFields: unknown): string[] => {
   const select: string[] = [];
 
   for (const keyPath of R.keys(edgeFieldMapBlock)) {
-    if (R.hasPath(keyPath as string, userFields)) {
+    if (R.hasPath(keyPath as string, userFields as Record<string, unknown>)) {
       select.push(edgeFieldMapBlock[keyPath]);
     }
   }
@@ -130,19 +145,19 @@ export const resolvers = {
   Query: {
     transaction: async (
       parent: FieldMap,
-      queryParameters: any,
-      { req, connection }: any, // eslint-disable-line @typescript-eslint/no-unused-vars
-      info: any
-    ) => {
+      queryParameters: QueryTransactionArguments,
+      request: Request, // eslint-disable-line @typescript-eslint/no-unused-vars
+      info: GraphQLResolveInfo
+    ): Promise<Maybe<Query["transaction"]>> => {
       const fieldsWithSubFields = graphqlFields(info);
 
-      const parameters: any = {
+      const parameters: { id: string | undefined; select: string[] } = {
         id: queryParameters.id || undefined,
         select: resolveGqlTxSelect(fieldsWithSubFields, true),
       };
       // No selection = no search
       if (R.isEmpty(parameters.select)) {
-        return { data: { transaction: null } };
+        return null;
       }
       // todo, elide selectors not selected from user
       if (!parameters.select.includes("tx_id")) {
@@ -152,7 +167,9 @@ export const resolvers = {
       parameters.select = R.append("tx_index", parameters.select);
       const txQuery = generateTransactionQuery(parameters);
 
-      const { rows: resultArray } = await cassandraClient.execute(
+      const {
+        rows: resultArray,
+      }: { rows: unknown[] } = await cassandraClient.execute(
         txQuery.query,
         txQuery.params,
         { prepare: true, executionProfile: "gql" }
@@ -162,7 +179,13 @@ export const resolvers = {
         return null;
       }
 
-      const result = resultArray[0];
+      const result = resultArray[0] as Partial<
+        Transaction & {
+          tx_id: string;
+          tx_index?: CassandraTypes.Long;
+          block: Block | null;
+        }
+      >;
 
       if (fieldsWithSubFields.block !== undefined) {
         let selectParameters = [];
@@ -190,7 +213,9 @@ export const resolvers = {
           selectParameters
         );
 
-        const { rows: blockResult } = await cassandraClient.execute(
+        const {
+          rows: blockResult,
+        }: { rows: unknown[] } = await cassandraClient.execute(
           blockQuery.query,
           blockQuery.params,
           {
@@ -198,7 +223,9 @@ export const resolvers = {
             executionProfile: "gql",
           }
         );
-        result.block = R.isEmpty(blockResult) ? null : blockResult[0];
+        result.block = R.isEmpty(blockResult)
+          ? null
+          : (blockResult[0] as Block);
       }
 
       const selectedDeferedKeysUser = [];
@@ -251,14 +278,14 @@ export const resolvers = {
         }
       }
 
-      return result as any;
+      return result as Transaction;
     },
     transactions: async (
       parent: string,
       queryParameters: QueryTransactionsArguments,
-      request: any, // eslint-disable-line @typescript-eslint/no-unused-vars
-      info: any
-    ) => {
+      request: Request, // eslint-disable-line @typescript-eslint/no-unused-vars
+      info: GraphQLResolveInfo
+    ): Promise<Maybe<Query["transactions"]>> => {
       const { timestamp, offset } = parseCursor(
         queryParameters.after || newCursor()
       );
@@ -315,12 +342,17 @@ export const resolvers = {
 
       const txQuery = generateTransactionQuery(parameters);
 
-      let { rows: result } = await cassandraClient.execute(
+      const {
+        rows: result_,
+      }: { rows: unknown[] } = await cassandraClient.execute(
         txQuery.query,
         txQuery.params,
         { prepare: true, executionProfile: "gql" }
       );
 
+      let result = result_ as Partial<
+        Transaction & { tx_index: CassandraTypes.Long; tx_id?: string }
+      >[];
       let hasNextPage = false;
 
       if (result.length === fetchSize) {
@@ -351,7 +383,10 @@ export const resolvers = {
             }
           }
         }
-        for (const item of result) {
+        for (const item of result as Partial<{
+          tx_index?: CassandraTypes.Long;
+          block: Block | undefined;
+        }>[]) {
           // const userSelectKeys = R.keys(fieldsWithSubFields.edges.node.block);
 
           const blockQuery = generateDeferedTxBlockQuery(
@@ -359,7 +394,9 @@ export const resolvers = {
             selectParameters
           );
 
-          const { rows: blockResult } = await cassandraClient.execute(
+          const {
+            rows: blockResult,
+          }: { rows: unknown[] } = await cassandraClient.execute(
             blockQuery.query,
             blockQuery.params,
             {
@@ -368,7 +405,9 @@ export const resolvers = {
             }
           );
 
-          item.block = R.isEmpty(blockResult) ? null : blockResult[0];
+          item.block = R.isEmpty(blockResult)
+            ? null
+            : (blockResult[0] as Block);
         }
       }
 
@@ -403,7 +442,9 @@ export const resolvers = {
             tx_id: tx.tx_id,
           });
 
-          const { rows: deferedTxResult } = await cassandraClient.execute(
+          const {
+            rows: deferedTxResult_,
+          }: { rows: unknown[] } = await cassandraClient.execute(
             deferedTxQ.query,
             deferedTxQ.params,
             {
@@ -412,13 +453,18 @@ export const resolvers = {
             }
           );
 
-          if (deferedTxResult[0].last_tx) {
+          const deferedTxResult = deferedTxResult_[0] as {
+            last_tx?: string;
+            reward?: string;
+            signature?: string;
+          };
+          if (deferedTxResult.last_tx) {
             tx.anchor = deferedTxResult[0].last_tx || "";
           }
-          if (deferedTxResult[0].reward) {
+          if (deferedTxResult.reward) {
             tx.fee = deferedTxResult[0].reward || "";
           }
-          if (deferedTxResult[0].signature) {
+          if (deferedTxResult.signature) {
             tx.signature = deferedTxResult[0].signature || "";
           }
         }
@@ -428,39 +474,40 @@ export const resolvers = {
         pageInfo: {
           hasNextPage,
         },
-        edges: R.sort(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        edges: (R.sort as any)(
           parameters.select.sort === "HEIGHT_ASC"
-            ? (sortByTxIndexAsc as any)
-            : (sortByTxIndexDesc as any),
-          result as any
+            ? sortByTxIndexAsc
+            : sortByTxIndexDesc,
+          result
         ).map((tx, index) => ({
           cursor: encodeCursor({ timestamp, offset: offset + index + 1 }),
-          node: tx,
+          node: tx as Transaction,
         })),
       };
     },
     block: async (
       parent: string,
       queryParameters: QueryBlockArguments,
-      request: any // eslint-disable-line @typescript-eslint/no-unused-vars
-    ) => {
+      request: Request // eslint-disable-line @typescript-eslint/no-unused-vars
+    ): Promise<Maybe<Query["block"]>> => {
       return queryParameters.id
         ? (
             await generateBlockQuery({
               select: blockFieldMap,
               id: queryParameters.id,
               offset: 0,
-              fetchSize: 100,
+              fetchSize: 1,
             })
-          ).first()
+          )[0]
         : null;
     },
     blocks: async (
       parent: FieldMap,
       queryParameters: QueryBlocksArguments,
-      request: any, // eslint-disable-line @typescript-eslint/no-unused-vars
-      info: any
-    ) => {
+      request: Request, // eslint-disable-line @typescript-eslint/no-unused-vars
+      info: GraphQLResolveInfo
+    ): Promise<Maybe<Query["blocks"]>> => {
       const fieldsWithSubFields = graphqlFields(info);
 
       const { timestamp, offset } = parseCursor(
@@ -510,7 +557,9 @@ export const resolvers = {
 
       let hasNextPage = false;
 
-      let { rows: result } = await cassandraClient.execute(
+      let {
+        rows: result,
+      }: { rows: unknown[] } = await cassandraClient.execute(
         blockQuery.query,
         blockQuery.params,
         { prepare: true, executionProfile: "gql" }
@@ -525,7 +574,7 @@ export const resolvers = {
         pageInfo: {
           hasNextPage,
         },
-        edges: result.map((block, index) => ({
+        edges: (result as Block[]).map((block, index) => ({
           cursor: encodeCursor({ timestamp, offset: offset + index + 1 }),
           node: block,
         })),
@@ -533,41 +582,41 @@ export const resolvers = {
     },
   },
   Transaction: {
-    id: (parent: FieldMap) => {
+    id: (parent: FieldMap): string => {
       return parent.tx_id;
     },
-    anchor: (parent: any) => {
+    anchor: (parent: FieldMap): string => {
       return parent.anchor || "";
     },
-    signature: (parent: any) => {
+    signature: (parent: FieldMap): string => {
       return parent.signature || "";
     },
-    tags: (parent: FieldMap) => {
-      return parent.tags.map(utf8DecodeTag);
+    tags: (parent: FieldMap): Tag[] => {
+      return parent.tags.map(utf8DecodeTupleTag);
     },
-    recipient: (parent: FieldMap) => {
+    recipient: (parent: FieldMap): string => {
       return parent.recipient.trim() || "";
     },
-    data: (parent: FieldMap) => {
+    data: (parent: FieldMap): MetaData => {
       return {
-        size: parent.data_size || 0,
+        size: `${parent.data_size || 0}`,
         type: parent.data_type,
       };
     },
-    quantity: (parent: FieldMap) => {
+    quantity: (parent: FieldMap): Amount => {
       return {
         ar: winstonToAr(parent.quantity || ("0" as const)),
         winston: parent.quantity || "0",
       };
     },
-    fee: (parent: FieldMap) => {
+    fee: (parent: FieldMap): Amount => {
       return {
         ar: winstonToAr(parent.fee || "0"),
         winston: parent.fee || "0",
       };
     },
-    block: (parent: FieldMap) => {
-      return parent.block;
+    block: (parent: FieldMap): Block => {
+      return parent.block as Block;
       // if (parent.tx_id) {
       //   return parent.block;
       // } else if (parent.block_id) {
@@ -579,17 +628,15 @@ export const resolvers = {
       //   };
       // }
     },
-    owner: (parent: FieldMap) => {
+    owner: (parent: FieldMap): Owner => {
       return {
         address: ownerToAddress(parent.owner),
         key: parent.owner,
       };
     },
-    parent: (parent: FieldMap) => {
+    parent: (parent: FieldMap): Maybe<Parent> => {
       if (parent.parent) {
-        return {
-          id: parent.parent,
-        };
+        return parent.parent;
       }
     },
   },
@@ -605,16 +652,16 @@ export const resolvers = {
       return parent.extended?.block_size;
     },
     */
-    height: (parent: FieldMap) => {
+    height: (parent: FieldMap): number => {
       return parent.height.toInt();
     },
-    id: (parent: FieldMap) => {
+    id: (parent: FieldMap): string => {
       return parent.indep_hash;
     },
-    previous: (parent: FieldMap) => {
+    previous: (parent: FieldMap): string => {
       return parent.previous;
     },
-    timestamp: (parent: FieldMap) => {
+    timestamp: (parent: FieldMap): string => {
       return parent.timestamp.toString();
     },
   },

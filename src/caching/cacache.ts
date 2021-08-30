@@ -15,7 +15,7 @@ mkdirp.sync(importCacheDirectory);
 
 export const putCache = async (
   key: string,
-  value: any
+  value: unknown
 ): Promise<string | undefined> => {
   let integrity;
   try {

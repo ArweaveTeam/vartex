@@ -10,7 +10,7 @@ import mkdirp from "mkdirp";
 import { WorkerPool } from "../gatsby-worker";
 import { MessagesFromWorker } from "../workers/message-types";
 import { getHashList, getNodeInfo } from "../query/node.query";
-import { fetchBlockByHash } from "../query/block.query";
+import { BlockType, fetchBlockByHash } from "../query/block.query";
 import { UnsyncedBlock } from "../types/cassandra.types";
 import {
   cassandraClient,
@@ -19,7 +19,7 @@ import {
 } from "./cassandra.database";
 import * as Dr from "./doctor.database";
 
-const PARALLEL = (Number.isNaN as any)(process.env["PARALLEL"])
+const PARALLEL = Number.isNaN(process.env["PARALLEL"])
   ? 36
   : Number.parseInt(process.env["PARALLEL"] || "36");
 
@@ -127,7 +127,7 @@ export function togglePause(): void {
   isPaused = !isPaused;
 }
 
-async function resolveFork(previousBlock: any): Promise<void> {
+async function resolveFork(previousBlock: BlockType): Promise<void> {
   isPaused = true;
   const pprevBlock = await fetchBlockByHash(previousBlock.previous_block);
 
@@ -260,7 +260,7 @@ function findMissingBlocks(hashList: string[]): Promise<UnsyncedBlock[]> {
 
   log.info("[database] Looking for missing blocks...");
   return new Promise(function (
-    resolve: (value: any) => void,
+    resolve: (value?: UnsyncedBlock[]) => void,
     reject: (error: string) => void
   ) {
     cassandraClient.eachRow(
@@ -290,36 +290,24 @@ function findMissingBlocks(hashList: string[]): Promise<UnsyncedBlock[]> {
         if (error) {
           reject((error || "").toString());
         } else {
-          const returnValue = R.pipe(
-            R.values,
-            R.sortBy(R.prop("height")),
-            (missingBlocksList) =>
-              missingBlocksList.reduce((accumulator, value, index) => {
-                // adding .next to each unsynced blocked
-                const nextHeight =
-                  index + 1 < missingBlocksList.length
-                    ? missingBlocksList[index + 1]
-                    : -1;
-                (value as any)["next"] = nextHeight;
-                accumulator.push(value);
-                return accumulator;
-              }, [])
-          )(hashListObject);
-          resolve(returnValue);
+          resolve(
+            R.sortBy(R.prop("height"))(
+              R.values(hashListObject) as UnsyncedBlock[]
+            )
+          );
         }
       }
     );
   });
 }
 
-// workerPool.onMessage( .getStdout().pipe(process.stdout);
-
-// workerPool.getStderr().pipe(process.stderr);
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export async function startSync({ isTesting = false }) {
+export async function startSync({
+  isTesting = false, // eslint-disable-line @typescript-eslint/no-unused-vars
+}: {
+  isTesting?: boolean;
+}): Promise<void> {
   // wait until worker threads are ready
-  await Promise.all((R.pluck as any)("promise", workerReadyPromises));
+  await Promise.all(R.map(R.prop("promise"))(R.values(workerReadyPromises)));
   const hashList: string[] = await getHashList({});
   const firstRun = await detectFirstRun();
   let lastBlock: CassandraTypes.Long = toLong(-1);
@@ -350,9 +338,9 @@ export async function startSync({ isTesting = false }) {
           doneSignalResolve();
           console.log("Block repair done!");
         })(
-          (parallel as any)(PARALLEL)(
+          parallel(PARALLEL)(
             blockGap.map((height) =>
-              Fluture(function (reject: any, fresolve: any) {
+              Fluture(function (reject, fresolve) {
                 workerPool.single
                   .importBlock(height)
                   .then(fresolve)
@@ -448,8 +436,8 @@ export async function startSync({ isTesting = false }) {
     !isPollingStarted && startPolling();
   })(
     parallel(PARALLEL)(
-      (unsyncedBlocks as any).map(({ height }: { height: number }): any => {
-        return Fluture(function (reject: any, fresolve: any) {
+      unsyncedBlocks.map(({ height }: { height: number }) => {
+        return Fluture(function (reject, fresolve) {
           const singleJob = workerPool.single; // you have 1 job!
           const blockPromise = singleJob.importBlock(height);
 

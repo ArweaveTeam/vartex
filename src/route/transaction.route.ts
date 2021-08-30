@@ -12,7 +12,7 @@ export async function txUploadRoute(
   request: Request,
   response: Response,
   next: NextFunction
-) {
+): Promise<void> {
   try {
     const tx = request.body as Transaction;
     console.log(`[new-tx] broadcast tx ${tx.id}`);
@@ -42,10 +42,10 @@ export async function txUploadRoute(
       );
     }
 
-    return response.sendStatus(200).end();
+    response.sendStatus(200).end();
   } catch (error) {
     console.log(error);
-    return response.status(500).send(error);
+    response.status(500).send(error);
   }
 }
 
@@ -53,7 +53,7 @@ export async function txGetByIdRoute(
   request: Request,
   response: Response,
   next: NextFunction
-) {
+): Promise<void> {
   try {
     const txId = request.params.id;
     const rawTx = await transactionMapper.get({
@@ -61,7 +61,7 @@ export async function txGetByIdRoute(
     });
     response.json(R.pipe(R.dissoc("tag_count"), R.dissoc("tx_index"))(rawTx));
   } catch (error) {
-    return next(error);
+    next(error);
   }
 }
 
@@ -69,7 +69,7 @@ export async function txOffsetRoute(
   request: Request,
   response: Response,
   next: NextFunction
-) {
+): Promise<void> {
   try {
     const txId = request.params.id;
     const rawTx = await txOffsetMapper.get({
@@ -77,6 +77,6 @@ export async function txOffsetRoute(
     });
     response.json(R.dissoc("tx_id")(rawTx || { size: 0, offset: -1 }));
   } catch (error) {
-    return next(error);
+    next(error);
   }
 }

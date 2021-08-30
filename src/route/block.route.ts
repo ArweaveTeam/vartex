@@ -11,7 +11,7 @@ export async function blockByHeightRoute(
   request: Request,
   response: Response,
   next: (error?: string) => void
-) {
+): Promise<void> {
   if (!request.params.height) {
     response.status(503);
     return next("Height value was not specified");
@@ -37,7 +37,7 @@ export async function blockByHeightRoute(
       )(blockResult);
     } catch (error) {
       // Passes errors into the error handler
-      return next(error);
+      next(error);
     }
   }
 }
@@ -46,10 +46,10 @@ export async function blockByHashRoute(
   request: Request,
   response: Response,
   next: (error?: string) => void
-) {
+): Promise<void> {
   if (!request.params.hash) {
     response.status(503);
-    return next("Height value was not specified");
+    next("Height value was not specified");
   } else {
     try {
       const hash = request.params.hash;
@@ -58,7 +58,7 @@ export async function blockByHashRoute(
       });
 
       if (!blockResult || !blockResult.height) {
-        return response.status(404).json({
+        response.status(404).json({
           status: 404,
           error: "Not Found",
         });
@@ -79,7 +79,7 @@ export async function blockByHashRoute(
       )(blockResult);
     } catch (error) {
       // Passes errors into the error handler
-      return next(error);
+      next(error);
     }
   }
 }
@@ -88,7 +88,7 @@ export async function blockCurrentRoute(
   request: Request,
   response: Response,
   next: (error?: string) => void
-) {
+): Promise<void> {
   try {
     const { block_hash } = await blockHeightToHashMapper.get({
       block_height: topHeight.toString(),
@@ -117,6 +117,6 @@ export async function blockCurrentRoute(
       (returnValue) => response.json(returnValue)
     )(blockResult);
   } catch (error) {
-    return next(error);
+    next(error);
   }
 }

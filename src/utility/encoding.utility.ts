@@ -4,7 +4,7 @@ import * as B64js from "base64-js";
 import { base32 } from "rfc4648";
 import { createHash } from "node:crypto";
 import { Readable, PassThrough, Transform } from "node:stream";
-// import { Tag } from "../types/arweave.types";
+import { Tag } from "../types/arweave.types";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const ar = new ((Ar as any).default as typeof Ar)();
@@ -183,9 +183,26 @@ export function arToWinston(amount: string): string {
   return ar.arToWinston(amount);
 }
 
-export function utf8DecodeTag(
-  tag: CassandraTypes.Tuple
-): { name: string | undefined; value: string | undefined } {
+export function utf8DecodeTag(tag: Tag): Tag {
+  let name;
+  let value;
+  try {
+    const nameBuffer = fromB64Url(tag.name);
+    if (isValidUTF8(nameBuffer)) {
+      name = nameBuffer.toString("utf8");
+    }
+    const valueBuffer = fromB64Url(tag.value);
+    if (isValidUTF8(valueBuffer)) {
+      value = valueBuffer.toString("utf8");
+    }
+  } catch {}
+  return {
+    name,
+    value,
+  };
+}
+
+export function utf8DecodeTupleTag(tag: CassandraTypes.Tuple): Tag {
   let name;
   let value;
   try {

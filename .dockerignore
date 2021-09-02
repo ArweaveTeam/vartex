@@ -10,6 +10,7 @@
 !/src/**
 !/cassandra/**
 !/.env
+!/patches
 
 # Ignore Unnecessary Files
 **/*.log

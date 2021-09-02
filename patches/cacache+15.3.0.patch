@@ -1,0 +1,39 @@
+diff --git a/node_modules/cacache/lib/content/read.js b/node_modules/cacache/lib/content/read.js
+index 034e8ee..1338011 100644
+--- a/node_modules/cacache/lib/content/read.js
++++ b/node_modules/cacache/lib/content/read.js
+@@ -10,6 +10,7 @@ const Pipeline = require('minipass-pipeline')
+ 
+ const lstat = util.promisify(fs.lstat)
+ const readFile = util.promisify(fs.readFile)
++const exists = util.promisify(fs.exists);
+ 
+ module.exports = read
+ 
+@@ -18,7 +19,7 @@ function read (cache, integrity, opts = {}) {
+   const { size } = opts
+   return withContentSri(cache, integrity, (cpath, sri) => {
+     // get size
+-    return lstat(cpath).then(stat => ({ stat, cpath, sri }))
++    return exists(cpath).then(ex => ex ? lstat(cpath).then(stat => ({ stat, cpath, sri })) : 0)
+   }).then(({ stat, cpath, sri }) => {
+     if (typeof size === 'number' && stat.size !== size)
+       throw sizeError(size, stat.size)
+@@ -73,7 +74,7 @@ function readStream (cache, integrity, opts = {}) {
+   const stream = new Pipeline()
+   withContentSri(cache, integrity, (cpath, sri) => {
+     // just lstat to ensure it exists
+-    return lstat(cpath).then((stat) => ({ stat, cpath, sri }))
++    return exists(cpath).then(ex => ex ? lstat(cpath).then((stat) => ({ stat, cpath, sri })) : ({ stat: {size: 0}, cpath: "/dev/null", sri }))
+   }).then(({ stat, cpath, sri }) => {
+     if (typeof size === 'number' && size !== stat.size)
+       return stream.emit('error', sizeError(size, stat.size))
+@@ -110,7 +111,7 @@ function hasContent (cache, integrity) {
+     return Promise.resolve(false)
+ 
+   return withContentSri(cache, integrity, (cpath, sri) => {
+-    return lstat(cpath).then((stat) => ({ size: stat.size, sri, stat }))
++    return exists(cpath).then(ex => ex ? lstat(cpath).then((stat) => ({ size: stat.size, sri, stat })) : false)
+   }).catch((err) => {
+     if (err.code === 'ENOENT')
+       return false

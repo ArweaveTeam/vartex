@@ -20,11 +20,11 @@
     ".": "./src"
   },
   "scripts": {
-    "test": "yarn run gql && node --experimental-vm-modules node_modules/jest/bin/jest.js --verbose false --ci --forceExit --runInBand --detectOpenHandles test/*",
+    "test": "yarn run gql && node --suppress-warnings --experimental-vm-modules node_modules/jest/bin/jest.js --verbose false --ci --forceExit --runInBand --detectOpenHandles test/*",
     "lint": "eslint src/**/*.ts",
     "gql": "node_modules/@graphql-codegen/cli/bin.js --config codegen.yml",
     "prestart": "yarn run gql && yarn run migrate:init",
-    "start": "yarn run prestart && TS_NODE_FILES=true node --experimental-specifier-resolution=node --max-old-space-size=4096 --loader ts-node/esm.mjs src/Gateway.ts",
+    "start": "yarn run prestart && TS_NODE_FILES=true node --suppress-warnings --experimental-specifier-resolution=node --max-old-space-size=4096 --loader ts-node/esm.mjs src/Gateway.ts",
     "start:prod": "yarn run prestart && node start.cjs",
     "cache:purge": "rm -rf cache/imports",
     "migrate:init": "node cassandra/init.cjs",

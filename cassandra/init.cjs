@@ -247,7 +247,7 @@ connect();
 // Let's confirm every required env var is set, if not, we assume it's running on Docker
 function checkEnvVars() {
   if (!process.env.ARWEAVE_NODES || !process.env.ARWEAVE_NODES.length) {
-    process.env.ARWEAVE_NODES = '["http://lon-4.eu-west-1.arweave.net:1984"]';
+    process.env.ARWEAVE_NODES = '["https://arweave.net"]';
   }
 
   if (!process.env.PORT || isNaN(process.env.PORT)) {
@@ -255,7 +255,7 @@ function checkEnvVars() {
   }
 
   if (!process.env.PARALLEL || isNaN(process.env.PARALLEL)) {
-    process.env.PARALLEL = 32;
+    process.env.PARALLEL = 6;
   }
 
   if (!process.env.DB_TIMEOUT || isNaN(process.env.DB_TIMEOUT)) {

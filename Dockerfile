@@ -2,6 +2,7 @@
 FROM mhart/alpine-node:16.4
 WORKDIR /app
 COPY package.json yarn.lock ./
+COPY patches .
 
 RUN apk add --no-cache git
 RUN yarn

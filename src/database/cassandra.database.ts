@@ -59,7 +59,7 @@ export const cassandraClient = new cassandra.Client({
   //   set: Set,
   // },
   socketOptions: {
-    connectTimeout: 50000,
+    connectTimeout: 30_000,
     defunctReadTimeoutThreshold: 64,
     keepAlive: true,
     keepAliveDelay: 0,
@@ -74,12 +74,12 @@ export const cassandraClient = new cassandra.Client({
   },
   profiles: [
     new cassandra.ExecutionProfile("fast", {
-      readTimeout: 5000,
+      readTimeout: 15_000,
       consistency: cassandra.types.consistencies.any,
       serialConsistency: cassandra.types.consistencies.any,
     }),
     new cassandra.ExecutionProfile("gql", {
-      readTimeout: 5000,
+      readTimeout: 15_000,
       consistency: cassandra.types.consistencies.all,
       serialConsistency: cassandra.types.consistencies.serial,
     }),

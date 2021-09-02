@@ -28,7 +28,8 @@
     "start:prod": "yarn run prestart && node start.cjs",
     "cache:purge": "rm -rf cache/imports",
     "migrate:init": "node cassandra/init.cjs",
-    "migrate:nuke": "yarn run cache:purge && node cassandra/nuke.cjs"
+    "migrate:nuke": "yarn run cache:purge && node cassandra/nuke.cjs",
+    "postinstall": "patch-package"
   },
   "resolutions": {
     "cassandra-driver/long": "^4.0.0",
@@ -75,6 +76,7 @@
     "moment": "^2.29.1",
     "node-cron": "^3.0.0",
     "p-wait-for": "^4.1.0",
+    "patch-package": "^6.4.7",
     "rambda": "^6.8.2",
     "random-weighted-choice": "^0.1.4",
     "rfc4648": "^1.5.0",

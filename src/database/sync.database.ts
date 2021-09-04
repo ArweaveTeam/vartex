@@ -9,6 +9,7 @@ import { config } from "dotenv";
 import { types as CassandraTypes } from "cassandra-driver";
 import {
   getCache,
+  getCacheByKey,
   putCache,
   gcImportCache,
   lastGcImportCacheRun,
@@ -869,13 +870,21 @@ export function storeBlock({
   });
 }
 
-function txImportCallback(integrity: string) {
+function txImportCallback(integrity: string, cacheKey?: string) {
   return async function () {
     const cached = await getCache(integrity);
-    const { height, index, tx, block } = JSON.parse(cached);
 
-    await makeTxImportQuery(toLong(height), toLong(index), tx, block)();
-    await rmCache("tx:" + tx.id);
+    let cachedFallback;
+    if (cacheKey) {
+      cachedFallback = await getCacheByKey(cacheKey);
+    }
+
+    if (cached || cachedFallback) {
+      const { height, index, tx, block } = JSON.parse(cached || cachedFallback);
+
+      await makeTxImportQuery(toLong(height), toLong(index), tx, block)();
+      await rmCache("tx:" + tx.id);
+    }
   };
 }
 
@@ -914,7 +923,7 @@ export async function storeTransaction(
     // console.error("POST |", txIndex.toString(), "|");
     enqueueTxQueue({
       height,
-      callback: txImportCallback(integrity),
+      callback: txImportCallback(integrity, "tx:" + txId),
       fresolve,
       txIndex,
       type: "tx",

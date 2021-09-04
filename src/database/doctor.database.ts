@@ -134,9 +134,7 @@ export async function enqueueUnhandledCache(
   enqueueTxQueue: (any) => void,
   txImportCallback: (
     integrity: string,
-    txIndex_: CassandraTypes.Long,
-    gauge?: any,
-    getProgress?: () => string
+    cacheKey?: string
   ) => (fresolve?: () => void) => Promise<void>,
   incomingTxCallback: (
     integrity: string,
@@ -176,10 +174,7 @@ export async function enqueueUnhandledCache(
 
         enqueueTxQueue({
           height: toLong(dataParsed.height),
-          callback: txImportCallback.bind(txQueue)(
-            queueItem.integrity,
-            toLong(dataParsed.index)
-          ),
+          callback: txImportCallback.bind(txQueue)(queueItem.integrity),
           txIndex: toLong(dataParsed.index),
           type: "tx",
         });

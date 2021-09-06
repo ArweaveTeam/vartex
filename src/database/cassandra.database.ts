@@ -212,7 +212,10 @@ const transformBlockKey = (key: string, object: any) => {
     case "reward_addr":
     case "tx_root":
     case "wallet_list": {
-      if (object[key] || isNumeric(object[key])) {
+      if (
+        object[key] !== undefined &&
+        (object[key] || isNumeric(object[key]))
+      ) {
         return typeof object[key] === "string"
           ? object[key]
           : object[key].toString();
@@ -542,6 +545,7 @@ export const makeBlockImportQuery = (input: BlockType) => (): Promise<
     },
     []
   );
+
   const height = toLong(input.height);
 
   return Promise.all([

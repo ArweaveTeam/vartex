@@ -19,9 +19,11 @@ import {
 } from "./cassandra.database";
 import * as Dr from "./doctor.database";
 
-const PARALLEL = Number.isNaN(process.env["PARALLEL"])
-  ? 36
-  : Number.parseInt(process.env["PARALLEL"] || "36");
+let gauge_: any;
+
+const PARALLEL_WORKERS = Number.isNaN(process.env["PARALLEL_WORKERS"])
+  ? 1
+  : Number.parseInt(process.env["PARALLEL_WORKERS"] || "1");
 
 process.env.NODE_ENV !== "test" && config();
 mkdirp.sync("cache");
@@ -37,7 +39,7 @@ function filterNpmFlags(object) {
   return out;
 }
 
-const workerReadyPromises = R.range(1, PARALLEL + 1).reduce(
+const workerReadyPromises = R.range(1, PARALLEL_WORKERS + 1).reduce(
   (accumulator, index) => {
     let resolve: () => void;
     const promise = new Promise((resolve_: unknown) => {
@@ -52,7 +54,7 @@ const workerReadyPromises = R.range(1, PARALLEL + 1).reduce(
 const workerPool = new WorkerPool<typeof import("../workers/import-block")>(
   process.cwd() + "/src/workers/import-block",
   {
-    numWorkers: PARALLEL,
+    numWorkers: PARALLEL_WORKERS,
     logFilter: (data) =>
       !/ExperimentalWarning:/.test(data) && !/node --trace-warnings/.test(data),
     env: R.mergeAll([
@@ -71,6 +73,13 @@ const workerPool = new WorkerPool<typeof import("../workers/import-block")>(
 
 const messagePromiseReceivers = {};
 
+export const txInFlight = {};
+const numberOr0 = (n) => (Number.isNaN(n) ? 0 : n);
+export const getTxsInFlight: number = () =>
+  Object.values(txInFlight).reduce((a, b) => numberOr0(a) + numberOr0(b));
+
+export let currentHeight = 0;
+
 workerPool.onMessage((message: MessagesFromWorker, workerId: number): void => {
   switch (message.type) {
     case "worker:ready": {
@@ -78,14 +87,26 @@ workerPool.onMessage((message: MessagesFromWorker, workerId: number): void => {
       break;
     }
     case "log:info": {
-      log.info(`${message.payload}`);
+      log.info(`${message.message}`);
       break;
     }
     case "block:new": {
       if (typeof messagePromiseReceivers[workerId] === "function") {
         messagePromiseReceivers[workerId](message.payload);
         delete messagePromiseReceivers[workerId];
+        delete txInFlight[`${workerId}`];
       }
+      break;
+    }
+    case "stats:tx:flight": {
+      txInFlight[`${workerId}`] =
+        typeof message.payload === "number"
+          ? message.payload
+          : Number.parseInt(message.payload);
+      gauge_ &&
+        gauge_.show(
+          `blocks: ${currentHeight}/topHeight tx: ${getTxsInFlight()}`
+        );
       break;
     }
     default: {
@@ -105,7 +126,6 @@ export let topHash = "";
 export let topHeight: CassandraTypes.Long = toLong(0);
 
 // export let topTxIndex: CassandraTypes.Long = toLong(0);
-// export let txInFlight = 0;
 
 const developmentSyncLength: number | undefined =
   !process.env["DEVELOPMENT_SYNC_LENGTH"] ||
@@ -339,7 +359,7 @@ export async function startSync({
           doneSignalResolve();
           console.log("Block repair done!");
         })(
-          parallel(PARALLEL)(
+          parallel(PARALLEL_WORKERS)(
             blockGap.map((height) =>
               Fluture(function (reject, fresolve) {
                 workerPool.single
@@ -428,7 +448,7 @@ export async function startSync({
   // }
 
   gauge.enable();
-
+  gauge_ = gauge;
   fork(function (reason: string | void) {
     console.error("Fatal", reason || "");
     process.exit(1);
@@ -436,17 +456,18 @@ export async function startSync({
     log.info("Database fully in sync with block_list");
     !isPollingStarted && startPolling();
   })(
-    parallel(PARALLEL)(
+    parallel(PARALLEL_WORKERS)(
       unsyncedBlocks.map(({ height }: { height: number }) => {
         return Fluture(function (reject, fresolve) {
           const singleJob = workerPool.single; // you have 1 job!
           const blockPromise = singleJob.importBlock(height);
-
+          currentHeight = height;
           blockPromise
             .then(() => {
               fresolve({});
-              // log.info(`blocks: ${height}/${hashList.length}`);
-              gauge.show(`blocks: ${height}/${hashList.length}`);
+              gauge.show(
+                `blocks: ${currentHeight}/${topHeight} tx: ${getTxsInFlight()}`
+              );
             })
             .catch(reject);
 

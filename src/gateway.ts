@@ -1,7 +1,8 @@
-import realFs from "fs";
+import realFs from "node:fs";
 import gracefulFs from "graceful-fs";
 gracefulFs.gracefulify(realFs);
 import "colors";
+import path from "node:path";
 import exitHook from "exit-hook";
 import killPort from "kill-port";
 import express, { Express, Request, Response } from "express";
@@ -29,7 +30,14 @@ import { startSync } from "./database/sync.database.js";
 /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
 const { default: expressPlayground } = gpmeImport as any;
 
-config();
+const dotenvPath = path.resolve("../.env");
+const dotenvPathFallback = path.resolve("../.env.example");
+
+if (realFs.existsSync(dotenvPath)) {
+  config({ path: dotenvPath });
+} else {
+  config({ path: dotenvPathFallback });
+}
 
 export const app: Express = express();
 
@@ -100,7 +108,8 @@ export function start(): void {
 
   app.listen(process.env.PORT || 1248, () => {
     log.info(`[app] Started on http://localhost:${process.env.PORT || 1248}`);
-    log.info(`[app] - Parallel: ${process.env.PARALLEL}`);
+    log.info(`[app] - Parallel imports: ${process.env.PARALLEL_IMPORTS}`);
+    log.info(`[app] - Parallel workers: ${process.env.PARALLEL_WORKERS}`);
     log.info(
       `[app] - Nodes: ${JSON.parse(process.env.ARWEAVE_NODES).join(", ")}`
     );

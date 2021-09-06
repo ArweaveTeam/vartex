@@ -18,7 +18,13 @@ interface WorkerNewBlockResponse {
   payload: unknown;
 }
 
+interface WorkerStatTxFlight {
+  type: "stats:tx:flight";
+  payload: number;
+}
+
 export type MessagesFromWorker =
+  | WorkerStatTxFlight
   | WorkerNewBlockResponse
   | WorkerProgressLog
   | WorkerInfoLog

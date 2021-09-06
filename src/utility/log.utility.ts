@@ -15,8 +15,8 @@ export const mkWorkerLog = (
   return function (message: string, context?: unknown) {
     messenger.sendMessage({
       type: "log:info",
-      message: `${message}\n${
-        typeof context === "object" ? JSON.stringify(context) : context
+      message: `${message || ""}\n${
+        typeof context === "object" ? JSON.stringify(context) : context || ""
       }`,
     });
   };

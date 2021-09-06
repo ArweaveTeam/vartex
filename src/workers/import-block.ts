@@ -17,6 +17,10 @@ import {
   toLong,
 } from "../database/cassandra.database";
 
+const PARALLEL_IMPORTS = Number.isNaN(process.env["PARALLEL_IMPORTS"])
+  ? 1
+  : Number.parseInt(process.env["PARALLEL_IMPORTS"] || "1");
+
 const messenger = getMessenger<MessagesFromParent, MessagesFromWorker>();
 
 if (messenger) {
@@ -27,7 +31,7 @@ if (messenger) {
 
 const log = mkWorkerLog(messenger);
 let topTxIndex: CassandraTypes.Long = toLong(0);
-// let txInFlight = 0;
+let txInFlight = 0;
 
 const txIncomingQueue = new PriorityQueue(function (
   a: { txIndex: CassandraTypes.Long },
@@ -97,7 +101,11 @@ const txIncomingParallelConsume = () => {
   if (entries.length === 0) {
     return;
   }
-  // txInFlight += entries.length;
+  txInFlight += entries.length;
+  messenger.sendMessage({
+    type: "stats:tx:flight",
+    payload: txInFlight,
+  });
 
   while (
     getIncomingTxQueuePeek() &&
@@ -119,7 +127,7 @@ const txIncomingParallelConsume = () => {
   });
 
   forkCatch(handleTxImportError)(handleTxImportError)(unlockIncomingQueue)(
-    parallel(4)(batch)
+    parallel(PARALLEL_IMPORTS)(batch)
   );
 };
 
@@ -144,12 +152,13 @@ function processTxQueue(): void {
         topTxIndex = peek.txIndex;
       }
 
-      if (isTxQueueEmpty()) {
-        log("import queues have been consumed");
-      }
-
       if (fresolve) {
-        // txInFlight -= 1;
+        txInFlight -= 1;
+        messenger.sendMessage({
+          type: "stats:tx:flight",
+          payload: txInFlight,
+        });
+
         fresolve();
       }
     });
@@ -175,7 +184,7 @@ function incomingTxCallback(integrity: string, txIndex_: CassandraTypes.Long) {
     }
 
     if (!cacheData) {
-      log("Cache disappeared with txIndex", txIndex_.toString());
+      log("Cache disappeared with txIndex", txIndex_ && txIndex_.toString());
     }
 
     const {
@@ -192,7 +201,7 @@ function incomingTxCallback(integrity: string, txIndex_: CassandraTypes.Long) {
       txNewSyncBlock,
       fresolve
     );
-    await rmCache("inconming:" + (txIndex || txIndex_).toString());
+    await rmCache(`incoming: ${txIndex || txIndex_ || -1}`);
   };
 }
 
@@ -200,7 +209,6 @@ function txImportCallback(integrity: string) {
   return async function () {
     const cached = await getCache(integrity);
     const { height, index, tx, block } = JSON.parse(cached);
-    log(JSON.stringify(cached));
     await makeTxImportQuery(toLong(height), toLong(index), tx, block)();
     await rmCache("tx:" + tx.id);
   };
@@ -213,6 +221,15 @@ export async function storeTransaction(
   blockData: { [k: string]: unknown },
   fresolve: () => void
 ): Promise<void> {
+  if (!height) {
+    log("storeTransaction called without height");
+    process.exit(1);
+  }
+  if (!txIndex) {
+    log("storeTransaction called without index");
+    process.exit(1);
+  }
+
   const currentTransaction = await getTransaction({ txId });
 
   if (!currentTransaction) {
@@ -263,6 +280,14 @@ async function getNewBlock(height: number) {
       ) {
         const txIndex = newBlockHeight.mul(MAX_TX_PER_BLOCK).add(index);
 
+        if (!newBlockHeight) {
+          log("getNewBlock called without height");
+          process.exit(1);
+        }
+        if (!txIndex) {
+          log("getNewBlock didn't produce index");
+          process.exit(1);
+        }
         const txIncomingIntegrity = await putCache(
           "inconming:" + txIndex.toString(),
           JSON.stringify({
@@ -304,7 +329,7 @@ export async function importBlock(height: number): Promise<boolean> {
     blockCacheIntegrity = await getNewBlock(height);
     success = true;
   } catch (error) {
-    log(error.toString());
+    log(`Failed to fetch new block at height: ${height}`, error);
   }
 
   if (!success) {
@@ -314,11 +339,13 @@ export async function importBlock(height: number): Promise<boolean> {
   await pWaitFor(() => isTxQueueEmpty() && isIncomingTxQueueEmpty());
 
   try {
-    const { block } = JSON.parse(await getCache(blockCacheIntegrity));
-    await makeBlockImportQuery(block)();
-    await rmCache(block.indep_hash);
+    const data = JSON.parse(await getCache(blockCacheIntegrity));
+
+    const callback = await makeBlockImportQuery(data.block);
+    await callback(log);
+    await rmCache(data.block.indep_hash);
   } catch (error) {
-    log(error.toString());
+    log(`Failed to import fetched block: ${error}`);
     success = false;
   }
 

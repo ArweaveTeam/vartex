@@ -70,13 +70,7 @@ export const gcImportCache = async (): Promise<void> => {
         const pathExists = fs.existsSync(path);
         const hourPassed = nowSeconds - time / 1000 > 60 * 60;
 
-        if (!pathExists) {
-          // never try to delete non existing paths
-          return true;
-        } else {
-          // for safety, keep all 1 hour old cache, just in case of extreame slowness
-          return !hourPassed;
-        }
+        return !pathExists ? true : !hourPassed;
       },
     });
   } catch {}

@@ -68,9 +68,15 @@ export const gcImportCache = async (): Promise<void> => {
     await cacache.verify(importCacheDirectory, {
       filter: ({ time, path }) => {
         const pathExists = fs.existsSync(path);
-        const fiveMinsPassed = nowSeconds - time / 1000 > 60 * 5;
+        const hourPassed = nowSeconds - time / 1000 > 60 * 60;
 
-        return !pathExists ? true : !fiveMinsPassed;
+        if (!pathExists) {
+          // never try to delete non existing paths
+          return true;
+        } else {
+          // for safety, keep all 1 hour old cache, just in case of extreame slowness
+          return !hourPassed;
+        }
       },
     });
   } catch {}

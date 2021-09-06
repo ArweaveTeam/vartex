@@ -308,6 +308,7 @@ export async function startSync({
 }): Promise<void> {
   // wait until worker threads are ready
   await Promise.all(R.map(R.prop("promise"))(R.values(workerReadyPromises)));
+
   const hashList: string[] = await getHashList({});
   const firstRun = await detectFirstRun();
   let lastBlock: CassandraTypes.Long = toLong(-1);

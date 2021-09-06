@@ -73,9 +73,9 @@ const workerPool = new WorkerPool<typeof import("../workers/import-block")>(
 
 const messagePromiseReceivers = {};
 
-export const txInFlight = {};
-const numberOr0 = (n) => (Number.isNaN(n) ? 0 : n);
-export const getTxsInFlight: number = () =>
+export const txInFlight: Record<string, number> = {};
+const numberOr0 = (n): number => (Number.isNaN(n) ? 0 : n);
+export const getTxsInFlight = (): number =>
   Object.values(txInFlight).reduce((a, b) => numberOr0(a) + numberOr0(b));
 
 export let currentHeight = 0;

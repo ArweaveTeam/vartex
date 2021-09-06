@@ -342,7 +342,7 @@ export async function importBlock(height: number): Promise<boolean> {
     const data = JSON.parse(await getCache(blockCacheIntegrity));
 
     const callback = await makeBlockImportQuery(data.block);
-    await callback(log);
+    await callback();
     await rmCache(data.block.indep_hash);
   } catch (error) {
     log(`Failed to import fetched block: ${error}`);

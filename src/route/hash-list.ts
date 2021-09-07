@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { EventEmitter } from "node:events";
 import { KEYSPACE } from "../constants.js";
-import { cassandraClient } from "../database/cassandra.database.js";
+import { cassandraClient } from "../database/cassandra.js";
 
 type CassandraStream = Partial<EventEmitter & { read: () => number }>;
 

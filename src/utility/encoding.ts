@@ -4,7 +4,7 @@ import * as B64js from "base64-js";
 import { base32 } from "rfc4648";
 import { createHash } from "node:crypto";
 import { Readable, PassThrough, Transform } from "node:stream";
-import { Tag } from "../types/arweave.types";
+import { Tag } from "../types/arweave";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const ar = new ((Ar as any).default as typeof Ar)();

@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { grabNode } from "../query/node.query.js";
+import { grabNode } from "../query/node";
 import got from "got";
 
 export function proxyGetRoute(request: Request, response: Response): void {

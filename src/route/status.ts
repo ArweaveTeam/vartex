@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
-import { topHeight } from "../database/sync.database.js";
-import { toLong } from "../database/cassandra.database.js";
-import { getNodeInfo } from "../query/node.query.js";
+import { topHeight, gatewayHeight, getTxsInFlight } from "../database/sync";
+import { toLong } from "../database/cassandra";
+import { getNodeInfo } from "../query/node";
 import gitRev from "git-rev-sync";
 
 export const start = Date.now();
@@ -19,11 +19,15 @@ export async function statusRoute(
   try {
     const info = await getNodeInfo({ maxRetry: 100 });
     const delta = toLong(info.height).sub(topHeight).toString();
-
+    let txsInFlight = 0;
+    try {
+      txsInFlight = getTxsInFlight();
+    } catch {}
     response.status(200).send({
       status: "OK",
-      gatewayHeight: topHeight.toString(),
-      arweaveHeight: info.height,
+      gatewayHeight: gatewayHeight.toString(),
+      arweaveHeight: Math.max(topHeight, info.height),
+      txsInFlight,
       delta,
       vartex_git_revision: gitRevision,
     });

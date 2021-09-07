@@ -1,6 +1,6 @@
 import * as R from "rambda";
 import { mapping, types as CassandraTypes } from "cassandra-driver";
-import { cassandraClient } from "./cassandra.database";
+import { cassandraClient } from "./cassandra";
 
 const { Mapper } = mapping;
 

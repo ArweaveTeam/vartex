@@ -1,6 +1,6 @@
 import { types as CassandraTypes } from "cassandra-driver";
 import { head, isEmpty as rIsEmpty } from "rambda";
-import { toLong } from "../database/cassandra.database";
+import { toLong } from "../database/cassandra";
 import * as R from "rambda";
 
 export interface ITxIncoming {

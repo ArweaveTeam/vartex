@@ -2,20 +2,20 @@ import * as R from "rambda";
 import { getMessenger } from "../gatsby-worker/child";
 import { MessagesFromParent, MessagesFromWorker } from "./message-types";
 import Fluture, { forkCatch, parallel } from "fluture/index.js";
-import PriorityQueue, { ITxIncoming } from "../utility/priority.queue";
+import PriorityQueue, { ITxIncoming } from "../utility/priority-queue";
 import pWaitFor from "p-wait-for";
 import { types as CassandraTypes } from "cassandra-driver";
 import { getCache, putCache, rmCache } from "../caching/cacache";
-import { MAX_TX_PER_BLOCK } from "../database/constants.database";
-import { mkWorkerLog } from "../utility/log.utility";
-import { getBlock as queryGetBlock } from "../query/block.query";
-import { getTransaction, getTxOffset } from "../query/transaction.query";
-import { TxQueueState } from "../types/cassandra.types";
+import { MAX_TX_PER_BLOCK } from "../database/constants";
+import { mkWorkerLog } from "../utility/log";
+import { getBlock as queryGetBlock } from "../query/block";
+import { getTransaction, getTxOffset } from "../query/transaction";
+import { TxQueueState } from "../types/cassandra";
 import {
   makeBlockImportQuery,
   makeTxImportQuery,
   toLong,
-} from "../database/cassandra.database";
+} from "../database/cassandra";
 
 const PARALLEL_IMPORTS = Number.isNaN(process.env["PARALLEL_IMPORTS"])
   ? 1

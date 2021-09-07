@@ -4,8 +4,8 @@ import { types as CassandraTypes } from "cassandra-driver";
 import * as R from "rambda";
 import rwc from "random-weighted-choice";
 import got from "got";
-import { log } from "../utility/log.utility";
-import { getChunk } from "./chunk.query";
+import { log } from "../utility/log";
+import { getChunk } from "./chunk";
 import { HTTP_TIMEOUT_SECONDS } from "../constants";
 
 let temporaryNodes = [];

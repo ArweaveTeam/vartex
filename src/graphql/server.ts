@@ -5,7 +5,7 @@ import {
   ExpressContext,
   gql,
 } from "apollo-server-express";
-import { resolvers } from "./resolver.graphql";
+import { resolvers } from "./resolver";
 
 const typeDefs = gql(readFileSync(`${process.cwd()}/types.graphql`, "utf8"));
 

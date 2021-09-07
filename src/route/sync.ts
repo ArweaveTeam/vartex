@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
-import { syncHeight, topHeight } from "../database/sync.database";
-import { toLong } from "../database/cassandra.database";
-import { getNodeInfo } from "../query/node.query";
+import { syncHeight, topHeight } from "../database/sync";
+import { toLong } from "../database/cassandra";
+import { getNodeInfo } from "../query/node";
 
 export const start = Date.now();
 

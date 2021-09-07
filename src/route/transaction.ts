@@ -1,11 +1,8 @@
 import * as R from "rambda";
 import { Request, Response, NextFunction } from "express";
 import got from "got";
-import {
-  transactionMapper,
-  txOffsetMapper,
-} from "../database/mapper.database.js";
-import { grabNode } from "../query/node.query.js";
+import { transactionMapper, txOffsetMapper } from "../database/mapper";
+import { grabNode } from "../query/node";
 import Transaction from "arweave/node/lib/transaction";
 
 export async function txUploadRoute(

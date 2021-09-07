@@ -5,19 +5,15 @@ import GaugeThemes from "gauge/themes";
 import { config } from "dotenv";
 import { types as CassandraTypes } from "cassandra-driver";
 import { KEYSPACE, POLLTIME_DELAY_SECONDS } from "../constants";
-import { log } from "../utility/log.utility";
+import { log } from "../utility/log";
 import mkdirp from "mkdirp";
 import { WorkerPool } from "../gatsby-worker";
 import { MessagesFromWorker } from "../workers/message-types";
-import { getHashList, getNodeInfo } from "../query/node.query";
-import { BlockType, fetchBlockByHash } from "../query/block.query";
-import { UnsyncedBlock } from "../types/cassandra.types";
-import {
-  cassandraClient,
-  getMaxHeightBlock,
-  toLong,
-} from "./cassandra.database";
-import * as Dr from "./doctor.database";
+import { getHashList, getNodeInfo } from "../query/node";
+import { BlockType, fetchBlockByHash } from "../query/block";
+import { UnsyncedBlock } from "../types/cassandra";
+import { cassandraClient, getMaxHeightBlock, toLong } from "./cassandra";
+import * as Dr from "./doctor";
 
 let gauge_: any;
 
@@ -78,8 +74,6 @@ const numberOr0 = (n): number => (Number.isNaN(n) ? 0 : n);
 export const getTxsInFlight = (): number =>
   Object.values(txInFlight).reduce((a, b) => numberOr0(a) + numberOr0(b));
 
-export let currentHeight = 0;
-
 workerPool.onMessage((message: MessagesFromWorker, workerId: number): void => {
   switch (message.type) {
     case "worker:ready": {
@@ -105,7 +99,7 @@ workerPool.onMessage((message: MessagesFromWorker, workerId: number): void => {
           : Number.parseInt(message.payload);
       gauge_ &&
         gauge_.show(
-          `blocks: ${currentHeight}/topHeight tx: ${getTxsInFlight()}`
+          `blocks: ${currentHeight}/${topHeight}\t tx: ${getTxsInFlight()}`
         );
       break;
     }
@@ -123,7 +117,9 @@ const trackerTheme = GaugeThemes.newTheme(
 );
 
 export let topHash = "";
-export let topHeight: CassandraTypes.Long = toLong(0);
+export let gatewayHeight: CassandraTypes.Long = toLong(0);
+export let topHeight = 0;
+export let currentHeight = 0;
 
 // export let topTxIndex: CassandraTypes.Long = toLong(0);
 
@@ -207,7 +203,7 @@ async function startPolling(): Promise<void> {
     return startPolling();
   }
 
-  [topHash, topHeight] = await getMaxHeightBlock();
+  [topHash, gatewayHeight] = await getMaxHeightBlock();
 
   if (nodeInfo.current === topHash) {
     // wait before polling again
@@ -330,6 +326,7 @@ export async function startSync({
   await Promise.all(R.map(R.prop("promise"))(R.values(workerReadyPromises)));
 
   const hashList: string[] = await getHashList({});
+  topHeight = hashList.length;
   const firstRun = await detectFirstRun();
   let lastBlock: CassandraTypes.Long = toLong(-1);
   // let lastTx: CassandraTypes.Long = toLong(-1);
@@ -418,9 +415,9 @@ export async function startSync({
     );
 
     // initialLastBlock = toLong(developmentSyncLength).sub(1);
-    topHeight = initialLastBlock;
+    gatewayHeight = initialLastBlock;
   } else {
-    topHeight = lastBlock;
+    gatewayHeight = lastBlock;
   }
 
   // blockQueueState.nextHeight = initialLastBlock.lt(1)
@@ -466,7 +463,7 @@ export async function startSync({
             .then(() => {
               fresolve({});
               gauge.show(
-                `blocks: ${currentHeight}/${topHeight} tx: ${getTxsInFlight()}`
+                `blocks: ${currentHeight}/${topHeight}\t tx: ${getTxsInFlight()}`
               );
             })
             .catch(reject);

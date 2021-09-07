@@ -1,14 +1,14 @@
 import * as R from "rambda";
 import { types as CassandraTypes } from "cassandra-driver";
 import { KEYSPACE } from "../constants";
-import { cassandraClient, toLong } from "./cassandra.database";
+import { cassandraClient, toLong } from "./cassandra";
 // import { BlockType } from "../query/block.query";
 // import {
 //   getCacheByKey,
 //   recollectImportableTxs,
 //   recollectIncomingTxs,
 // } from "../caching/cacache";
-import * as C from "./constants.database";
+import * as C from "./constants";
 
 export const checkForBlockGaps = async (): Promise<boolean> => {
   const expectedBlockHeightResult = await cassandraClient.execute(

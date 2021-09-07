@@ -4,8 +4,8 @@ import {
   Base64UrlEncodedString,
   WinstonString,
   fromB64Url,
-} from "../utility/encoding.utility";
-import { grabNode, coolNode, warmNode } from "./node.query";
+} from "../utility/encoding";
+import { grabNode, coolNode, warmNode } from "./node";
 
 export interface Tag {
   name: Base64UrlEncodedString;

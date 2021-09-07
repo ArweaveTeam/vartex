@@ -1,10 +1,10 @@
 import * as R from "rambda";
 import { types as CassandraTypes } from "cassandra-driver";
-import * as Constants from "../database/constants.database";
+import * as Constants from "../database/constants";
 import { config } from "dotenv";
 import { KEYSPACE } from "../constants";
 import { TagFilter } from "./types";
-import { toB64url } from "../query/transaction.query";
+import { toB64url } from "../query/transaction";
 import { default as cqlBuilder } from "@ridi/cql-builder";
 
 const { Select } = cqlBuilder;

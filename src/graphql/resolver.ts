@@ -3,8 +3,8 @@ import * as R from "rambda";
 import { Request } from "express";
 import moment from "moment";
 import { types as CassandraTypes } from "cassandra-driver";
-import { cassandraClient, toLong } from "../database/cassandra.database";
-import { topHeight } from "../database/sync.database";
+import { cassandraClient, toLong } from "../database/cassandra";
+import { topHeight } from "../database/sync";
 import { GraphQLResolveInfo } from "graphql";
 import graphqlFields from "graphql-fields";
 import { config } from "dotenv";
@@ -22,12 +22,12 @@ import {
   QueryTransactionsArgs as QueryTransactionsArguments,
   Transaction,
 } from "./types";
-import { Tag } from "../types/arweave.types";
+import { Tag } from "../types/arweave";
 import {
   ownerToAddress,
   winstonToAr,
   utf8DecodeTupleTag,
-} from "../utility/encoding.utility";
+} from "../utility/encoding";
 import {
   QueryParameters,
   generateBlockQuery,
@@ -35,7 +35,7 @@ import {
   generateDeferedTxQuery,
   generateDeferedTxBlockQuery,
   // generateDeferedBlockQuery,
-} from "./query.graphql";
+} from "./query-builder";
 
 process.env.NODE_ENV !== "test" && config();
 

@@ -1,6 +1,6 @@
 import got from "got";
-import { b64UrlToBuffer } from "../utility/encoding.utility";
-import { grabNode } from "./node.query";
+import { b64UrlToBuffer } from "../utility/encoding";
+import { grabNode } from "./node";
 import { HTTP_TIMEOUT_SECONDS } from "../constants";
 
 // export interface TransactionOffsetType {

@@ -1,7 +1,4 @@
-import {
-  Base64UrlEncodedString,
-  WinstonString,
-} from "../utility/encoding.utility";
+import { Base64UrlEncodedString, WinstonString } from "../utility/encoding";
 
 export interface Tag {
   name: string;

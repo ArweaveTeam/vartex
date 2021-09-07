@@ -1,9 +1,9 @@
 /* eslint-disable unicorn/prefer-spread */
 import * as cassandra from "cassandra-driver";
 import * as R from "rambda";
-import { BlockType } from "../query/block.query";
+import { BlockType } from "../query/block";
 import { types as CassandraTypes } from "cassandra-driver";
-import { Poa, TxOffset } from "../types/cassandra.types";
+import { Poa, TxOffset } from "../types/cassandra";
 import { KEYSPACE } from "../constants";
 import { config } from "dotenv";
 import {
@@ -21,7 +21,7 @@ import {
   getGqlTxTagDescBucketName,
   getTxTagPartitionName,
   getTxTagBucketName,
-} from "./constants.database";
+} from "./constants";
 
 process.env.NODE_ENV !== "test" && config();
 

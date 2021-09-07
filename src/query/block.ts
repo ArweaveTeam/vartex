@@ -1,6 +1,6 @@
 import got from "got";
-import { log } from "../utility/log.utility";
-import { grabNode, warmNode, coolNode } from "./node.query";
+import { log } from "../utility/log";
+import { grabNode, warmNode, coolNode } from "./node";
 import { HTTP_TIMEOUT_SECONDS } from "../constants";
 
 export interface BlockType {

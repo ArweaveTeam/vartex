@@ -9,23 +9,23 @@ import express, { Express, Request, Response } from "express";
 import gpmeImport from "graphql-playground-middleware-express";
 import { config } from "dotenv";
 import cors from "cors";
-import { log } from "./utility/log.utility.js";
-import { graphServer } from "./graphql/server.graphql.js";
+import { log } from "./utility/log";
+import { graphServer } from "./graphql/server";
 import {
   blockCurrentRoute,
   blockByHashRoute,
   blockByHeightRoute,
-} from "./route/block.route.js";
-import { statusRoute } from "./route/status.route.js";
+} from "./route/block";
+import { statusRoute } from "./route/status";
 import {
   txOffsetRoute,
   txUploadRoute,
   txGetByIdRoute,
-} from "./route/transaction.route.js";
-import { proxyGetRoute, proxyPostRoute } from "./route/proxy.route.js";
-import { hashListRoute } from "./route/hash-list.route.js";
-import { koiLogger, koiLogsRoute, koiLogsRawRoute } from "./route/koi.route.js";
-import { startSync } from "./database/sync.database.js";
+} from "./route/transaction";
+import { proxyGetRoute, proxyPostRoute } from "./route/proxy";
+import { hashListRoute } from "./route/hash-list";
+import { koiLogger, koiLogsRoute, koiLogsRawRoute } from "./route/koi";
+import { startSync } from "./database/sync";
 
 /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
 const { default: expressPlayground } = gpmeImport as any;

@@ -4,8 +4,9 @@ import * as B64js from "base64-js";
 import { base32 } from "rfc4648";
 import { createHash } from "node:crypto";
 import { Readable, PassThrough, Transform } from "node:stream";
-// import { Tag } from "../types/arweave.types";
+import { Tag } from "../types/arweave.types";
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const ar = new ((Ar as any).default as typeof Ar)();
 
 export type Base64EncodedString = string;
@@ -24,7 +25,7 @@ export class Base64DUrlecode extends Transform {
     this.bytesProcessed = 0;
   }
 
-  _transform(chunk: Buffer, encoding: any, callback: () => void) {
+  _transform(chunk: Buffer, encoding: unknown, callback: () => void): void {
     const conbinedChunk =
       this.extra +
       chunk
@@ -47,7 +48,7 @@ export class Base64DUrlecode extends Transform {
     callback();
   }
 
-  _flush(callback: () => void) {
+  _flush(callback: () => void): void {
     if (this.extra.length > 0) {
       this.push(Buffer.from(this.extra, "base64"));
     }
@@ -129,7 +130,7 @@ export async function streamToString(stream: Readable): Promise<string> {
   return (await streamToBuffer(stream)).toString("utf-8");
 }
 
-export function bufferToJson<T = any | undefined>(input: Buffer): T {
+export function bufferToJson<T = unknown | undefined>(input: Buffer): T {
   try {
     return JSON.parse(input.toString("utf8"));
   } catch {
@@ -140,17 +141,17 @@ export function bufferToJson<T = any | undefined>(input: Buffer): T {
   }
 }
 
-export function jsonToBuffer(input: any): Buffer {
+export function jsonToBuffer(input: unknown): Buffer {
   return Buffer.from(JSON.stringify(input));
 }
 
-export async function streamToJson<T = any | undefined>(
+export async function streamToJson<T = unknown | undefined>(
   input: Readable
 ): Promise<T> {
   return bufferToJson<T>(await streamToBuffer(input));
 }
 
-export function isValidUTF8(buffer: Buffer) {
+export function isValidUTF8(buffer: Buffer): boolean {
   return Buffer.compare(Buffer.from(buffer.toString(), "utf8"), buffer) === 0;
 }
 
@@ -164,7 +165,7 @@ export function streamDecoderb64url(readable: Readable): Readable {
   return outputStream;
 }
 
-export function bufferToStream(buffer: Buffer) {
+export function bufferToStream(buffer: Buffer): Readable {
   return new Readable({
     objectMode: false,
     read() {
@@ -174,17 +175,34 @@ export function bufferToStream(buffer: Buffer) {
   });
 }
 
-export function winstonToAr(amount: string) {
+export function winstonToAr(amount: string): string {
   return ar.winstonToAr(amount);
 }
 
-export function arToWinston(amount: string) {
+export function arToWinston(amount: string): string {
   return ar.arToWinston(amount);
 }
 
-export function utf8DecodeTag(
-  tag: CassandraTypes.Tuple
-): { name: string | undefined; value: string | undefined } {
+export function utf8DecodeTag(tag: Tag): Tag {
+  let name;
+  let value;
+  try {
+    const nameBuffer = fromB64Url(tag.name);
+    if (isValidUTF8(nameBuffer)) {
+      name = nameBuffer.toString("utf8");
+    }
+    const valueBuffer = fromB64Url(tag.value);
+    if (isValidUTF8(valueBuffer)) {
+      value = valueBuffer.toString("utf8");
+    }
+  } catch {}
+  return {
+    name,
+    value,
+  };
+}
+
+export function utf8DecodeTupleTag(tag: CassandraTypes.Tuple): Tag {
   let name;
   let value;
   try {

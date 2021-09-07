@@ -37,9 +37,9 @@ export async function getBlock({
   gauge,
   getProgress,
 }: {
-  hash: string | undefined;
+  hash?: string | undefined;
   height: number;
-  gauge?: any;
+  gauge?: { show: (log: string) => void };
   getProgress?: () => string;
 }): Promise<BlockType | undefined> {
   const tryNode = grabNode();

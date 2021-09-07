@@ -1,6 +1,7 @@
 /* eslint-disable unicorn/prefer-spread */
 import * as cassandra from "cassandra-driver";
 import * as R from "rambda";
+import { BlockType } from "../query/block.query";
 import { types as CassandraTypes } from "cassandra-driver";
 import { Poa, TxOffset } from "../types/cassandra.types";
 import { KEYSPACE } from "../constants";
@@ -24,18 +25,18 @@ import {
 
 process.env.NODE_ENV !== "test" && config();
 
-const isNumeric = (s: any) => !(isNaN as any)(s);
+const isNumeric = (s: string): boolean => !Number.isNaN(s);
 
-export const toLong = (anyValue: any): CassandraTypes.Long =>
-  (cassandra as any).types.Long.isLong(anyValue)
+export const toLong = (
+  anyValue: CassandraTypes.Long | number | string | undefined
+): CassandraTypes.Long =>
+  CassandraTypes.Long.isLong(anyValue)
     ? anyValue
     : !anyValue && typeof anyValue !== "string"
-    ? (cassandra as any).types.Long.fromNumber(0)
+    ? CassandraTypes.Long.fromNumber(0)
     : typeof anyValue === "string"
-    ? (cassandra as any).types.Long.fromString(
-        R.isEmpty(anyValue) ? "0" : anyValue
-      )
-    : (cassandra as any).types.Long.fromNumber(anyValue);
+    ? CassandraTypes.Long.fromString(R.isEmpty(anyValue) ? "0" : anyValue)
+    : CassandraTypes.Long.fromNumber(anyValue);
 
 let contactPoints = ["localhost:9042"];
 try {
@@ -158,7 +159,7 @@ const blockKeys = [
   "weave_size",
 ];
 
-const transformPoaKeys = (object: any): Poa => {
+const transformPoaKeys = (object: unknown): Poa => {
   const poa = object["poa"] ? object["poa"] : {};
   const poaObject = {} as Poa;
   poaObject["option"] = poa["option"] || "";
@@ -172,6 +173,7 @@ const transformPoaKeys = (object: any): Poa => {
 
 // note for optimization reasons
 // we may store the data differently than we serve it (eg. bigint->string)
+/* eslint-disable-next-line @typescript-eslint/no-explicit-any */
 const transformBlockKey = (key: string, object: any) => {
   switch (key) {
     case "txs_count": {
@@ -210,7 +212,10 @@ const transformBlockKey = (key: string, object: any) => {
     case "reward_addr":
     case "tx_root":
     case "wallet_list": {
-      if (object[key] || isNumeric(object[key])) {
+      if (
+        object[key] !== undefined &&
+        (object[key] || isNumeric(object[key]))
+      ) {
         return typeof object[key] === "string"
           ? object[key]
           : object[key].toString();
@@ -228,8 +233,8 @@ const transformBlockKey = (key: string, object: any) => {
 const transformTxKey = (
   key: string,
   txIndex: CassandraTypes.Long,
-  txData: any,
-  blockData: any
+  txData: any, //  eslint-disable-line @typescript-eslint/no-explicit-any
+  blockData: any //  eslint-disable-line @typescript-eslint/no-explicit-any
 ) => {
   switch (key) {
     case "tx_index": {
@@ -292,7 +297,7 @@ const transformTxKey = (
   }
 };
 
-const transformTxOffsetKeys = (txObject: any): TxOffset => {
+const transformTxOffsetKeys = (txObject: unknown): TxOffset => {
   const txOffset = txObject["tx_offset"] ? txObject["tx_offset"] : {};
   const txOffsetObject = {} as TxOffset;
   txOffsetObject["tx_id"] = txObject["id"] || "";
@@ -315,7 +320,7 @@ type UpstreamTag = { name: string; value: string };
 
 const transformTag = (
   tag: UpstreamTag,
-  txObject: any,
+  txObject: any, // eslint-disable-line @typescript-eslint/no-explicit-any
   blockHeight: CassandraTypes.Long,
   txIndex: CassandraTypes.Long,
   index: number,
@@ -382,11 +387,13 @@ const txTagGqlInsertDescQuery = `INSERT INTO ${KEYSPACE}.tx_tag_gql_by_name_desc
 export const makeTxImportQuery = (
   height: CassandraTypes.Long,
   txIndex: CassandraTypes.Long,
-  tx: { [k: string]: any },
-  blockData: { [k: string]: any }
-) => () => {
+  tx: { [k: string]: any }, // eslint-disable-line @typescript-eslint/no-explicit-any
+  blockData: { [k: string]: any } // eslint-disable-line @typescript-eslint/no-explicit-any
+  /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+) => (): Promise<any> => {
   let dataSize: CassandraTypes.Long | undefined;
   const nonNilTxKeys: string[] = [];
+  /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
   const txInsertParameters: { [k: string]: any } = transactionKeys.reduce(
     (paramz: Array<any>, key: string) => {
       const nextValue = transformTxKey(key, txIndex, tx, blockData);
@@ -521,7 +528,10 @@ export const makeTxImportQuery = (
   );
 };
 
-export const makeBlockImportQuery = (input: any) => () => {
+/* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+export const makeBlockImportQuery = (input: BlockType) => (): Promise<
+  CassandraTypes.ResultSet[]
+> => {
   const nonNilBlockKeys: string[] = [];
   const blockInsertParameters = blockKeys.reduce(
     (paramz: Array<any>, key: string) => {
@@ -535,6 +545,7 @@ export const makeBlockImportQuery = (input: any) => () => {
     },
     []
   );
+
   const height = toLong(input.height);
 
   return Promise.all([

@@ -8,4 +8,5 @@ export const ansDeps = {
   deepHash: deepHash,
 };
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const ansBundles = (arweaveBundles as any).default(ansDeps);

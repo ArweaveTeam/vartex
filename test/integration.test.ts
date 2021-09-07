@@ -208,6 +208,8 @@ describe("database sync test suite", function () {
       }, 2000);
     });
 
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
     const queryResponse = await client.execute(
       "SELECT indep_hash,height FROM testway.block WHERE height>85 AND height<95 ALLOW FILTERING"
     );

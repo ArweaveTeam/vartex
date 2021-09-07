@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import { grabNode } from "../query/node.query.js";
 import got from "got";
 
-export function proxyGetRoute(request: Request, response: Response) {
+export function proxyGetRoute(request: Request, response: Response): void {
   const uri = `${grabNode()}${request.originalUrl}`;
   const stream = got.stream.get(uri);
   stream.on("error", (error) => {
@@ -17,7 +17,7 @@ export function proxyGetRoute(request: Request, response: Response) {
   stream.pipe(response);
 }
 
-export function proxyPostRoute(request: Request, response: Response) {
+export function proxyPostRoute(request: Request, response: Response): void {
   const uri = `${grabNode()}${request.originalUrl}`;
   const stream = got.stream.post(uri, {
     body: JSON.stringify(request.body),

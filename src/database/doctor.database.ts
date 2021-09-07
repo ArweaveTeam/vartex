@@ -2,11 +2,12 @@ import * as R from "rambda";
 import { types as CassandraTypes } from "cassandra-driver";
 import { KEYSPACE } from "../constants";
 import { cassandraClient, toLong } from "./cassandra.database";
-import {
-  getCacheByKey,
-  recollectImportableTxs,
-  recollectIncomingTxs,
-} from "../caching/cacache";
+// import { BlockType } from "../query/block.query";
+// import {
+//   getCacheByKey,
+//   recollectImportableTxs,
+//   recollectIncomingTxs,
+// } from "../caching/cacache";
 import * as C from "./constants.database";
 
 export const checkForBlockGaps = async (): Promise<boolean> => {
@@ -51,7 +52,7 @@ export const findBlockGaps = async (): Promise<number[]> => {
   const missingHeights: number[] = [];
 
   for (const heightGroup of queryHeightGroups) {
-    const blockQ = await cassandraClient.execute(
+    const blockQ: { rows: unknown[] } = await cassandraClient.execute(
       `SELECT height FROM ${KEYSPACE}.block WHERE height >= ${R.head(
         heightGroup
       )} AND height <= ${R.last(heightGroup)} ALLOW FILTERING`
@@ -60,9 +61,9 @@ export const findBlockGaps = async (): Promise<number[]> => {
       R.head(heightGroup),
       R.last(heightGroup) + 1
     )) {
-      const findResult = R.findIndex((row: any) => row.height.equals(height))(
-        blockQ.rows
-      );
+      const findResult = R.findIndex((row: { height: CassandraTypes.Long }) =>
+        row.height.equals(height)
+      )(blockQ.rows as { height: CassandraTypes.Long }[]);
       if (findResult < 0) {
         missingHeights.push(height);
       }
@@ -97,7 +98,7 @@ export const findTxGaps = async (): Promise<void> => {
 
     for (const { txs_count, height, txs } of txCounts) {
       const txCntQ = await cassandraClient.execute(
-        `SELECT COUNT(*) FROM gateway.transaction WHERE block_height>=${height.divide(
+        `SELECT COUNT(*) FROM ${KEYSPACE}.transaction WHERE block_height>=${height.divide(
           C.MAX_TX_PER_BLOCK
         )} AND block_height<${height
           .add(1)
@@ -106,7 +107,7 @@ export const findTxGaps = async (): Promise<void> => {
 
       if (txCntQ.rowLength !== txs_count) {
         const txDataQ = await cassandraClient.execute(
-          `SELECT tx_id FROM gateway.transaction WHERE block_height>=${height.divide(
+          `SELECT tx_id FROM ${KEYSPACE}.transaction WHERE block_height>=${height.divide(
             C.MAX_TX_PER_BLOCK
           )} AND block_height<${height
             .add(1)
@@ -129,59 +130,64 @@ export const findTxGaps = async (): Promise<void> => {
   }
 };
 
-export async function enqueueUnhandledCache(
-  enqueueIncomingTxQueue: (any) => void,
-  enqueueTxQueue: (any) => void,
-  txImportCallback: (
-    integrity: string,
-    cacheKey?: string
-  ) => (fresolve?: () => void) => Promise<void>,
-  incomingTxCallback: (
-    integrity: string,
-    txIndex_: CassandraTypes.Long,
-    gauge?: any,
-    getProgress?: () => string
-  ) => (fresolve?: () => void) => Promise<void>,
-  txQueue: any
-) {
-  const unhandledIncomings = await recollectIncomingTxs();
-  const unhandledTxImports = await recollectImportableTxs();
+// export async function enqueueUnhandledCache(
+//   enqueueIncomingTxQueue: (any) => void,
+//   enqueueTxQueue: (any) => void,
+//   txImportCallback: (
+//     integrity: string,
+//     txIndex_: CassandraTypes.Long,
+//     gauge?: any,
+//     getProgress?: () => string
+//   ) => (fresolve?: () => void) => Promise<void>,
+//   incomingTxCallback: (
+//     integrity: string,
+//     txIndex_: CassandraTypes.Long,
+//     gauge?: any,
+//     getProgress?: () => string
+//   ) => (fresolve?: () => void) => Promise<void>,
+//   txQueue: any
+// ) {
+//   const unhandledIncomings = await recollectIncomingTxs();
+//   const unhandledTxImports = await recollectImportableTxs();
 
-  if (!R.isEmpty(unhandledIncomings)) {
-    for (const queueItem of unhandledIncomings) {
-      const maybeData = await getCacheByKey(queueItem.key);
-      if (maybeData && maybeData.data) {
-        const data = maybeData.data;
-        const dataParsed = JSON.parse(data.toString());
-        enqueueIncomingTxQueue({
-          height: toLong(0),
-          txIndex: toLong(dataParsed.txIndex),
-          next: incomingTxCallback.bind(txQueue)(
-            queueItem.integrity,
-            toLong(dataParsed.txIndex)
-          ),
-        });
-      }
-    }
-  }
+//   if (!R.isEmpty(unhandledIncomings)) {
+//     for (const queueItem of unhandledIncomings) {
+//       const maybeData = await getCacheByKey(queueItem.key);
+//       if (maybeData && maybeData.data) {
+//         const data = maybeData.data;
+//         const dataParsed = JSON.parse(data.toString());
+//         enqueueIncomingTxQueue({
+//           height: toLong(0),
+//           txIndex: toLong(dataParsed.txIndex),
+//           next: incomingTxCallback.bind(txQueue)(
+//             queueItem.integrity,
+//             toLong(dataParsed.txIndex)
+//           ),
+//         });
+//       }
+//     }
+//   }
 
-  if (!R.isEmpty(unhandledTxImports)) {
-    for (const queueItem of unhandledTxImports) {
-      const maybeData = await getCacheByKey(queueItem.key);
-      if (maybeData && maybeData.data) {
-        const data = maybeData.data;
-        const dataParsed = JSON.parse(data.toString());
+//   if (!R.isEmpty(unhandledTxImports)) {
+//     for (const queueItem of unhandledTxImports) {
+//       const maybeData = await getCacheByKey(queueItem.key);
+//       if (maybeData && maybeData.data) {
+//         const data = maybeData.data;
+//         const dataParsed = JSON.parse(data.toString());
 
-        enqueueTxQueue({
-          height: toLong(dataParsed.height),
-          callback: txImportCallback.bind(txQueue)(queueItem.integrity),
-          txIndex: toLong(dataParsed.index),
-          type: "tx",
-        });
-      }
-    }
-  }
-}
+//         enqueueTxQueue({
+//           height: toLong(dataParsed.height),
+//           callback: txImportCallback.bind(txQueue)(
+//             queueItem.integrity,
+//             toLong(dataParsed.index)
+//           ),
+//           txIndex: toLong(dataParsed.index),
+//           type: "tx",
+//         });
+//       }
+//     }
+//   }
+// }
 
 // const verifyBlock = async (height: number): Promise<boolean> => {
 //   const queryResponse = await cassandraClient.execute(

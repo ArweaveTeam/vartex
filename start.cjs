@@ -23,7 +23,7 @@ function start() {
       '--experimental-specifier-resolution=node',
       '--max-old-space-size=4096',
       '--loader=ts-node/esm.mjs',
-      'src/Gateway.ts',
+      'src/gateway.ts',
     ],
     {
       env: { ...process.env, TS_NODE_FILES: true },

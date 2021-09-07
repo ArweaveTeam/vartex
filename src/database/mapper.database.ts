@@ -1,15 +1,21 @@
 import * as R from "rambda";
-import { mapping } from "cassandra-driver";
+import { mapping, types as CassandraTypes } from "cassandra-driver";
 import { cassandraClient } from "./cassandra.database";
 
 const { Mapper } = mapping;
 
 // prune the null values away
-const withDefault = ({ name, fallback }: { name: string; fallback: any }) => ({
+const withDefault = ({
+  name,
+  fallback,
+}: {
+  name: string;
+  fallback: unknown;
+}): Record<string, unknown> => ({
   [name]: {
     name,
-    toModel: (v: any) => v || fallback,
-    fromModel: (v: any) => v || fallback,
+    toModel: (v: unknown) => v || fallback,
+    fromModel: (v: unknown) => v || fallback,
   },
 });
 
@@ -85,7 +91,9 @@ export const txTagMapper = mapper.forModel("TxTag");
 
 export const txOffsetMapper = mapper.forModel("TxOffset");
 
-export const tagsByTxId = async (txId: string) => {
+export const tagsByTxId = async (
+  txId: string
+): Promise<CassandraTypes.Tuple[]> => {
   let lastTagResponse = await txTagMapper.get({ tx_id: txId, tag_index: 0 });
   const tags = [];
 

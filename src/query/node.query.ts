@@ -34,7 +34,7 @@ const syncNodeTemperatures = () => {
   });
 };
 
-export function grabNode() {
+export function grabNode(): string {
   R.isEmpty(nodeTemperatures) && syncNodeTemperatures();
   let randomWeightedNode = rwc(nodeTemperatures);
 
@@ -50,14 +50,14 @@ export function grabNode() {
     : `http://${randomWeightedNode}`;
 }
 
-export function warmNode(url: string) {
+export function warmNode(url: string): void {
   const item = nodeTemperatures.find((index: WeightedNode) => index.id === url);
   if (item) {
     item["weight"] = Math.min(item["weight"] + 1, 99);
   }
 }
 
-export function coolNode(url: string, kickIfLow = false) {
+export function coolNode(url: string, kickIfLow = false): void {
   const item = nodeTemperatures.find((index: WeightedNode) => index.id === url);
   if (item) {
     if (kickIfLow && item["weight"] < 2) {
@@ -87,11 +87,14 @@ export interface InfoType {
 export async function getNodeInfo({
   retry = 0,
   maxRetry = 100,
+}: {
+  retry?: number;
+  maxRetry?: number;
 }): Promise<InfoType | undefined> {
   const tryNode = grabNode();
 
   try {
-    const body: any = await got.get(`${tryNode}/info`, {
+    const body: InfoType = await got.get(`${tryNode}/info`, {
       responseType: "json",
       resolveBodyOnly: true,
       timeout: HTTP_TIMEOUT_SECONDS * 1000,
@@ -140,6 +143,8 @@ export async function getNodeInfo({
 
 export async function getHashList({
   retry = 0,
+}: {
+  retry?: number;
 }): Promise<string[] | undefined> {
   const hashListCachePath =
     process.env.NODE_ENV === "test"
@@ -163,13 +168,13 @@ export async function getHashList({
     log.info("[database] fetching the hash_list, this may take a while...");
 
     try {
-      const body = await got.get(url, {
+      const body: string[] = await got.get(url, {
         responseType: "json",
         resolveBodyOnly: true,
         followRedirect: true,
       });
 
-      const linearHashList = R.reverse(body as any);
+      const linearHashList = R.reverse(body);
       return fs
         .writeFile(
           hashListCachePath,
@@ -195,7 +200,7 @@ export async function getHashList({
   }
 }
 
-export async function getData(id: string): Promise<any> {
+export async function getData(id: string): Promise<unknown> {
   return await got.get(`${grabNode()}/${id}`);
 }
 

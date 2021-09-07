@@ -89,7 +89,7 @@ const edgeFieldMapTx = {
   "edges.node.target": "recipient",
   "edges.node.tags": "tags",
   // 'edges.node.reward': 'fee',
-  "edges.node.quantity": "quantity",
+  // "edges.node.quantity": "quantity",
   "edges.node.data_size": "data_size",
   "edges.node.content_type": "data_type",
   "edges.node.parent": "parent",
@@ -413,7 +413,7 @@ export const resolvers = {
 
       const selectedDeferedKeysUser = [];
       for (const k of R.keys(fieldsWithSubFields.edges.node) as string[]) {
-        ["anchor", "fee", "signature"].includes(k) &&
+        ["anchor", "fee", "signature", "quantity"].includes(k) &&
           selectedDeferedKeysUser.push(
             R.find(R.equals(k))(["anchor", "fee", "signature"])
           );
@@ -428,6 +428,10 @@ export const resolvers = {
             }
             case "fee": {
               selectedDeferedKeysDatabase.push("reward");
+              break;
+            }
+            case "quantity": {
+              selectedDeferedKeysDatabase.push("quantity");
               break;
             }
             default: {

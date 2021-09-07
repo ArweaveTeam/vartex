@@ -329,7 +329,9 @@ export async function importBlock(height: number): Promise<boolean> {
     blockCacheIntegrity = await getNewBlock(height);
     success = true;
   } catch (error) {
-    log(`Failed to fetch new block at height: ${height}`, error);
+    log(
+      `Failed to fetch new block at height: ${height} ${error} will retry...`
+    );
   }
 
   if (!success) {

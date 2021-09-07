@@ -14,7 +14,7 @@ export type TxSortOrder = "HEIGHT_ASC" | "HEIGHT_DESC";
 process.env.NODE_ENV !== "test" && config();
 
 export interface QueryParameters {
-  to?: string[];
+  recipients?: string[];
   from?: string[];
   id?: string;
   ids?: string[];
@@ -104,8 +104,10 @@ export function generateTransactionQuery(
   //   cql.where('block_height >= ?', CassandraTypes.Long.fromNumber(0));
   // }
 
-  if (parameters.to) {
-    cql.where("target = ?", parameters.to);
+  if (parameters.recipients && !R.isEmpty(parameters.recipients)) {
+    cql.where(
+      `target IN ( ${parameters.recipients.map(() => "?").join(", ")} )`
+    );
   }
 
   // if (params.before) {

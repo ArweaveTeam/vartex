@@ -5134,6 +5134,11 @@ graceful-fs@^4.1.2, graceful-fs@^4.1.6, graceful-fs@^4.2.8:
   resolved "https://registry.yarnpkg.com/graceful-fs/-/graceful-fs-4.2.8.tgz#e412b8d33f5e006593cbd3cee6df9f2cebbe802a"
   integrity sha512-qkIilPUYcNhJpd33n0GBXTB1MMPp14TxEsEs0pTrsSVucApsYzW5V+Q8Qxhik6KU3evy+qkAAowTByymK0avdg==
 
+graphql-bigint@^1.0.0:
+  version "1.0.0"
+  resolved "https://registry.yarnpkg.com/graphql-bigint/-/graphql-bigint-1.0.0.tgz#b2909be9c9970a9a7697273c27d0ea47a146a19c"
+  integrity sha512-eLDf9GinU0ioui1ipXCl7pMFa3Am8pxciS0D0LR68SXfY7EzLk5P58LKyk+7CgLD5f66kiFGa5OIqt6iRLE2cQ==
+
 graphql-config@^4.0.1:
   version "4.0.1"
   resolved "https://registry.yarnpkg.com/graphql-config/-/graphql-config-4.0.1.tgz#4ce43cb54f3f39dde5f023d6f8f04064edc16e6e"

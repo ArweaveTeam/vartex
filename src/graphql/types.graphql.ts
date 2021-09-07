@@ -249,63 +249,63 @@ export type TransactionEdge = {
 export type ResolverTypeWrapper<T> = Promise<T> | T;
 
 
-export type ResolverWithResolve<TResult, TParent, TContext, TArgs> = {
-  resolve: ResolverFn<TResult, TParent, TContext, TArgs>;
+export type ResolverWithResolve<TResult, TParent, TContext, TArguments> = {
+  resolve: ResolverFn<TResult, TParent, TContext, TArguments>;
 };
 
-export type LegacyStitchingResolver<TResult, TParent, TContext, TArgs> = {
+export type LegacyStitchingResolver<TResult, TParent, TContext, TArguments> = {
   fragment: string;
-  resolve: ResolverFn<TResult, TParent, TContext, TArgs>;
+  resolve: ResolverFn<TResult, TParent, TContext, TArguments>;
 };
 
-export type NewStitchingResolver<TResult, TParent, TContext, TArgs> = {
+export type NewStitchingResolver<TResult, TParent, TContext, TArguments> = {
   selectionSet: string;
-  resolve: ResolverFn<TResult, TParent, TContext, TArgs>;
+  resolve: ResolverFn<TResult, TParent, TContext, TArguments>;
 };
-export type StitchingResolver<TResult, TParent, TContext, TArgs> = LegacyStitchingResolver<TResult, TParent, TContext, TArgs> | NewStitchingResolver<TResult, TParent, TContext, TArgs>;
-export type Resolver<TResult, TParent = {}, TContext = {}, TArgs = {}> =
-  | ResolverFn<TResult, TParent, TContext, TArgs>
-  | ResolverWithResolve<TResult, TParent, TContext, TArgs>
-  | StitchingResolver<TResult, TParent, TContext, TArgs>;
+export type StitchingResolver<TResult, TParent, TContext, TArguments> = LegacyStitchingResolver<TResult, TParent, TContext, TArguments> | NewStitchingResolver<TResult, TParent, TContext, TArguments>;
+export type Resolver<TResult, TParent = {}, TContext = {}, TArguments = {}> =
+  | ResolverFn<TResult, TParent, TContext, TArguments>
+  | ResolverWithResolve<TResult, TParent, TContext, TArguments>
+  | StitchingResolver<TResult, TParent, TContext, TArguments>;
 
-export type ResolverFn<TResult, TParent, TContext, TArgs> = (
+export type ResolverFn<TResult, TParent, TContext, TArguments> = (
   parent: TParent,
-  args: TArgs,
+  arguments_: TArguments,
   context: TContext,
   info: GraphQLResolveInfo
 ) => Promise<TResult> | TResult;
 
-export type SubscriptionSubscribeFn<TResult, TParent, TContext, TArgs> = (
+export type SubscriptionSubscribeFn<TResult, TParent, TContext, TArguments> = (
   parent: TParent,
-  args: TArgs,
+  arguments_: TArguments,
   context: TContext,
   info: GraphQLResolveInfo
 ) => AsyncIterator<TResult> | Promise<AsyncIterator<TResult>>;
 
-export type SubscriptionResolveFn<TResult, TParent, TContext, TArgs> = (
+export type SubscriptionResolveFn<TResult, TParent, TContext, TArguments> = (
   parent: TParent,
-  args: TArgs,
+  arguments_: TArguments,
   context: TContext,
   info: GraphQLResolveInfo
 ) => TResult | Promise<TResult>;
 
-export interface SubscriptionSubscriberObject<TResult, TKey extends string, TParent, TContext, TArgs> {
-  subscribe: SubscriptionSubscribeFn<{ [key in TKey]: TResult }, TParent, TContext, TArgs>;
-  resolve?: SubscriptionResolveFn<TResult, { [key in TKey]: TResult }, TContext, TArgs>;
+export interface SubscriptionSubscriberObject<TResult, TKey extends string, TParent, TContext, TArguments> {
+  subscribe: SubscriptionSubscribeFn<{ [key in TKey]: TResult }, TParent, TContext, TArguments>;
+  resolve?: SubscriptionResolveFn<TResult, { [key in TKey]: TResult }, TContext, TArguments>;
 }
 
-export interface SubscriptionResolverObject<TResult, TParent, TContext, TArgs> {
-  subscribe: SubscriptionSubscribeFn<any, TParent, TContext, TArgs>;
-  resolve: SubscriptionResolveFn<TResult, any, TContext, TArgs>;
+export interface SubscriptionResolverObject<TResult, TParent, TContext, TArguments> {
+  subscribe: SubscriptionSubscribeFn<any, TParent, TContext, TArguments>;
+  resolve: SubscriptionResolveFn<TResult, any, TContext, TArguments>;
 }
 
-export type SubscriptionObject<TResult, TKey extends string, TParent, TContext, TArgs> =
-  | SubscriptionSubscriberObject<TResult, TKey, TParent, TContext, TArgs>
-  | SubscriptionResolverObject<TResult, TParent, TContext, TArgs>;
+export type SubscriptionObject<TResult, TKey extends string, TParent, TContext, TArguments> =
+  | SubscriptionSubscriberObject<TResult, TKey, TParent, TContext, TArguments>
+  | SubscriptionResolverObject<TResult, TParent, TContext, TArguments>;
 
-export type SubscriptionResolver<TResult, TKey extends string, TParent = {}, TContext = {}, TArgs = {}> =
-  | ((...args: any[]) => SubscriptionObject<TResult, TKey, TParent, TContext, TArgs>)
-  | SubscriptionObject<TResult, TKey, TParent, TContext, TArgs>;
+export type SubscriptionResolver<TResult, TKey extends string, TParent = {}, TContext = {}, TArguments = {}> =
+  | ((...arguments_: any[]) => SubscriptionObject<TResult, TKey, TParent, TContext, TArguments>)
+  | SubscriptionObject<TResult, TKey, TParent, TContext, TArguments>;
 
 export type TypeResolveFn<TTypes, TParent = {}, TContext = {}> = (
   parent: TParent,
@@ -313,14 +313,14 @@ export type TypeResolveFn<TTypes, TParent = {}, TContext = {}> = (
   info: GraphQLResolveInfo
 ) => Maybe<TTypes> | Promise<Maybe<TTypes>>;
 
-export type IsTypeOfResolverFn<T = {}, TContext = {}> = (obj: T, context: TContext, info: GraphQLResolveInfo) => boolean | Promise<boolean>;
+export type IsTypeOfResolverFn<T = {}, TContext = {}> = (object: T, context: TContext, info: GraphQLResolveInfo) => boolean | Promise<boolean>;
 
 export type NextResolverFn<T> = () => Promise<T>;
 
-export type DirectiveResolverFn<TResult = {}, TParent = {}, TContext = {}, TArgs = {}> = (
+export type DirectiveResolverFn<TResult = {}, TParent = {}, TContext = {}, TArguments = {}> = (
   next: NextResolverFn<TResult>,
   parent: TParent,
-  args: TArgs,
+  arguments_: TArguments,
   context: TContext,
   info: GraphQLResolveInfo
 ) => TResult | Promise<TResult>;

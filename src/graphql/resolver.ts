@@ -64,6 +64,7 @@ interface FieldMap {
   tx_id: string;
   anchor: string;
   recipient: string;
+  target: string;
   tags: CassandraTypes.Tuple[];
   fee: string;
   height: CassandraTypes.Long;
@@ -86,7 +87,7 @@ interface FieldMap {
 const edgeFieldMapTx = {
   "edges.node.id": "tx_id",
   "edges.node.last_tx": "anchor",
-  "edges.node.target": "recipient",
+  "edges.node.recipient": "target",
   "edges.node.tags": "tags",
   // 'edges.node.reward': 'fee',
   // "edges.node.quantity": "quantity",
@@ -230,9 +231,9 @@ export const resolvers = {
 
       const selectedDeferedKeysUser = [];
       for (const k of R.keys(fieldsWithSubFields) as string[]) {
-        ["anchor", "fee", "signature"].includes(k) &&
+        ["anchor", "fee", "signature", "quantity"].includes(k) &&
           selectedDeferedKeysUser.push(
-            R.find(R.equals(k))(["anchor", "fee", "signature"])
+            R.find(R.equals(k))(["anchor", "fee", "signature", "quantity"])
           );
       }
 
@@ -248,6 +249,11 @@ export const resolvers = {
               selectedDeferedKeysDatabase.push("reward");
               break;
             }
+            case "quantity": {
+              selectedDeferedKeysDatabase.push("quantity");
+              break;
+            }
+
             default: {
               selectedDeferedKeysDatabase.push(k);
             }
@@ -271,7 +277,10 @@ export const resolvers = {
           result.anchor = deferedTxResult[0].last_tx || "";
         }
         if (deferedTxResult[0].reward) {
-          result.fee = deferedTxResult[0].reward || "";
+          result.fee = {
+            winston: deferedTxResult[0].reward || "",
+            ar: winstonToAr(parent.quantity || "0"),
+          };
         }
         if (deferedTxResult[0].signature) {
           result.signature = deferedTxResult[0].signature || "";
@@ -312,7 +321,7 @@ export const resolvers = {
         limit: fetchSize,
         offset: offset,
         // ids: queryParameters.ids || undefined,
-        to: queryParameters.recipients || undefined,
+        recipients: queryParameters.recipients || undefined,
         from: queryParameters.owners || undefined,
         tags: queryParameters.tags || undefined,
         blocks: true,
@@ -415,7 +424,7 @@ export const resolvers = {
       for (const k of R.keys(fieldsWithSubFields.edges.node) as string[]) {
         ["anchor", "fee", "signature", "quantity"].includes(k) &&
           selectedDeferedKeysUser.push(
-            R.find(R.equals(k))(["anchor", "fee", "signature"])
+            R.find(R.equals(k))(["anchor", "fee", "signature", "quantity"])
           );
       }
       if (!R.isEmpty(selectedDeferedKeysUser)) {
@@ -462,14 +471,18 @@ export const resolvers = {
             reward?: string;
             signature?: string;
           };
-          if (deferedTxResult.last_tx) {
-            tx.anchor = deferedTxResult[0].last_tx || "";
+
+          if (deferedTxResult?.last_tx) {
+            tx.anchor = deferedTxResult.last_tx || "";
           }
-          if (deferedTxResult.reward) {
-            tx.fee = deferedTxResult[0].reward || "";
+          if (deferedTxResult?.reward) {
+            tx.fee = {
+              winston: deferedTxResult.reward || "",
+              ar: winstonToAr(deferedTxResult.reward || "0"),
+            };
           }
-          if (deferedTxResult.signature) {
-            tx.signature = deferedTxResult[0].signature || "";
+          if (deferedTxResult?.signature) {
+            tx.signature = deferedTxResult.signature || "";
           }
         }
       }
@@ -599,7 +612,7 @@ export const resolvers = {
       return parent.tags.map(utf8DecodeTupleTag);
     },
     recipient: (parent: FieldMap): string => {
-      return parent.recipient.trim() || "";
+      return parent.target || "";
     },
     data: (parent: FieldMap): MetaData => {
       return {
@@ -609,7 +622,7 @@ export const resolvers = {
     },
     quantity: (parent: FieldMap): Amount => {
       return {
-        ar: winstonToAr(parent.quantity || ("0" as const)),
+        ar: winstonToAr(parent.quantity || "0"),
         winston: parent.quantity || "0",
       };
     },

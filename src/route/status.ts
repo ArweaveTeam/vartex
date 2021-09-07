@@ -18,7 +18,7 @@ export async function statusRoute(
 ): Promise<void> {
   try {
     const info = await getNodeInfo({ maxRetry: 100 });
-    const delta = toLong(info.height).sub(topHeight).toString();
+    const delta = toLong(info.height).sub(gatewayHeight).toString();
     let txsInFlight = 0;
     try {
       txsInFlight = getTxsInFlight();

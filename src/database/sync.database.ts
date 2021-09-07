@@ -293,8 +293,6 @@ function findMissingBlocks(hashList: string[]): Promise<UnsyncedBlock[]> {
         executionProfile: "fast",
       },
       async function (n, row) {
-        log.info(`Looking for missing blocks: ${n}/${hashList.length}`);
-
         const matchingRow = hashListObject[row.height];
 
         if (
@@ -304,6 +302,8 @@ function findMissingBlocks(hashList: string[]): Promise<UnsyncedBlock[]> {
         ) {
           // log.info('DEQUEUEING' + row.height);
           delete hashListObject[row.height];
+        } else {
+          log.info(`Found missing block: ${n}`);
         }
       },
       async function (error) {

@@ -98,7 +98,7 @@ export const findTxGaps = async (): Promise<void> => {
 
     for (const { txs_count, height, txs } of txCounts) {
       const txCntQ = await cassandraClient.execute(
-        `SELECT COUNT(*) FROM gateway.transaction WHERE block_height>=${height.divide(
+        `SELECT COUNT(*) FROM ${KEYSPACE}.transaction WHERE block_height>=${height.divide(
           C.MAX_TX_PER_BLOCK
         )} AND block_height<${height
           .add(1)
@@ -107,7 +107,7 @@ export const findTxGaps = async (): Promise<void> => {
 
       if (txCntQ.rowLength !== txs_count) {
         const txDataQ = await cassandraClient.execute(
-          `SELECT tx_id FROM gateway.transaction WHERE block_height>=${height.divide(
+          `SELECT tx_id FROM ${KEYSPACE}.transaction WHERE block_height>=${height.divide(
             C.MAX_TX_PER_BLOCK
           )} AND block_height<${height
             .add(1)

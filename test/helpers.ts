@@ -239,7 +239,7 @@ export function startGateway(): any {
       "--experimental-specifier-resolution=node",
       "--max-old-space-size=4096",
       "--loader=ts-node/esm.mjs",
-      "src/Gateway.ts",
+      "src/gateway.ts",
     ],
     {
       env: testEnvVars,

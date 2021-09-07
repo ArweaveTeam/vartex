@@ -24,7 +24,7 @@ export async function statusRoute(
       txsInFlight = getTxsInFlight();
     } catch {}
     response.status(200).send({
-      status: "OK",
+      status: gatewayHeight.toString() === "0" ? "BOOTING" : "OK",
       gatewayHeight: gatewayHeight.toString(),
       arweaveHeight: Math.max(topHeight, info.height),
       txsInFlight,

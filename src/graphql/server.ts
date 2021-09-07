@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { ApolloServerPluginLandingPageDisabled } from "apollo-server-core";
 import {
   ApolloServer,
   ApolloServerExpressConfig,
@@ -16,7 +17,7 @@ export function graphServer(
     typeDefs,
     resolvers,
     debug: true,
-
+    plugins: [ApolloServerPluginLandingPageDisabled()],
     context: (context) => {
       return {
         req: context.req,

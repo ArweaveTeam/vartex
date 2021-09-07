@@ -34,21 +34,14 @@ export interface BlockType {
 export async function getBlock({
   hash,
   height,
-  gauge,
-  getProgress,
 }: {
   hash?: string | undefined;
   height: number;
-  gauge?: { show: (log: string) => void };
-  getProgress?: () => string;
 }): Promise<BlockType | undefined> {
   const tryNode = grabNode();
   const url = hash
     ? `${tryNode}/block/hash/${hash}`
     : `${tryNode}/block/height/${height}`;
-  gauge && gauge.show(`${getProgress ? getProgress() || "" : ""} ${url}`);
-  // const
-
   let body;
   try {
     body = (await got.get(url, {
@@ -60,14 +53,14 @@ export async function getBlock({
   } catch (error) {
     coolNode(tryNode);
     if (error instanceof got.TimeoutError) {
-      gauge.show(`timeout: ${url}`);
+      log.error(`fetching block timed out: ${url}, retry...`);
     } else if (error instanceof got.HTTPError) {
-      gauge.show(`error'd: ${url}`);
+      log.error(`error while fetching block: ${url}, retry...`);
     }
   }
 
   if (!body) {
-    return getBlock({ hash, height, gauge, getProgress });
+    return getBlock({ hash, height });
   }
 
   if (hash && height !== body.height) {

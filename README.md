@@ -29,7 +29,7 @@ The easiest way to start with your own gateway is by running the service with do
 Clone this repo with:
 
 ```bash
-git clone https://github.com/ArweaveTeam/gateway-cassandra.git
+git clone https://github.com/ArweaveTeam/vartex.git
 ```
 
 Go into the directory:

@@ -210,7 +210,11 @@ function incomingTxCallback(
 
 function txImportCallback(fileCacheKey: string) {
   return async function () {
-    const cached = await getCache(fileCacheKey);
+    let cached;
+    await pWaitFor(async () => !!(cached = await getCache(fileCacheKey)), {
+      timeout: 60 * 1000,
+      interval: 200,
+    });
     const { height, index, tx, block } = JSON.parse(cached);
     await makeTxImportQuery(toLong(height), toLong(index), tx, block)();
     await rmCache("tx:" + tx.id);

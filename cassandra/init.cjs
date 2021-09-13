@@ -42,9 +42,11 @@ async function connect() {
   client
     .connect()
     .then(function () {
-      const queries = [
+      const priviligedQuery = [
         `CREATE KEYSPACE IF NOT EXISTS ${KEYSPACE}
          WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1' }`,
+      ];
+      const queries = [
         `USE ${KEYSPACE}`,
         `CREATE TABLE IF NOT EXISTS poa (
            option text,
@@ -225,9 +227,22 @@ async function connect() {
         //  WITH CLUSTERING ORDER BY (tx_id DESC)`,
       ];
       let p = Promise.resolve();
+      let aresolve;
+      let a = new Promise((resolve) => {
+        aresolve = resolve;
+      });
+      try {
+        for (const q of priviligedQuery) {
+          client.execute(q).then(() => aresolve());
+        }
+      } catch (e) {
+        console.error("ROLE with limited privilige detected");
+        aresolve && aresolve();
+      }
       // Create the schema executing the queries serially
-      queries.forEach((query) => (p = p.then(() => client.execute(query))));
-      return p;
+      return a.then(() =>
+        queries.forEach((query) => (p = p.then(() => client.execute(query))))
+      );
     })
     .then(() => {
       console.log("[cassandra] init done");

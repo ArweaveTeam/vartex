@@ -16,22 +16,22 @@ export type Scalars = {
 /** Representation of a value transfer between wallets, in both winson and ar. */
 export type Amount = {
   __typename?: 'Amount';
-  /** Amount as a winston string e.g. \`"1000000000000"\`. */
-  winston: Scalars['String'];
   /** Amount as an AR string e.g. \`"0.000000000001"\`. */
   ar: Scalars['String'];
+  /** Amount as a winston string e.g. \`"1000000000000"\`. */
+  winston: Scalars['String'];
 };
 
 export type Block = {
   __typename?: 'Block';
-  /** The block ID. */
-  id: Scalars['ID'];
-  /** The block timestamp (UTC). */
-  timestamp: Scalars['Int'];
   /** The block height. */
   height: Scalars['Int'];
+  /** The block ID. */
+  id: Scalars['ID'];
   /** The previous block ID. */
   previous: Scalars['ID'];
+  /** The block timestamp (UTC). */
+  timestamp: Scalars['Int'];
 };
 
 /**
@@ -40,8 +40,8 @@ export type Block = {
  */
 export type BlockConnection = {
   __typename?: 'BlockConnection';
-  pageInfo: PageInfo;
   edges: Array<BlockEdge>;
+  pageInfo: PageInfo;
 };
 
 /** Paginated result set using the GraphQL cursor spec. */
@@ -59,10 +59,10 @@ export type BlockEdge = {
 
 /** Find blocks within a given range */
 export type BlockFilter = {
-  /** Minimum block height to filter from */
-  min?: Maybe<Scalars['Int']>;
   /** Maximum block height to filter to */
   max?: Maybe<Scalars['Int']>;
+  /** Minimum block height to filter from */
+  min?: Maybe<Scalars['Int']>;
 };
 
 /**
@@ -110,30 +110,12 @@ export type Parent = {
 
 export type Query = {
   __typename?: 'Query';
+  block?: Maybe<Block>;
+  blocks: BlockConnection;
   /** Get a transaction by its id */
   transaction?: Maybe<Transaction>;
   /** Get a paginated set of matching transactions using filters. */
   transactions: TransactionConnection;
-  block?: Maybe<Block>;
-  blocks: BlockConnection;
-};
-
-
-export type QueryTransactionArgs = {
-  id: Scalars['ID'];
-};
-
-
-export type QueryTransactionsArgs = {
-  ids?: Maybe<Array<Scalars['ID']>>;
-  owners?: Maybe<Array<Scalars['String']>>;
-  recipients?: Maybe<Array<Scalars['String']>>;
-  tags?: Maybe<Array<TagFilter>>;
-  bundledIn?: Maybe<Array<Scalars['ID']>>;
-  block?: Maybe<BlockFilter>;
-  first?: Maybe<Scalars['Int']>;
-  after?: Maybe<Scalars['String']>;
-  sort?: Maybe<SortOrder>;
 };
 
 
@@ -143,11 +125,29 @@ export type QueryBlockArgs = {
 
 
 export type QueryBlocksArgs = {
-  ids?: Maybe<Array<Scalars['ID']>>;
-  height?: Maybe<BlockFilter>;
-  first?: Maybe<Scalars['Int']>;
   after?: Maybe<Scalars['String']>;
+  first?: Maybe<Scalars['Int']>;
+  height?: Maybe<BlockFilter>;
+  ids?: Maybe<Array<Scalars['ID']>>;
   sort?: Maybe<SortOrder>;
+};
+
+
+export type QueryTransactionArgs = {
+  id: Scalars['ID'];
+};
+
+
+export type QueryTransactionsArgs = {
+  after?: Maybe<Scalars['String']>;
+  block?: Maybe<BlockFilter>;
+  bundledIn?: Maybe<Array<Scalars['ID']>>;
+  first?: Maybe<Scalars['Int']>;
+  ids?: Maybe<Array<Scalars['ID']>>;
+  owners?: Maybe<Array<Scalars['String']>>;
+  recipients?: Maybe<Array<Scalars['String']>>;
+  sort?: Maybe<SortOrder>;
+  tags?: Maybe<Array<TagFilter>>;
 };
 
 /** Optionally reverse the result sort order from `HEIGHT_DESC` (default) to `HEIGHT_ASC`. */
@@ -170,6 +170,8 @@ export type Tag = {
 export type TagFilter = {
   /** The tag name */
   name: Scalars['String'];
+  /** @deprecated (now ignored) The operator to apply to to the tag filter. Defaults to EQ (equal). */
+  op?: Maybe<TagOperator>;
   /**
    * An array of values to match against. If multiple values are passed then transactions with _any_ matching tag value from the set will be returned.
    *
@@ -184,8 +186,6 @@ export type TagFilter = {
    * Returns all transactions where the \`app-name\` tag has a value of either \`app-1\` _or_ \`app-2\` _or_ \`app-3\`.
    */
   values: Array<Scalars['String']>;
-  /** @deprecated (now ignored) The operator to apply to to the tag filter. Defaults to EQ (equal). */
-  op?: Maybe<TagOperator>;
 };
 
 /** @deprecated op is too expensive filter as it requires iterating trough every row and is furthermore unsupported in cassandra-db */
@@ -198,27 +198,27 @@ export enum TagOperator {
 
 export type Transaction = {
   __typename?: 'Transaction';
-  id: Scalars['ID'];
   anchor: Scalars['String'];
-  signature: Scalars['String'];
-  recipient: Scalars['String'];
-  owner: Owner;
-  fee: Amount;
-  quantity: Amount;
-  data: MetaData;
-  tags: Array<Tag>;
   /** Transactions with a null block are recent and unconfirmed, if they aren't mined into a block within 60 minutes they will be removed from results. */
   block?: Maybe<Block>;
-  /**
-   * Transactions with parent are Bundled Data Items as defined in the ANS-102 data spec. https://github.com/ArweaveTeam/arweave-standards/blob/master/ans/ANS-102.md
-   * @deprecated Use `bundledIn`
-   */
-  parent?: Maybe<Parent>;
   /**
    * For bundled data items this references the containing bundle ID.
    * See: https://github.com/ArweaveTeam/arweave-standards/blob/master/ans/ANS-102.md
    */
   bundledIn?: Maybe<Bundle>;
+  data: MetaData;
+  fee: Amount;
+  id: Scalars['ID'];
+  owner: Owner;
+  /**
+   * Transactions with parent are Bundled Data Items as defined in the ANS-102 data spec. https://github.com/ArweaveTeam/arweave-standards/blob/master/ans/ANS-102.md
+   * @deprecated Use `bundledIn`
+   */
+  parent?: Maybe<Parent>;
+  quantity: Amount;
+  recipient: Scalars['String'];
+  signature: Scalars['String'];
+  tags: Array<Tag>;
 };
 
 /**
@@ -227,8 +227,8 @@ export type Transaction = {
  */
 export type TransactionConnection = {
   __typename?: 'TransactionConnection';
-  pageInfo: PageInfo;
   edges: Array<TransactionEdge>;
+  pageInfo: PageInfo;
 };
 
 /** Paginated result set using the GraphQL cursor spec. */
@@ -249,63 +249,49 @@ export type TransactionEdge = {
 export type ResolverTypeWrapper<T> = Promise<T> | T;
 
 
-export type ResolverWithResolve<TResult, TParent, TContext, TArguments> = {
-  resolve: ResolverFn<TResult, TParent, TContext, TArguments>;
+export type ResolverWithResolve<TResult, TParent, TContext, TArgs> = {
+  resolve: ResolverFn<TResult, TParent, TContext, TArgs>;
 };
+export type Resolver<TResult, TParent = {}, TContext = {}, TArgs = {}> = ResolverFn<TResult, TParent, TContext, TArgs> | ResolverWithResolve<TResult, TParent, TContext, TArgs>;
 
-export type LegacyStitchingResolver<TResult, TParent, TContext, TArguments> = {
-  fragment: string;
-  resolve: ResolverFn<TResult, TParent, TContext, TArguments>;
-};
-
-export type NewStitchingResolver<TResult, TParent, TContext, TArguments> = {
-  selectionSet: string;
-  resolve: ResolverFn<TResult, TParent, TContext, TArguments>;
-};
-export type StitchingResolver<TResult, TParent, TContext, TArguments> = LegacyStitchingResolver<TResult, TParent, TContext, TArguments> | NewStitchingResolver<TResult, TParent, TContext, TArguments>;
-export type Resolver<TResult, TParent = {}, TContext = {}, TArguments = {}> =
-  | ResolverFn<TResult, TParent, TContext, TArguments>
-  | ResolverWithResolve<TResult, TParent, TContext, TArguments>
-  | StitchingResolver<TResult, TParent, TContext, TArguments>;
-
-export type ResolverFn<TResult, TParent, TContext, TArguments> = (
+export type ResolverFn<TResult, TParent, TContext, TArgs> = (
   parent: TParent,
-  arguments_: TArguments,
+  args: TArgs,
   context: TContext,
   info: GraphQLResolveInfo
 ) => Promise<TResult> | TResult;
 
-export type SubscriptionSubscribeFn<TResult, TParent, TContext, TArguments> = (
+export type SubscriptionSubscribeFn<TResult, TParent, TContext, TArgs> = (
   parent: TParent,
-  arguments_: TArguments,
+  args: TArgs,
   context: TContext,
   info: GraphQLResolveInfo
 ) => AsyncIterator<TResult> | Promise<AsyncIterator<TResult>>;
 
-export type SubscriptionResolveFn<TResult, TParent, TContext, TArguments> = (
+export type SubscriptionResolveFn<TResult, TParent, TContext, TArgs> = (
   parent: TParent,
-  arguments_: TArguments,
+  args: TArgs,
   context: TContext,
   info: GraphQLResolveInfo
 ) => TResult | Promise<TResult>;
 
-export interface SubscriptionSubscriberObject<TResult, TKey extends string, TParent, TContext, TArguments> {
-  subscribe: SubscriptionSubscribeFn<{ [key in TKey]: TResult }, TParent, TContext, TArguments>;
-  resolve?: SubscriptionResolveFn<TResult, { [key in TKey]: TResult }, TContext, TArguments>;
+export interface SubscriptionSubscriberObject<TResult, TKey extends string, TParent, TContext, TArgs> {
+  subscribe: SubscriptionSubscribeFn<{ [key in TKey]: TResult }, TParent, TContext, TArgs>;
+  resolve?: SubscriptionResolveFn<TResult, { [key in TKey]: TResult }, TContext, TArgs>;
 }
 
-export interface SubscriptionResolverObject<TResult, TParent, TContext, TArguments> {
-  subscribe: SubscriptionSubscribeFn<any, TParent, TContext, TArguments>;
-  resolve: SubscriptionResolveFn<TResult, any, TContext, TArguments>;
+export interface SubscriptionResolverObject<TResult, TParent, TContext, TArgs> {
+  subscribe: SubscriptionSubscribeFn<any, TParent, TContext, TArgs>;
+  resolve: SubscriptionResolveFn<TResult, any, TContext, TArgs>;
 }
 
-export type SubscriptionObject<TResult, TKey extends string, TParent, TContext, TArguments> =
-  | SubscriptionSubscriberObject<TResult, TKey, TParent, TContext, TArguments>
-  | SubscriptionResolverObject<TResult, TParent, TContext, TArguments>;
+export type SubscriptionObject<TResult, TKey extends string, TParent, TContext, TArgs> =
+  | SubscriptionSubscriberObject<TResult, TKey, TParent, TContext, TArgs>
+  | SubscriptionResolverObject<TResult, TParent, TContext, TArgs>;
 
-export type SubscriptionResolver<TResult, TKey extends string, TParent = {}, TContext = {}, TArguments = {}> =
-  | ((...arguments_: any[]) => SubscriptionObject<TResult, TKey, TParent, TContext, TArguments>)
-  | SubscriptionObject<TResult, TKey, TParent, TContext, TArguments>;
+export type SubscriptionResolver<TResult, TKey extends string, TParent = {}, TContext = {}, TArgs = {}> =
+  | ((...args: any[]) => SubscriptionObject<TResult, TKey, TParent, TContext, TArgs>)
+  | SubscriptionObject<TResult, TKey, TParent, TContext, TArgs>;
 
 export type TypeResolveFn<TTypes, TParent = {}, TContext = {}> = (
   parent: TParent,
@@ -313,14 +299,14 @@ export type TypeResolveFn<TTypes, TParent = {}, TContext = {}> = (
   info: GraphQLResolveInfo
 ) => Maybe<TTypes> | Promise<Maybe<TTypes>>;
 
-export type IsTypeOfResolverFn<T = {}, TContext = {}> = (object: T, context: TContext, info: GraphQLResolveInfo) => boolean | Promise<boolean>;
+export type IsTypeOfResolverFn<T = {}, TContext = {}> = (obj: T, context: TContext, info: GraphQLResolveInfo) => boolean | Promise<boolean>;
 
 export type NextResolverFn<T> = () => Promise<T>;
 
-export type DirectiveResolverFn<TResult = {}, TParent = {}, TContext = {}, TArguments = {}> = (
+export type DirectiveResolverFn<TResult = {}, TParent = {}, TContext = {}, TArgs = {}> = (
   next: NextResolverFn<TResult>,
   parent: TParent,
-  arguments_: TArguments,
+  args: TArgs,
   context: TContext,
   info: GraphQLResolveInfo
 ) => TResult | Promise<TResult>;
@@ -328,21 +314,21 @@ export type DirectiveResolverFn<TResult = {}, TParent = {}, TContext = {}, TArgu
 /** Mapping between all available schema types and the resolvers types */
 export type ResolversTypes = {
   Amount: ResolverTypeWrapper<Amount>;
-  String: ResolverTypeWrapper<Scalars['String']>;
   Block: ResolverTypeWrapper<Block>;
-  ID: ResolverTypeWrapper<Scalars['ID']>;
-  Int: ResolverTypeWrapper<Scalars['Int']>;
   BlockConnection: ResolverTypeWrapper<BlockConnection>;
   BlockEdge: ResolverTypeWrapper<BlockEdge>;
   BlockFilter: BlockFilter;
+  Boolean: ResolverTypeWrapper<Scalars['Boolean']>;
   Bundle: ResolverTypeWrapper<Bundle>;
+  ID: ResolverTypeWrapper<Scalars['ID']>;
+  Int: ResolverTypeWrapper<Scalars['Int']>;
   MetaData: ResolverTypeWrapper<MetaData>;
   Owner: ResolverTypeWrapper<Owner>;
   PageInfo: ResolverTypeWrapper<PageInfo>;
-  Boolean: ResolverTypeWrapper<Scalars['Boolean']>;
   Parent: ResolverTypeWrapper<Parent>;
   Query: ResolverTypeWrapper<{}>;
   SortOrder: SortOrder;
+  String: ResolverTypeWrapper<Scalars['String']>;
   Tag: ResolverTypeWrapper<Tag>;
   TagFilter: TagFilter;
   TagOperator: TagOperator;
@@ -354,20 +340,20 @@ export type ResolversTypes = {
 /** Mapping between all available schema types and the resolvers parents */
 export type ResolversParentTypes = {
   Amount: Amount;
-  String: Scalars['String'];
   Block: Block;
-  ID: Scalars['ID'];
-  Int: Scalars['Int'];
   BlockConnection: BlockConnection;
   BlockEdge: BlockEdge;
   BlockFilter: BlockFilter;
+  Boolean: Scalars['Boolean'];
   Bundle: Bundle;
+  ID: Scalars['ID'];
+  Int: Scalars['Int'];
   MetaData: MetaData;
   Owner: Owner;
   PageInfo: PageInfo;
-  Boolean: Scalars['Boolean'];
   Parent: Parent;
   Query: {};
+  String: Scalars['String'];
   Tag: Tag;
   TagFilter: TagFilter;
   Transaction: Transaction;
@@ -376,22 +362,22 @@ export type ResolversParentTypes = {
 };
 
 export type AmountResolvers<ContextType = any, ParentType extends ResolversParentTypes['Amount'] = ResolversParentTypes['Amount']> = {
-  winston?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   ar?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  winston?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
 };
 
 export type BlockResolvers<ContextType = any, ParentType extends ResolversParentTypes['Block'] = ResolversParentTypes['Block']> = {
-  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
-  timestamp?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
   height?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
   previous?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  timestamp?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
   __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
 };
 
 export type BlockConnectionResolvers<ContextType = any, ParentType extends ResolversParentTypes['BlockConnection'] = ResolversParentTypes['BlockConnection']> = {
-  pageInfo?: Resolver<ResolversTypes['PageInfo'], ParentType, ContextType>;
   edges?: Resolver<Array<ResolversTypes['BlockEdge']>, ParentType, ContextType>;
+  pageInfo?: Resolver<ResolversTypes['PageInfo'], ParentType, ContextType>;
   __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
 };
 
@@ -429,10 +415,10 @@ export type ParentResolvers<ContextType = any, ParentType extends ResolversParen
 };
 
 export type QueryResolvers<ContextType = any, ParentType extends ResolversParentTypes['Query'] = ResolversParentTypes['Query']> = {
-  transaction?: Resolver<Maybe<ResolversTypes['Transaction']>, ParentType, ContextType, RequireFields<QueryTransactionArgs, 'id'>>;
-  transactions?: Resolver<ResolversTypes['TransactionConnection'], ParentType, ContextType, RequireFields<QueryTransactionsArgs, 'first' | 'sort'>>;
   block?: Resolver<Maybe<ResolversTypes['Block']>, ParentType, ContextType, RequireFields<QueryBlockArgs, never>>;
   blocks?: Resolver<ResolversTypes['BlockConnection'], ParentType, ContextType, RequireFields<QueryBlocksArgs, 'first' | 'sort'>>;
+  transaction?: Resolver<Maybe<ResolversTypes['Transaction']>, ParentType, ContextType, RequireFields<QueryTransactionArgs, 'id'>>;
+  transactions?: Resolver<ResolversTypes['TransactionConnection'], ParentType, ContextType, RequireFields<QueryTransactionsArgs, 'first' | 'sort'>>;
 };
 
 export type TagResolvers<ContextType = any, ParentType extends ResolversParentTypes['Tag'] = ResolversParentTypes['Tag']> = {
@@ -442,24 +428,24 @@ export type TagResolvers<ContextType = any, ParentType extends ResolversParentTy
 };
 
 export type TransactionResolvers<ContextType = any, ParentType extends ResolversParentTypes['Transaction'] = ResolversParentTypes['Transaction']> = {
-  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
   anchor?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
-  signature?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
-  recipient?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
-  owner?: Resolver<ResolversTypes['Owner'], ParentType, ContextType>;
-  fee?: Resolver<ResolversTypes['Amount'], ParentType, ContextType>;
-  quantity?: Resolver<ResolversTypes['Amount'], ParentType, ContextType>;
-  data?: Resolver<ResolversTypes['MetaData'], ParentType, ContextType>;
-  tags?: Resolver<Array<ResolversTypes['Tag']>, ParentType, ContextType>;
   block?: Resolver<Maybe<ResolversTypes['Block']>, ParentType, ContextType>;
-  parent?: Resolver<Maybe<ResolversTypes['Parent']>, ParentType, ContextType>;
   bundledIn?: Resolver<Maybe<ResolversTypes['Bundle']>, ParentType, ContextType>;
+  data?: Resolver<ResolversTypes['MetaData'], ParentType, ContextType>;
+  fee?: Resolver<ResolversTypes['Amount'], ParentType, ContextType>;
+  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  owner?: Resolver<ResolversTypes['Owner'], ParentType, ContextType>;
+  parent?: Resolver<Maybe<ResolversTypes['Parent']>, ParentType, ContextType>;
+  quantity?: Resolver<ResolversTypes['Amount'], ParentType, ContextType>;
+  recipient?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  signature?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  tags?: Resolver<Array<ResolversTypes['Tag']>, ParentType, ContextType>;
   __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
 };
 
 export type TransactionConnectionResolvers<ContextType = any, ParentType extends ResolversParentTypes['TransactionConnection'] = ResolversParentTypes['TransactionConnection']> = {
-  pageInfo?: Resolver<ResolversTypes['PageInfo'], ParentType, ContextType>;
   edges?: Resolver<Array<ResolversTypes['TransactionEdge']>, ParentType, ContextType>;
+  pageInfo?: Resolver<ResolversTypes['PageInfo'], ParentType, ContextType>;
   __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
 };
 
@@ -486,9 +472,3 @@ export type Resolvers<ContextType = any> = {
   TransactionEdge?: TransactionEdgeResolvers<ContextType>;
 };
 
-
-/**
- * @deprecated
- * Use "Resolvers" root object instead. If you wish to get "IResolvers", add "typesPrefix: I" to your config.
- */
-export type IResolvers<ContextType = any> = Resolvers<ContextType>;

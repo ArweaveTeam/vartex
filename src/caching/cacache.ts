@@ -1,11 +1,8 @@
-import * as R from "rambda";
 import Cache from "async-disk-cache";
 import path from "node:path";
-import fs from "node:fs";
 import mkdirp from "mkdirp";
-import rimraf from "rimraf";
 
-const startupTimeSeconds = Math.floor(Date.now() / 1000);
+// const startupTimeSeconds = Math.floor(Date.now() / 1000);
 
 const cacheDirectory = process.env.CACHE_PATH
   ? process.env.CACHE_PATH
@@ -28,6 +25,7 @@ export const putCache = async (key: string, value: unknown): Promise<void> => {
   }
 };
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const getCache = async (key: string): Promise<any> => {
   let resp;
   try {

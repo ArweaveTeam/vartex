@@ -23,7 +23,10 @@ export const putCache = async (key: string, value: unknown): Promise<void> => {
     await cache.set(key, value);
     await pWaitFor(() => cache.has(key), { timeout: 60 * 1000 });
   } catch (error) {
-    console.error(error);
+    console.error(
+      "Failed to put key " + key + " into disk-cache within 60 seconds",
+      error
+    );
   }
 };
 

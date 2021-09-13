@@ -211,13 +211,19 @@ function incomingTxCallback(
 function txImportCallback(fileCacheKey: string) {
   return async function () {
     let cached;
-    await pWaitFor(async () => !!(cached = await getCache(fileCacheKey)), {
-      timeout: 60 * 1000,
-      interval: 200,
-    });
+    let failed = false;
+    try {
+      await pWaitFor(async () => !!(cached = await getCache(fileCacheKey)), {
+        timeout: 60 * 1000,
+        interval: 200,
+      });
+    } catch (error) {
+      log(`Failed waiting for tx in cache with key: ${fileCacheKey}`, error);
+      process.exit(1);
+    }
     const { height, index, tx, block } = JSON.parse(cached);
     await makeTxImportQuery(toLong(height), toLong(index), tx, block)();
-    await rmCache("tx:" + tx.id);
+    await rmCache(fileCacheKey);
   };
 }
 

@@ -143,25 +143,30 @@ function processTxQueue(): void {
   if (CassandraTypes.Long.isLong(peek.txIndex)) {
     txQueueState.isProcessing = true;
     txQueueState.nextTxIndex = peek.nextTxIndex;
+    popTxQueue();
+    peek
+      .callback()
+      .then(() => {
+        txQueueState.isProcessing = false;
 
-    peek.callback().then(() => {
-      popTxQueue();
-      txQueueState.isProcessing = false;
+        if (peek.txIndex.gt(topTxIndex)) {
+          topTxIndex = peek.txIndex;
+        }
 
-      if (peek.txIndex.gt(topTxIndex)) {
-        topTxIndex = peek.txIndex;
-      }
+        if (fresolve) {
+          txInFlight -= 1;
+          messenger.sendMessage({
+            type: "stats:tx:flight",
+            payload: txInFlight,
+          });
 
-      if (fresolve) {
-        txInFlight -= 1;
-        messenger.sendMessage({
-          type: "stats:tx:flight",
-          payload: txInFlight,
-        });
-
-        fresolve();
-      }
-    });
+          fresolve();
+        }
+      })
+      .catch((error) => {
+        log("FATAL error calling txQueueCallback", error);
+        process.exit(1);
+      });
   }
 }
 
@@ -204,14 +209,13 @@ function incomingTxCallback(
       txNewSyncBlock,
       fresolve
     );
-    await rmCache(`incoming: ${txIndex || txIndex_ || -1}`);
+    await rmCache(`incoming:${txIndex || txIndex_ || -1}`);
   };
 }
 
 function txImportCallback(fileCacheKey: string) {
   return async function () {
     let cached;
-    let failed = false;
     try {
       await pWaitFor(async () => !!(cached = await getCache(fileCacheKey)), {
         timeout: 60 * 1000,

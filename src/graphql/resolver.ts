@@ -21,7 +21,7 @@ import {
   QueryTransactionArgs as QueryTransactionArguments,
   QueryTransactionsArgs as QueryTransactionsArguments,
   Transaction,
-} from "./types";
+} from "./types.graphql";
 import { Tag } from "../types/arweave";
 import {
   ownerToAddress,

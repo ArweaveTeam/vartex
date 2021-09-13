@@ -233,10 +233,20 @@ async function connect() {
       });
       try {
         for (const q of priviligedQuery) {
-          client.execute(q).then(() => aresolve());
+          client
+            .execute(q)
+            .then(() => aresolve())
+            .catch(
+              () =>
+                console.error(
+                  "ROLE with limited privilige detected (which is a good practice for prod!)"
+                ) || aresolve()
+            );
         }
       } catch (e) {
-        console.error("ROLE with limited privilige detected");
+        console.error(
+          "ROLE with limited privilige detected (which is a good practice for prod!)"
+        );
         aresolve && aresolve();
       }
       // Create the schema executing the queries serially

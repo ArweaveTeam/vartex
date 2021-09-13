@@ -1,4 +1,5 @@
 import Cache from "async-disk-cache";
+import pWaitFor from "p-wait-for";
 import path from "node:path";
 import mkdirp from "mkdirp";
 
@@ -20,6 +21,7 @@ const cache = new Cache("imports", {
 export const putCache = async (key: string, value: unknown): Promise<void> => {
   try {
     await cache.set(key, value);
+    await pWaitFor(() => cache.has(key), { timeout: 60 * 1000 });
   } catch (error) {
     console.error(error);
   }

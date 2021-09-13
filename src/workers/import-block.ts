@@ -247,9 +247,9 @@ export async function storeTransaction(
     if (dataSize && dataSize.gt(0)) {
       maybeTxOffset = await getTxOffset({ txId });
     }
-
+    const txCacheId = "tx:" + txId;
     await putCache(
-      "tx:" + txId,
+      txCacheId,
       JSON.stringify({
         block: R.dissoc("nextHeight", blockData),
         tx: R.mergeAll([
@@ -264,7 +264,7 @@ export async function storeTransaction(
 
     enqueueTxQueue({
       height,
-      callback: txImportCallback("tx:" + txId),
+      callback: txImportCallback(txCacheId),
       fresolve,
       txIndex,
       type: "tx",

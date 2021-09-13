@@ -1,5 +1,5 @@
 import * as R from "rambda";
-import cacache from "cacache";
+import Cache from "async-disk-cache";
 import path from "node:path";
 import fs from "node:fs";
 import mkdirp from "mkdirp";
@@ -7,132 +7,113 @@ import rimraf from "rimraf";
 
 const startupTimeSeconds = Math.floor(Date.now() / 1000);
 
-const importCacheDirectory = process.env.CACHE_IMPORT_PATH
-  ? process.env.CACHE_IMPORT_PATH
-  : path.resolve(process.cwd(), "cache/imports");
+const cacheDirectory = process.env.CACHE_PATH
+  ? process.env.CACHE_PATH
+  : path.resolve(process.cwd(), "cache");
 
-mkdirp.sync(importCacheDirectory);
+mkdirp.sync(cacheDirectory);
 
-export const putCache = async (
-  key: string,
-  value: unknown
-): Promise<string | undefined> => {
-  let integrity;
+const cache = new Cache("imports", {
+  location: cacheDirectory,
+  compression: false,
+  key: "sync",
+  root: ".",
+});
+
+export const putCache = async (key: string, value: unknown): Promise<void> => {
   try {
-    integrity = await cacache.put(importCacheDirectory, key, value);
-  } catch {
-    console.error(
-      "FATAL: unable to put in new cache, tried putting the following into importCache",
-      key,
-      value
-    );
+    await cache.set(key, value);
+  } catch (error) {
+    console.error(error);
   }
-  return integrity ? integrity : undefined;
 };
 
-export const getCache = async (integrity: string): Promise<any> => {
+export const getCache = async (key: string): Promise<any> => {
   let resp;
   try {
-    resp = cacache.get.byDigest(importCacheDirectory, integrity);
-  } catch {
-    console.error(
-      "went looking for entry by digest in import cache but didn't find integrity:",
-      integrity
-    );
-  }
-  return resp ? resp : undefined;
-};
-
-export const getCacheByKey = async (key: string): Promise<any> => {
-  let resp;
-  try {
-    resp = await cacache.get(importCacheDirectory, key);
+    resp = await cache.get(key);
   } catch {}
-  return resp ? resp : undefined;
+  return resp ? resp.value : undefined;
 };
 
 export const rmCache = async (key: string): Promise<void> => {
   try {
-    await cacache.rm.entry(importCacheDirectory, key, { removeFully: true });
-  } catch {}
-};
-
-export const gcImportCache = async (): Promise<void> => {
-  const now = Date.now();
-  const nowSeconds = Math.floor(now / 1000);
-
-  if (nowSeconds - startupTimeSeconds < 60 * 5) {
-    return;
+    await cache.remove(key);
+  } catch (error) {
+    console.error(error);
   }
-  try {
-    await cacache.verify(importCacheDirectory, {
-      filter: ({ time, path }) => {
-        const pathExists = fs.existsSync(path);
-        const hourPassed = nowSeconds - time / 1000 > 60 * 60;
-
-        return !pathExists ? true : !hourPassed;
-      },
-    });
-  } catch {}
 };
 
-export const lastGcImportCacheRun = async (): Promise<number> => {
-  let neverRan = true;
-  let lastRunDate: Date;
-  try {
-    lastRunDate = await cacache.verify.lastRun(importCacheDirectory);
-    neverRan = false;
-  } catch {}
+export const purgeCache = async (): Promise<void> => await cache.clear();
 
-  if (neverRan) {
-    return 9_999_999;
-  }
-  const now = new Date();
-  const secondsAgo = Math.floor((now.getTime() - lastRunDate.getTime()) / 1000);
-  return secondsAgo;
-};
+// export const gcImportCache = async (): Promise<void> => {
+//   const now = Date.now();
+//   const nowSeconds = Math.floor(now / 1000);
 
-export const purgeCache = (): Promise<void> =>
-  new Promise((resolve) =>
-    rimraf(importCacheDirectory, {}, () => {
-      mkdirp.sync(importCacheDirectory);
-      resolve();
-    })
-  );
+//   if (nowSeconds - startupTimeSeconds < 60 * 5) {
+//     return;
+//   }
+//   try {
+//     await cacache.verify(importCacheDirectory, {
+//       filter: ({ time, path }) => {
+//         const pathExists = fs.existsSync(path);
+//         const hourPassed = nowSeconds - time / 1000 > 60 * 60;
 
-export const recollectIncomingTxs = async (): Promise<any> => {
-  let entireCache;
-  try {
-    entireCache = await cacache.ls(importCacheDirectory);
-  } catch {}
-  return !entireCache
-    ? []
-    : R.filter(
-        (R.pipe as any)(
-          R.both(
-            R.over(R.lensProp("key"), R.is(String)),
-            R.over(R.lensProp("key"), R.startsWith("incoming:"))
-          ),
-          R.prop("key")
-        )
-      )(R.values(entireCache));
-};
+//         return !pathExists ? true : !hourPassed;
+//       },
+//     });
+//   } catch {}
+// };
 
-export const recollectImportableTxs = async (): Promise<any> => {
-  let entireCache;
-  try {
-    entireCache = await cacache.ls(importCacheDirectory);
-  } catch {}
+// export const lastGcImportCacheRun = async (): Promise<number> => {
+//   let neverRan = true;
+//   let lastRunDate: Date;
+//   try {
+//     lastRunDate = await cacache.verify.lastRun(importCacheDirectory);
+//     neverRan = false;
+//   } catch {}
 
-  return !entireCache
-    ? []
-    : R.filter(
-        (R.pipe as any)(
-          R.both(
-            R.over(R.lensProp("key"), R.is(String)),
-            R.over(R.lensProp("key"), R.startsWith("tx:"))
-          ),
-          R.prop("key")
-        )
-      )(R.values(entireCache));
-};
+//   if (neverRan) {
+//     return 9_999_999;
+//   }
+//   const now = new Date();
+//   const secondsAgo = Math.floor((now.getTime() - lastRunDate.getTime()) / 1000);
+//   return secondsAgo;
+// };
+
+// export const recollectIncomingTxs = async (): Promise<any> => {
+//   let entireCache;
+//   try {
+//     entireCache = await cacache.ls(importCacheDirectory);
+//   } catch {}
+//   return !entireCache
+//     ? []
+//     : R.filter(
+//         (R.pipe as any)(
+//           R.both(
+//             R.over(R.lensProp("key"), R.is(String)),
+//             R.over(R.lensProp("key"), R.startsWith("incoming:"))
+//           ),
+//           R.prop("key")
+//         )
+//       )(R.values(entireCache));
+// };
+
+// export const recollectImportableTxs = async (): Promise<any> => {
+//   let entireCache;
+//   try {
+//     entireCache = await cacache.ls(importCacheDirectory);
+//   } catch {}
+
+//   return !entireCache
+//     ? []
+//     : R.filter(
+//         (R.pipe as any)(
+//           R.both(
+//             R.over(R.lensProp("key"), R.is(String)),
+//             R.over(R.lensProp("key"), R.startsWith("tx:"))
+//           ),
+//           R.prop("key")
+//         )
+//       )(R.values(entireCache));
+// };

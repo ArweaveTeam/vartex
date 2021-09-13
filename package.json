@@ -28,8 +28,7 @@
     "start:prod": "yarn run prestart && node start.cjs",
     "cache:purge": "rm -rf cache/imports",
     "migrate:init": "node cassandra/init.cjs",
-    "migrate:nuke": "yarn run cache:purge && node cassandra/nuke.cjs",
-    "postinstall": "patch-package"
+    "migrate:nuke": "yarn run cache:purge && node cassandra/nuke.cjs"
   },
   "resolutions": {
     "cassandra-driver/long": "^4.0.0",
@@ -41,10 +40,10 @@
     "apollo-server-express": "^3.3.0",
     "arweave": "^1.10.16",
     "arweave-bundles": "^1.0.3",
+    "async-disk-cache": "^2.1.0",
     "base64-stream": "^1.0.0",
     "bip39": "^3.0.4",
     "body-parser": "^1.19.0",
-    "cacache": "^15.3.0",
     "cassandra-driver": "^4.6.3",
     "colors": "^1.4.0",
     "cors": "^2.8.5",
@@ -77,7 +76,6 @@
     "moment": "^2.29.1",
     "node-cron": "^3.0.0",
     "p-wait-for": "^4.1.0",
-    "patch-package": "^6.4.7",
     "rambda": "^6.9.0",
     "random-weighted-choice": "^0.1.4",
     "rfc4648": "^1.5.0",

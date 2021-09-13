@@ -172,13 +172,16 @@ setInterval(() => {
   }
 }, 80);
 
-function incomingTxCallback(integrity: string, txIndex_: CassandraTypes.Long) {
+function incomingTxCallback(
+  fileCacheKeyTx: string,
+  txIndex_: CassandraTypes.Long
+) {
   return async function (fresolve?: () => void) {
     let cacheData;
     let retry = 0;
 
     while (!cacheData && retry < 100) {
-      cacheData = await getCache(integrity);
+      cacheData = await getCache(fileCacheKeyTx);
       await new Promise((resolve) => setTimeout(resolve, 1));
       retry += 1;
     }
@@ -205,9 +208,9 @@ function incomingTxCallback(integrity: string, txIndex_: CassandraTypes.Long) {
   };
 }
 
-function txImportCallback(integrity: string) {
+function txImportCallback(fileCacheKey: string) {
   return async function () {
-    const cached = await getCache(integrity);
+    const cached = await getCache(fileCacheKey);
     const { height, index, tx, block } = JSON.parse(cached);
     await makeTxImportQuery(toLong(height), toLong(index), tx, block)();
     await rmCache("tx:" + tx.id);
@@ -241,7 +244,7 @@ export async function storeTransaction(
       maybeTxOffset = await getTxOffset({ txId });
     }
 
-    const integrity = await putCache(
+    await putCache(
       "tx:" + txId,
       JSON.stringify({
         block: R.dissoc("nextHeight", blockData),
@@ -257,7 +260,7 @@ export async function storeTransaction(
 
     enqueueTxQueue({
       height,
-      callback: txImportCallback(integrity),
+      callback: txImportCallback("tx:" + txId),
       fresolve,
       txIndex,
       type: "tx",
@@ -288,8 +291,9 @@ async function getNewBlock(height: number) {
           log("getNewBlock didn't produce index");
           process.exit(1);
         }
-        const txIncomingIntegrity = await putCache(
-          "inconming:" + txIndex.toString(),
+        const fileCacheKeyTx = "inconming:" + txIndex.toString();
+        await putCache(
+          fileCacheKeyTx,
           JSON.stringify({
             type: "incoming" + index,
             txId,
@@ -302,18 +306,19 @@ async function getNewBlock(height: number) {
         enqueueIncomingTxQueue({
           height: newBlockHeight,
           txIndex,
-          next: incomingTxCallback(txIncomingIntegrity, txIndex),
+          next: incomingTxCallback(fileCacheKeyTx, txIndex),
         });
       })
     );
 
-    return await putCache(
+    await putCache(
       newBlock.indep_hash,
       JSON.stringify({
         block: newBlock,
         height: newBlockHeight.toString(),
       })
     );
+    return newBlock.indep_hash;
   } else {
     throw new Error(
       "Block couldn't be fetched or has some terrible block height mismatch going on"
@@ -323,10 +328,10 @@ async function getNewBlock(height: number) {
 
 export async function importBlock(height: number): Promise<boolean> {
   let success = false;
-  let blockCacheIntegrity = "";
+  let blockCacheKey = "";
 
   try {
-    blockCacheIntegrity = await getNewBlock(height);
+    blockCacheKey = await getNewBlock(height);
     success = true;
   } catch (error) {
     log(
@@ -341,7 +346,7 @@ export async function importBlock(height: number): Promise<boolean> {
   await pWaitFor(() => isTxQueueEmpty() && isIncomingTxQueueEmpty());
 
   try {
-    const data = JSON.parse(await getCache(blockCacheIntegrity));
+    const data = JSON.parse(await getCache(blockCacheKey));
 
     const callback = await makeBlockImportQuery(data.block);
     await callback();

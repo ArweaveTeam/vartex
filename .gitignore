@@ -8,7 +8,7 @@ cache/*
 .postgres
 logs
 /data
-
+src/graphql/types.ts
 snapshot
 .snapshot
 .import

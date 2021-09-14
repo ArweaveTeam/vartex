@@ -1,5 +1,5 @@
 import got from "got";
-import { TagFilter } from "../graphql/types";
+import { TagFilter } from "../graphql/types.graphql";
 import {
   Base64UrlEncodedString,
   WinstonString,

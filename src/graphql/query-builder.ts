@@ -3,7 +3,7 @@ import { types as CassandraTypes } from "cassandra-driver";
 import * as Constants from "../database/constants";
 import { config } from "dotenv";
 import { KEYSPACE } from "../constants";
-import { TagFilter } from "./types";
+import { TagFilter } from "./types.graphql";
 import { toB64url } from "../query/transaction";
 import { default as cqlBuilder } from "@ridi/cql-builder";
 

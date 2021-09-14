@@ -64,7 +64,7 @@ const mapper = new Mapper(cassandraClient, {
     },
     TxTag: {
       keyspace: "gateway",
-      tables: ["tx_tag"],
+      tables: ["tx_tag_migration_1"],
     },
     TxOffset: {
       keyspace: "gateway",

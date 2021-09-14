@@ -40,10 +40,12 @@ interface CqlQuery {
 export function generateTransactionQuery(
   parameters: QueryParameters
 ): CqlQuery {
-  let table = "tx_id_gql_desc";
+  let table = "tx_id_gql_desc_migration_1";
 
   table =
-    parameters.sortOrder === "HEIGHT_ASC" ? "tx_id_gql_asc" : "tx_id_gql_desc";
+    parameters.sortOrder === "HEIGHT_ASC"
+      ? "tx_id_gql_asc_migration_1"
+      : "tx_id_gql_desc_migration_1";
 
   const cql = Select()
     .table(table, KEYSPACE)
@@ -241,7 +243,7 @@ export function generateDeferedTxBlockQuery(
   fieldSelect: unknown
 ): CqlQuery {
   return Select()
-    .table("block_gql_asc", KEYSPACE)
+    .table("block_gql_asc_migration_1", KEYSPACE)
     .field(fieldSelect)
     .where("height = ?", height)
     .where(
@@ -253,7 +255,10 @@ export function generateDeferedTxBlockQuery(
 }
 
 export function generateTagQuery(tags: TagFilter[]): CqlQuery {
-  const cql = Select().table("tx_tag", KEYSPACE).field("tx_id").filtering();
+  const cql = Select()
+    .table("tx_tag_migration_1", KEYSPACE)
+    .field("tx_id")
+    .filtering();
   for (const tag of tags) {
     cql.where("name = ?", tag.name.toString());
     if (Array.isArray(tag.values)) {

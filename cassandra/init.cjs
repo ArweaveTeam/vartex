@@ -100,9 +100,9 @@ async function connect() {
           indep_hash text,
           previous text,
           timestamp bigint,
-          PRIMARY KEY ((partition_id, bucket_id), bucket_number, height, timestamp)
+          PRIMARY KEY ((partition_id, bucket_id), bucket_number, height)
         )
-        WITH CLUSTERING ORDER BY (bucket_number ASC, height ASC, timestamp ASC)`,
+        WITH CLUSTERING ORDER BY (bucket_number ASC, height ASC)`,
 
         `CREATE TABLE IF NOT EXISTS block_gql_desc_migration_1 (
           partition_id text,
@@ -112,9 +112,9 @@ async function connect() {
           indep_hash text,
           previous text,
           timestamp bigint,
-          PRIMARY KEY ((partition_id, bucket_id), bucket_number, height, timestamp)
+          PRIMARY KEY ((partition_id, bucket_id), bucket_number, height)
         )
-        WITH CLUSTERING ORDER BY (bucket_number DESC, height DESC, timestamp DESC)`,
+        WITH CLUSTERING ORDER BY (bucket_number DESC, height DESC)`,
 
         `CREATE TABLE IF NOT EXISTS tx_id_gql_asc_migration_1 (
            partition_id text,

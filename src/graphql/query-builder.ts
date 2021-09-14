@@ -160,7 +160,9 @@ export function generateBlockQuery(parameters: BlockQueryParameters): CqlQuery {
 
   const cql = Select()
     .table(
-      sortOrder === "HEIGHT_ASC" ? "block_gql_asc" : "block_gql_desc",
+      sortOrder === "HEIGHT_ASC"
+        ? "block_gql_asc_migration_1"
+        : "block_gql_desc_migration_1",
       KEYSPACE
     )
     .field(

@@ -380,7 +380,7 @@ export async function startSync({
       lastBlock = (
         await cassandraClient.execute(
           `SELECT height
-           FROM ${KEYSPACE}.block_gql_desc LIMIT 1`
+           FROM ${KEYSPACE}.block_gql_desc_migration_1 LIMIT 1`
         )
       ).rows[0].height;
     } catch {

@@ -3,6 +3,7 @@ const fs = require("fs");
 const path = require("path");
 const net = require("net");
 const cassandra = require("cassandra-driver");
+const migration1 = require("./migration1.cjs");
 const dotenvPath = path.resolve(__dirname, "../.env");
 const dotenvPathFallback = path.resolve(__dirname, "../.env.example");
 
@@ -87,80 +88,76 @@ async function connect() {
            PRIMARY KEY (indep_hash)
          )`,
 
-        `CREATE TABLE IF NOT EXISTS block_gql_asc (
+        `CREATE TABLE IF NOT EXISTS block_gql_asc_migration_1 (
           partition_id text,
           bucket_id text,
+          bucket_number int,
           height bigint,
           indep_hash text,
           previous text,
           timestamp bigint,
-          PRIMARY KEY ((partition_id, bucket_id), height, timestamp)
+          PRIMARY KEY ((partition_id, bucket_id), bucket_number, height, timestamp)
         )
-        WITH CLUSTERING ORDER BY (height ASC, timestamp ASC)`,
+        WITH CLUSTERING ORDER BY (bucket_number ASC, height ASC, timestamp ASC)`,
 
-        `CREATE TABLE IF NOT EXISTS block_gql_desc (
+        `CREATE TABLE IF NOT EXISTS block_gql_desc_migration_1 (
           partition_id text,
           bucket_id text,
+          bucket_number int,
           height bigint,
           indep_hash text,
           previous text,
           timestamp bigint,
-          PRIMARY KEY ((partition_id, bucket_id), height, timestamp)
+          PRIMARY KEY ((partition_id, bucket_id), bucket_number, height, timestamp)
         )
-        WITH CLUSTERING ORDER BY (height DESC, timestamp DESC)`,
+        WITH CLUSTERING ORDER BY (bucket_number DESC, height DESC, timestamp DESC)`,
 
-        `CREATE TABLE IF NOT EXISTS tx_id_gql_asc (
+        `CREATE TABLE IF NOT EXISTS tx_id_gql_asc_migration_1 (
            partition_id text,
            bucket_id text,
+           bucket_number int,
            tx_index bigint,
            tags list<frozen<tuple<text,text>>>,
            tx_id text,
            owner text,
            target text,
            bundle_id text,
-           PRIMARY KEY ((partition_id, bucket_id), tx_index)
+           PRIMARY KEY ((partition_id, bucket_id), bucket_number, tx_index)
          )
-         WITH CLUSTERING ORDER BY (tx_index ASC)`,
+         WITH CLUSTERING ORDER BY (bucket_number ASC, tx_index ASC)`,
 
-        `CREATE TABLE IF NOT EXISTS tx_id_gql_desc (
+        `CREATE TABLE IF NOT EXISTS tx_id_gql_desc_migration_1 (
            partition_id text,
            bucket_id text,
+           bucket_number int,
            tx_index bigint,
            tags list<frozen<tuple<text,text>>>,
            tx_id text,
            owner text,
            target text,
            bundle_id text,
-           PRIMARY KEY ((partition_id, bucket_id), tx_index)
+           PRIMARY KEY ((partition_id, bucket_id), bucket_number, tx_index)
          )
-         WITH CLUSTERING ORDER BY (tx_index DESC)`,
+         WITH CLUSTERING ORDER BY (bucket_number DESC, tx_index DESC)`,
 
-        `CREATE TABLE IF NOT EXISTS tx_tag (
+        `CREATE TABLE IF NOT EXISTS tx_tag_migration_1 (
            partition_id text,
            bucket_id text,
+           bucket_number int,
            tx_index bigint,
            tag_index int,
            tx_id text,
            next_tag_index int,
            name text,
            value text,
-           PRIMARY KEY ((partition_id, bucket_id), tx_index, tag_index)
+           PRIMARY KEY ((partition_id, bucket_id), bucket_number, tx_index, tag_index)
         )
-        WITH CLUSTERING ORDER BY (tx_index DESC, tag_index DESC)`,
+        WITH CLUSTERING ORDER BY (bucket_number DESC, tx_index DESC, tag_index DESC)`,
 
-        // reuse tx_id tables for owners filters, optimize later
-        `CREATE INDEX IF NOT EXISTS ON tx_id_gql_asc (owner)`,
-        `CREATE INDEX IF NOT EXISTS ON tx_id_gql_desc (owner)`,
-        // reuse tx_id tables for recipients filters, optimize later
-        `CREATE INDEX IF NOT EXISTS ON tx_id_gql_asc (target)`,
-        `CREATE INDEX IF NOT EXISTS ON tx_id_gql_desc (target)`,
-        // reuse tx_id tables for bundle filters, optimize later
-        `CREATE INDEX IF NOT EXISTS ON tx_id_gql_asc (bundle_id)`,
-        `CREATE INDEX IF NOT EXISTS ON tx_id_gql_desc (bundle_id)`,
-
-        `CREATE TABLE IF NOT EXISTS tx_tag_gql_by_name_asc (
+        `CREATE TABLE IF NOT EXISTS tx_tag_gql_by_name_asc_migration_1 (
            partition_id text,
            bucket_id text,
+           bucket_number int,
            tx_index bigint,
            tag_index int,
            tag_name text,
@@ -169,13 +166,14 @@ async function connect() {
            owner text,
            target text,
            bundle_id text,
-           PRIMARY KEY ((partition_id, bucket_id), tx_index, tag_index)
+           PRIMARY KEY ((partition_id, bucket_id), bucket_number, tx_index, tag_index)
          )
-         WITH CLUSTERING ORDER BY (tx_index ASC, tag_index ASC)`,
+         WITH CLUSTERING ORDER BY (bucket_number ASC, tx_index ASC, tag_index ASC)`,
 
-        `CREATE TABLE IF NOT EXISTS tx_tag_gql_by_name_desc (
+        `CREATE TABLE IF NOT EXISTS tx_tag_gql_by_name_desc_migration_1 (
            partition_id text,
            bucket_id text,
+           bucket_number int,
            tx_index bigint,
            tag_index int,
            tag_name text,
@@ -184,11 +182,9 @@ async function connect() {
            owner text,
            target text,
            bundle_id text,
-           PRIMARY KEY ((partition_id, bucket_id), tx_index, tag_index)
+           PRIMARY KEY ((partition_id, bucket_id), bucket_number, tx_index, tag_index)
         )
-        WITH CLUSTERING ORDER BY (tx_index DESC, tag_index DESC)`,
-        `CREATE INDEX IF NOT EXISTS ON tx_tag_gql_by_name_asc (tag_name)`,
-        `CREATE INDEX IF NOT EXISTS ON tx_tag_gql_by_name_desc (tag_name)`,
+        WITH CLUSTERING ORDER BY (bucket_number DESC, tx_index DESC, tag_index DESC)`,
 
         `CREATE TABLE IF NOT EXISTS transaction (
           tx_index bigint,
@@ -250,11 +246,17 @@ async function connect() {
         aresolve && aresolve();
       }
       // Create the schema executing the queries serially
-      return a.then(() =>
-        queries.forEach((query) => (p = p.then(() => client.execute(query))))
-      );
+      return a.then(async () => {
+        for (const qq of queries) {
+          await client.execute(qq);
+        }
+        if (!process.env.SKIP_MIGRATION) {
+          // skipped when fully migrated
+          await migration1(client);
+        }
+      });
     })
-    .then(() => {
+    .then(async () => {
       console.log("[cassandra] init done");
       process.exit(0);
     })

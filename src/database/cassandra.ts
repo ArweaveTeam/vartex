@@ -6,22 +6,7 @@ import { types as CassandraTypes } from "cassandra-driver";
 import { Poa, TxOffset } from "../types/cassandra";
 import { KEYSPACE } from "../constants";
 import { config } from "dotenv";
-import {
-  getGqlBlockHeightAscPartitionName,
-  getGqlBlockHeightAscBucketName,
-  getGqlBlockHeightDescPartitionName,
-  getGqlBlockHeightDescBucketName,
-  getGqlTxIdAscPartitionName,
-  getGqlTxIdAscBucketName,
-  getGqlTxIdDescPartitionName,
-  getGqlTxIdDescBucketName,
-  getGqlTxTagAscPartitionName,
-  getGqlTxTagAscBucketName,
-  getGqlTxTagDescPartitionName,
-  getGqlTxTagDescBucketName,
-  getTxTagPartitionName,
-  getTxTagBucketName,
-} from "./constants";
+import * as CONST from "./constants";
 
 process.env.NODE_ENV !== "test" && config();
 
@@ -107,6 +92,7 @@ const poaKeys = [
 const txTagKeys = [
   "partition_id",
   "bucket_id",
+  "bucket_number",
   "tx_id",
   "tx_index",
   "tag_index",
@@ -327,8 +313,9 @@ const transformTag = (
   nextIndex?: number
 ): Tag => {
   const tagObject = {} as Tag;
-  tagObject["partition_id"] = getTxTagPartitionName(blockHeight);
-  tagObject["bucket_id"] = getTxTagBucketName(blockHeight);
+  tagObject["partition_id"] = CONST.getTxTagPartitionName(blockHeight);
+  tagObject["bucket_id"] = CONST.getTxTagBucketName(blockHeight);
+  tagObject["bucket_number"] = CONST.getTxTagBucketNumber(blockHeight);
   tagObject["tag_index"] = index;
   tagObject["next_tag_index"] = nextIndex || undefined;
   tagObject["tx_index"] = txIndex;
@@ -356,7 +343,7 @@ const txOffsetInsertQuery = `INSERT INTO ${KEYSPACE}.tx_offset (${txOffsetKeys.j
   ", "
 )}) VALUES (${txOffsetKeys.map(() => "?").join(", ")})`;
 
-const txTagsInsertQuery = `INSERT INTO ${KEYSPACE}.tx_tag (${txTagKeys.join(
+const txTagsInsertQuery = `INSERT INTO ${KEYSPACE}.tx_tag_migration_1 (${txTagKeys.join(
   ", "
 )}) VALUES (${txTagKeys.map(() => "?").join(", ")})`;
 
@@ -364,25 +351,29 @@ const blockHeightByHashInsertQuery = `INSERT INTO ${KEYSPACE}.block_height_by_bl
 
 // const blockByTxIdInsertQuery = `INSERT INTO ${KEYSPACE}.block_by_tx_id (tx_id, block_height, block_hash) VALUES (?, ?, ?) IF NOT EXISTS`;
 
-const blockGqlInsertAscQuery = `INSERT INTO ${KEYSPACE}.block_gql_asc (partition_id, bucket_id, height, indep_hash, timestamp, previous) VALUES (?, ?, ?, ?, ?, ?)`;
+const blockGqlInsertAscQuery = `INSERT INTO ${KEYSPACE}.block_gql_asc_migration_1
+  (partition_id, bucket_id, bucket_number, height, indep_hash, timestamp, previous)
+  VALUES (?, ?, ?, ?, ?, ?, ?)`;
 
-const blockGqlInsertDescQuery = `INSERT INTO ${KEYSPACE}.block_gql_desc (partition_id, bucket_id, height, indep_hash, timestamp, previous) VALUES (?, ?, ?, ?, ?, ?)`;
+const blockGqlInsertDescQuery = `INSERT INTO ${KEYSPACE}.block_gql_desc_migration_1
+  (partition_id, bucket_id, bucket_number, height, indep_hash, timestamp, previous)
+  VALUES (?, ?, ?, ?, ?, ?, ?)`;
 
-const txIdGqlInsertAscQuery = `INSERT INTO ${KEYSPACE}.tx_id_gql_asc
-                               (partition_id, bucket_id, tx_index, tags, tx_id, owner, target, bundle_id)
-                               VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
+const txIdGqlInsertAscQuery = `INSERT INTO ${KEYSPACE}.tx_id_gql_asc_migration_1
+   (partition_id, bucket_id, bucket_number, tx_index, tags, tx_id, owner, target, bundle_id)
+   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
-const txIdGqlInsertDescQuery = `INSERT INTO ${KEYSPACE}.tx_id_gql_desc
-                                (partition_id, bucket_id, tx_index, tags, tx_id, owner, target, bundle_id)
-                                VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
+const txIdGqlInsertDescQuery = `INSERT INTO ${KEYSPACE}.tx_id_gql_desc_migration_1
+  (partition_id, bucket_id, bucket_number, tx_index, tags, tx_id, owner, target, bundle_id)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
-const txTagGqlInsertAscQuery = `INSERT INTO ${KEYSPACE}.tx_tag_gql_by_name_asc
-                                (partition_id, bucket_id, tx_index, tag_index, tag_value, tag_name, tx_id, owner, target, bundle_id)
-                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+const txTagGqlInsertAscQuery = `INSERT INTO ${KEYSPACE}.tx_tag_gql_by_name_asc_migration_1
+  (partition_id, bucket_id, bucket_number, tx_index, tag_index, tag_value, tag_name, tx_id, owner, target, bundle_id)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
-const txTagGqlInsertDescQuery = `INSERT INTO ${KEYSPACE}.tx_tag_gql_by_name_desc
-                                 (partition_id, bucket_id, tx_index, tag_index, tag_value, tag_name, tx_id, owner, target, bundle_id)
-                                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+const txTagGqlInsertDescQuery = `INSERT INTO ${KEYSPACE}.tx_tag_gql_by_name_desc_migration_1
+  (partition_id, bucket_id, bucket_number, tx_index, tag_index, tag_value, tag_name, tx_id, owner, target, bundle_id)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
 export const makeTxImportQuery = (
   height: CassandraTypes.Long,
@@ -422,8 +413,9 @@ export const makeTxImportQuery = (
       cassandraClient.execute(
         txIdGqlInsertAscQuery,
         [
-          getGqlTxIdAscPartitionName(height),
-          getGqlTxIdAscBucketName(height),
+          CONST.getGqlTxIdAscPartitionName(height),
+          CONST.getGqlTxIdAscBucketName(height),
+          CONST.getGqlTxIdAscBucketNumber(height),
           txIndex,
           (tx.tags || []).map(({ name, value }) =>
             CassandraTypes.Tuple.fromArray([name, value])
@@ -438,8 +430,9 @@ export const makeTxImportQuery = (
       cassandraClient.execute(
         txIdGqlInsertDescQuery,
         [
-          getGqlTxIdDescPartitionName(height),
-          getGqlTxIdDescBucketName(height),
+          CONST.getGqlTxIdDescPartitionName(height),
+          CONST.getGqlTxIdDescBucketName(height),
+          CONST.getGqlTxIdDescBucketNumber(height),
           txIndex,
           (tx.tags || []).map(({ name, value }) =>
             CassandraTypes.Tuple.fromArray([name, value])
@@ -457,8 +450,9 @@ export const makeTxImportQuery = (
           cassandraClient.execute(
             txTagGqlInsertAscQuery,
             [
-              getGqlTxTagAscPartitionName(height),
-              getGqlTxTagAscBucketName(height),
+              CONST.getGqlTxTagAscPartitionName(height),
+              CONST.getGqlTxTagAscBucketName(height),
+              CONST.getGqlTxTagAscBucketNumber(height),
               txIndex,
               index,
               tag.value || "",
@@ -477,8 +471,9 @@ export const makeTxImportQuery = (
           cassandraClient.execute(
             txTagGqlInsertDescQuery,
             [
-              getGqlTxTagDescPartitionName(height),
-              getGqlTxTagDescBucketName(height),
+              CONST.getGqlTxTagDescPartitionName(height),
+              CONST.getGqlTxTagDescBucketName(height),
+              CONST.getGqlTxTagDescBucketNumber(height),
               txIndex,
               index,
               tag.value || "",
@@ -556,8 +551,9 @@ export const makeBlockImportQuery = (input: BlockType) => (): Promise<
     cassandraClient.execute(
       blockGqlInsertAscQuery,
       [
-        getGqlBlockHeightAscPartitionName(height),
-        getGqlBlockHeightAscBucketName(height),
+        CONST.getGqlBlockHeightAscPartitionName(height),
+        CONST.getGqlBlockHeightAscBucketName(height),
+        CONST.getGqlBlockHeightAscBucketNumber(height),
         height,
         input.indep_hash,
         input.timestamp,
@@ -568,8 +564,9 @@ export const makeBlockImportQuery = (input: BlockType) => (): Promise<
     cassandraClient.execute(
       blockGqlInsertDescQuery,
       [
-        getGqlBlockHeightDescPartitionName(height),
-        getGqlBlockHeightDescBucketName(height),
+        CONST.getGqlBlockHeightDescPartitionName(height),
+        CONST.getGqlBlockHeightDescBucketName(height),
+        CONST.getGqlBlockHeightDescBucketNumber(height),
         height,
         input.indep_hash,
         input.timestamp,
@@ -595,7 +592,7 @@ export const getMaxHeightBlock = async (): Promise<
 > => {
   // note that the block_hash table is sorted descendingly by block height
   const response = await cassandraClient.execute(
-    `SELECT height,indep_hash FROM ${KEYSPACE}.block_gql_desc limit 1;`
+    `SELECT height,indep_hash FROM ${KEYSPACE}.block_gql_desc_migration_1 limit 1;`
   );
 
   const row = response.rows[0];

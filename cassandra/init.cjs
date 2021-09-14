@@ -34,6 +34,10 @@ async function connect() {
   const client = new cassandra.Client({
     contactPoints,
     localDataCenter: "datacenter1",
+    socketOptions: {
+      connectTimeout: 60000,
+      readTimeout: 600000,
+    },
     credentials: {
       username: process.env.CASSANDRA_USERNAME,
       password: process.env.CASSANDRA_PASSWORD,

@@ -124,8 +124,8 @@ const txTagInsertQuery = (keyspace, kvs) => {
 
 const txTagGqlByNameInsertAscQuery = (keyspace, kvs) => {
   const query = `INSERT INTO ${keyspace}.tx_tag_gql_by_name_asc_migration_1
-       (partition_id, bucket_id, bucket_number, tx_index, tags, tx_id, owner, target, bundle_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+       (partition_id, bucket_id, bucket_number, tx_index, tag_index, tag_name, tag_value, tx_id, owner, target, bundle_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
   return [
     query,
     [
@@ -133,7 +133,9 @@ const txTagGqlByNameInsertAscQuery = (keyspace, kvs) => {
       kvs.bucket_id,
       kvs.bucket_number,
       kvs.tx_index,
-      kvs.tags,
+      kvs.tag_index,
+      kvs.tag_name,
+      kvs.tag_value,
       kvs.tx_id,
       kvs.owner,
       kvs.target,
@@ -144,8 +146,8 @@ const txTagGqlByNameInsertAscQuery = (keyspace, kvs) => {
 
 const txTagGqlByNameInsertDescQuery = (keyspace, kvs) => {
   const query = `INSERT INTO ${keyspace}.tx_tag_gql_by_name_desc_migration_1
-       (partition_id, bucket_id, bucket_number, tx_index, tags, tx_id, owner, target, bundle_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+       (partition_id, bucket_id, bucket_number, tx_index, tag_index, tag_name, tag_value, tx_id, owner, target, bundle_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
   return [
     query,
     [
@@ -153,7 +155,9 @@ const txTagGqlByNameInsertDescQuery = (keyspace, kvs) => {
       kvs.bucket_id,
       kvs.bucket_number,
       kvs.tx_index,
-      kvs.tags,
+      kvs.tag_index,
+      kvs.tag_name,
+      kvs.tag_value,
       kvs.tx_id,
       kvs.owner,
       kvs.target,
@@ -206,7 +210,7 @@ module.exports = async (client) => {
           bucket_number,
           ...rowRes,
         });
-        await client.execute(query, params, { prepare: true });
+        client.execute(query, params, { prepare: true });
       }
       await client.execute(`DROP TABLE ${KEYSPACE}.${row.name}`, [], {
         prepare: true,

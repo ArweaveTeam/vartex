@@ -256,7 +256,7 @@ async function connect() {
         }
         if (!process.env.SKIP_MIGRATION) {
           // skipped when fully migrated
-          await migration1(client);
+          // await migration1(client);
         }
       });
     })

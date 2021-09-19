@@ -176,7 +176,10 @@ const insertQueries = {
   tx_tag: txTagInsertQuery,
 };
 
+let concurrent = 0;
+
 module.exports = async (client) => {
+  const pWaitFor = (await import("p-wait-for")).default;
   const allTables = await client.execute("describe tables");
   const KEYSPACE = process.env["KEYSPACE"]
     ? process.env["KEYSPACE"]
@@ -210,7 +213,11 @@ module.exports = async (client) => {
           bucket_number,
           ...rowRes,
         });
-        client.execute(query, params, { prepare: true });
+        await pWaitFor(() => concurrent < 100);
+        concurrent += 1;
+        client.execute(query, params, { prepare: true }).then(() => {
+          concurrent -= 1;
+        });
       }
       await client.execute(`DROP TABLE ${KEYSPACE}.${row.name}`, [], {
         prepare: true,

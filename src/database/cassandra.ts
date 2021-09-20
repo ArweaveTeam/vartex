@@ -590,11 +590,23 @@ export const makeBlockImportQuery = (input: BlockType) => (): Promise<
 export const getMaxHeightBlock = async (): Promise<
   [string, CassandraTypes.Long]
 > => {
-  // note that the block_hash table is sorted descendingly by block height
-  const response = await cassandraClient.execute(
-    `SELECT height,indep_hash FROM ${KEYSPACE}.block_gql_desc_migration_1 limit 1;`
+  let bucketNumber = 0;
+  let lastMaxHeight: [string, CassandraTypes.Long] = ["", toLong(-1)];
+  let lastResponse = await cassandraClient.execute(
+    `SELECT height,indep_hash FROM ${KEYSPACE}.block_gql_desc_migration_1 WHERE bucket_number = 0 limit 1 ALLOW FILTERING`
   );
+  while (lastResponse && !R.isEmpty(lastResponse.rows)) {
+    bucketNumber += 1;
+    const row = lastResponse.rows[0];
+    if (row) {
+      lastMaxHeight = [row["indep_hash"], row["height"]];
+    }
+    lastResponse = await cassandraClient.execute(
+      `SELECT height,indep_hash FROM ${KEYSPACE}.block_gql_desc_migration_1 WHERE bucket_number = ${bucketNumber} limit 1 ALLOW FILTERING`
+    );
+  }
 
-  const row = response.rows[0];
-  return row ? [row["indep_hash"], row["height"]] : ["", toLong(-1)];
+  console.error("LASTMAX", lastMaxHeight);
+  process.exit(1);
+  return lastMaxHeight;
 };

@@ -1,5 +1,4 @@
 // 14/09/2021 - fixing incorrect sorting between different buckets
-const pWaitFor = require("p-wait-for");
 
 const tableRenames = {
   block_gql_asc: "block_gql_asc_migration_1",

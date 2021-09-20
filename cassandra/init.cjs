@@ -35,8 +35,8 @@ async function connect() {
     contactPoints,
     localDataCenter: "datacenter1",
     socketOptions: {
-      connectTimeout: 60000,
-      readTimeout: 600000,
+      connectTimeout: 600000,
+      readTimeout: 6000000,
     },
     credentials: {
       username: process.env.CASSANDRA_USERNAME,
@@ -256,7 +256,7 @@ async function connect() {
         }
         if (!process.env.SKIP_MIGRATION) {
           // skipped when fully migrated
-          // await migration1(client);
+          await migration1(client);
         }
       });
     })

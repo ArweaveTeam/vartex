@@ -1,5 +1,10 @@
 import { Request, Response } from "express";
-import { topHeight, gatewayHeight, getTxsInFlight } from "../database/sync";
+import {
+  topHeight,
+  gatewayHeight,
+  currentHeight,
+  getTxsInFlight,
+} from "../database/sync";
 import { toLong } from "../database/cassandra";
 import { getNodeInfo } from "../query/node";
 import gitRev from "git-rev-sync";
@@ -25,7 +30,9 @@ export async function statusRoute(
     } catch {}
     response.status(200).send({
       status: gatewayHeight.toString() === "0" ? "BOOTING" : "OK",
-      gatewayHeight: gatewayHeight.toString(),
+      gatewayHeight: gatewayHeight.gt(currentHeight)
+        ? gatewayHeight.toString()
+        : `${currentHeight}`,
       arweaveHeight: Math.max(topHeight, info.height),
       txsInFlight,
       delta,

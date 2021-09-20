@@ -180,6 +180,7 @@ const insertQueries = {
 let concurrent = 0;
 
 module.exports = async (client) => {
+  const pWaitFor = (await import("p-wait-for")).default;
   const allTables = await client.execute("describe tables");
   const KEYSPACE = process.env["KEYSPACE"]
     ? process.env["KEYSPACE"]

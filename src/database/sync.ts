@@ -363,7 +363,7 @@ export async function startSync({
                   .importBlock(height)
                   .then(fresolve)
                   .catch(reject);
-                lastBlock = height;
+                lastBlock = toLong(height);
                 return () => {
                   console.error(`Fluture.Parallel crashed`);
                   process.exit(1);

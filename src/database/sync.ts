@@ -377,12 +377,8 @@ export async function startSync({
 
     // await Dr.findTxGaps();
     try {
-      lastBlock = (
-        await cassandraClient.execute(
-          `SELECT height
-           FROM ${KEYSPACE}.block_gql_desc_migration_1 LIMIT 1`
-        )
-      ).rows[0].height;
+      const result_ = await getMaxHeightBlock();
+      lastBlock = result_[1];
     } catch {
       // console.error(error);
     }

@@ -605,8 +605,5 @@ export const getMaxHeightBlock = async (): Promise<
       `SELECT height,indep_hash FROM ${KEYSPACE}.block_gql_desc_migration_1 WHERE bucket_number = ${bucketNumber} limit 1 ALLOW FILTERING`
     );
   }
-
-  console.error("LASTMAX", lastMaxHeight);
-  process.exit(1);
   return lastMaxHeight;
 };

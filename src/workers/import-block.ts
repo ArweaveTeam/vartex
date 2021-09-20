@@ -165,7 +165,9 @@ function processTxQueue(): void {
       })
       .catch((error) => {
         log("FATAL error calling txQueueCallback", error);
-        process.exit(1);
+        rmCache(`incoming:${peek.txIndex.toString()}`).then(() =>
+          process.exit(1)
+        );
       });
   }
 }
@@ -193,6 +195,7 @@ function incomingTxCallback(
 
     if (!cacheData) {
       log("Cache disappeared with txIndex", txIndex_ && txIndex_.toString());
+      await rmCache(fileCacheKeyTx);
     }
 
     const {
@@ -209,7 +212,7 @@ function incomingTxCallback(
       txNewSyncBlock,
       fresolve
     );
-    await rmCache(`incoming:${txIndex || txIndex_ || -1}`);
+    await rmCache(fileCacheKeyTx);
   };
 }
 
@@ -223,6 +226,7 @@ function txImportCallback(fileCacheKey: string) {
       });
     } catch (error) {
       log(`Failed waiting for tx in cache with key: ${fileCacheKey}`, error);
+      await rmCache(fileCacheKey);
       process.exit(1);
     }
     const { height, index, tx, block } = JSON.parse(cached);

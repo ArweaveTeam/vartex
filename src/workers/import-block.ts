@@ -196,6 +196,7 @@ function incomingTxCallback(
     if (!cacheData) {
       log("Cache disappeared with txIndex", txIndex_ && txIndex_.toString());
       await rmCache(fileCacheKeyTx);
+      process.exit(1);
     }
 
     const {

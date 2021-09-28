@@ -187,6 +187,7 @@ async function resolveFork(previousBlock: BlockType): Promise<void> {
 }
 
 async function startPolling(): Promise<void> {
+  if (isPaused) return;
   if (!isPollingStarted) {
     isPollingStarted = true;
     log.info(

@@ -1,6 +1,6 @@
 import * as R from "rambda";
 import { types as CassandraTypes } from "cassandra-driver";
-import { KEYSPACE } from "../constants";
+import { KEYSPACE, tableId } from "../constants";
 import { cassandraClient, toLong } from "./cassandra";
 // import { BlockType } from "../query/block.query";
 // import {
@@ -12,7 +12,7 @@ import * as C from "./constants";
 
 export const checkForBlockGaps = async (): Promise<boolean> => {
   const expectedBlockHeightResult = await cassandraClient.execute(
-    `SELECT height FROM ${KEYSPACE}.block_gql_desc_migration_1 LIMIT 1`
+    `SELECT height FROM ${KEYSPACE}.${tableId.TABLE_GQL_BLOCK_DESC} LIMIT 1`
   );
   const expectedBlockHeight = expectedBlockHeightResult.rows[0].height;
 
@@ -29,7 +29,7 @@ export const checkForBlockGaps = async (): Promise<boolean> => {
       .divide(C.GQL_BLOCK_HEIGHT_PARTITION_SIZE)
       .toString();
     const currentBucketCountResult = await cassandraClient.execute(
-      `SELECT COUNT(*) from ${KEYSPACE}.block_gql_asc_migration_1
+      `SELECT COUNT(*) from ${KEYSPACE}.${tableId.TABLE_GQL_BLOCK_ASC}
        WHERE bucket_id='gql_bucket_block_height_asc_${bucket}'
        AND partition_id='gql_partition_block_height_asc_${currentPartition}'`
     );
@@ -42,7 +42,7 @@ export const checkForBlockGaps = async (): Promise<boolean> => {
 
 export const findBlockGaps = async (): Promise<number[]> => {
   const topHeightQ = await cassandraClient.execute(
-    `SELECT height FROM ${KEYSPACE}.block_gql_desc_migration_1 LIMIT 1`
+    `SELECT height FROM ${KEYSPACE}.${tableId.TABLE_GQL_BLOCK_DESC} LIMIT 1`
   );
   const topHeight = topHeightQ.rows[0].height;
 
@@ -55,9 +55,11 @@ export const findBlockGaps = async (): Promise<number[]> => {
 
   for (const heightGroup of queryHeightGroups) {
     const blockQ: { rows: unknown[] } = await cassandraClient.execute(
-      `SELECT height FROM ${KEYSPACE}.block WHERE height >= ${R.head(
+      `SELECT height FROM ${KEYSPACE}.${
+        tableId.TABLE_BLOCK
+      } WHERE height >= ${R.head(heightGroup)} AND height <= ${R.last(
         heightGroup
-      )} AND height <= ${R.last(heightGroup)} ALLOW FILTERING`
+      )} ALLOW FILTERING`
     );
     for (const height of R.range(
       R.head(heightGroup),
@@ -76,7 +78,7 @@ export const findBlockGaps = async (): Promise<number[]> => {
 
 export const findTxGaps = async (): Promise<void> => {
   const topHeightQ = await cassandraClient.execute(
-    `SELECT height FROM ${KEYSPACE}.block_gql_desc_migration_1 LIMIT 1`
+    `SELECT height FROM ${KEYSPACE}.${tableId.TABLE_GQL_BLOCK_DESC} LIMIT 1`
   );
   const topHeight = topHeightQ.rows[0].height;
 
@@ -89,9 +91,11 @@ export const findTxGaps = async (): Promise<void> => {
 
   for (const heightGroup of queryHeightGroups) {
     const blockQ = await cassandraClient.execute(
-      `SELECT height,txs,txs_count FROM ${KEYSPACE}.block WHERE height >= ${R.head(
+      `SELECT height,txs,txs_count FROM ${KEYSPACE}.${
+        tableId.TABLE_BLOCK
+      } WHERE height >= ${R.head(heightGroup)} AND height <= ${R.last(
         heightGroup
-      )} AND height <= ${R.last(heightGroup)} ALLOW FILTERING`
+      )} ALLOW FILTERING`
     );
 
     const txCounts = blockQ.rows.filter(
@@ -100,7 +104,9 @@ export const findTxGaps = async (): Promise<void> => {
 
     for (const { txs_count, height, txs } of txCounts) {
       const txCntQ = await cassandraClient.execute(
-        `SELECT COUNT(*) FROM ${KEYSPACE}.transaction WHERE block_height>=${height.divide(
+        `SELECT COUNT(*) FROM ${KEYSPACE}.${
+          tableId.TABLE_TX
+        } WHERE block_height>=${height.divide(
           C.MAX_TX_PER_BLOCK
         )} AND block_height<${height
           .add(1)
@@ -109,7 +115,9 @@ export const findTxGaps = async (): Promise<void> => {
 
       if (txCntQ.rowLength !== txs_count) {
         const txDataQ = await cassandraClient.execute(
-          `SELECT tx_id FROM ${KEYSPACE}.transaction WHERE block_height>=${height.divide(
+          `SELECT tx_id FROM ${KEYSPACE}.${
+            tableId.TABLE_TX
+          } WHERE block_height>=${height.divide(
             C.MAX_TX_PER_BLOCK
           )} AND block_height<${height
             .add(1)

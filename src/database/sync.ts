@@ -129,6 +129,8 @@ const developmentSyncLength: number | undefined =
     ? undefined
     : Number.parseInt(process.env["DEVELOPMENT_SYNC_LENGTH"] as string);
 
+const isGatewayNodeModeEnabled = !!process.env["VARTEX_GW_NODE"];
+
 // eslint-disable-next-line use-isnan
 if (developmentSyncLength === Number.NaN) {
   console.error("Development sync range variable produced, illegal value NaN");
@@ -283,25 +285,25 @@ async function findMissingBlocks(hashList: string[]): Promise<UnsyncedBlock[]> {
     { prepare: true, executionProfile: "fast" }
   );
 
-  for await (const rowRes of result) {
-    const matchingRow = hashListObject[rowRes.height.toString()];
+  for await (const rowResult of result) {
+    const matchingRow = hashListObject[rowResult.height.toString()];
 
     if (
       matchingRow &&
-      R.equals(matchingRow["hash"], rowRes.indep_hash) &&
-      R.equals(matchingRow["height"], rowRes.height)
+      R.equals(matchingRow["hash"], rowResult.indep_hash) &&
+      R.equals(matchingRow["height"], rowResult.height)
     ) {
-      delete hashListObject[rowRes.height];
+      delete hashListObject[rowResult.height];
     } else {
       if (!matchingRow) {
-        log.info(`Found missing block: ${rowRes.height}`);
-      } else if (!R.equals(matchingRow["height"], rowRes.height)) {
+        log.info(`Found missing block: ${rowResult.height}`);
+      } else if (!R.equals(matchingRow["height"], rowResult.height)) {
         log.info(
-          `Found mismatching block at: ${rowRes.height} because ${matchingRow["height"]} != ${rowRes.height}`
+          `Found mismatching block at: ${rowResult.height} because ${matchingRow["height"]} != ${rowResult.height}`
         );
-      } else if (!R.equals(matchingRow["hash"], rowRes.indep_hash)) {
+      } else if (!R.equals(matchingRow["hash"], rowResult.indep_hash)) {
         log.info(
-          `Found mismatching block at: ${rowRes.height} because ${matchingRow["hash"]} != ${rowRes.indep_hash}`
+          `Found mismatching block at: ${rowResult.height} because ${matchingRow["hash"]} != ${rowResult.indep_hash}`
         );
       }
     }
@@ -311,11 +313,24 @@ async function findMissingBlocks(hashList: string[]): Promise<UnsyncedBlock[]> {
   );
 }
 
+async function startGatewayNodeMode(): Promise<void> {
+  // TODO: read stats from cassandra
+  [topHash, gatewayHeight] = await getMaxHeightBlock();
+}
+
 export async function startSync({
   isTesting = false, // eslint-disable-line @typescript-eslint/no-unused-vars
 }: {
   isTesting?: boolean;
 }): Promise<void> {
+  if (isGatewayNodeModeEnabled) {
+    log.info(
+      "[sync] vartex gateway-node mode is enabled so no syncing will be performed (aka read-only mode)"
+    );
+    await startGatewayNodeMode();
+    return;
+  }
+
   // wait until worker threads are ready
   await Promise.all(R.map(R.prop("promise"))(R.values(workerReadyPromises)));
 

@@ -4,7 +4,8 @@ import { Request } from "express";
 import moment from "moment";
 import { types as CassandraTypes } from "cassandra-driver";
 import { cassandraClient, toLong } from "../database/cassandra";
-import { topHeight } from "../database/sync";
+import * as CONST from "../database/constants";
+import { gatewayHeight } from "../database/sync";
 import { GraphQLResolveInfo } from "graphql";
 import graphqlFields from "graphql-fields";
 import { config } from "dotenv";
@@ -58,6 +59,11 @@ const DEFAULT_PAGE_SIZE = Number.parseInt(
 );
 const MAX_PAGE_SIZE = Number.parseInt(process.env.MAX_PAGE_SIZE || "100");
 
+interface ArFee {
+  winston: CassandraTypes.Long;
+  ar: string;
+}
+
 interface FieldMap {
   indep_hash: string;
   id: string;
@@ -66,7 +72,7 @@ interface FieldMap {
   recipient: string;
   target: string;
   tags: CassandraTypes.Tuple[];
-  fee: string;
+  fee: ArFee;
   height: CassandraTypes.Long;
   quantity: string;
   data_size: MetaData["size"];
@@ -152,7 +158,10 @@ export const resolvers = {
     ): Promise<Maybe<Query["transaction"]>> => {
       const fieldsWithSubFields = graphqlFields(info);
 
-      const parameters: { id: string | undefined; select: string[] } = {
+      const parameters: {
+        id: string | undefined;
+        select: string[];
+      } = {
         id: queryParameters.id || undefined,
         select: resolveGqlTxSelect(fieldsWithSubFields, true),
       };
@@ -168,13 +177,24 @@ export const resolvers = {
       parameters.select = R.append("tx_index", parameters.select);
       const txQuery = generateTransactionQuery(parameters);
 
-      const {
-        rows: resultArray,
-      }: { rows: unknown[] } = await cassandraClient.execute(
-        txQuery.query,
-        txQuery.params,
-        { prepare: true, executionProfile: "gql" }
-      );
+      const resultArray = [];
+      const bucketCount = CONST.getGqlTxIdDescBucketNumber(gatewayHeight);
+      let currentBucketNumber = Math.max(0, bucketCount);
+
+      while (resultArray.length === 0 && currentBucketNumber >= 0) {
+        const { rows: bucketResultArray }: { rows: unknown[] } =
+          await cassandraClient.execute(
+            txQuery.query.replace(/%/i, `${currentBucketNumber}`),
+            txQuery.params,
+            {
+              prepare: true,
+              executionProfile: "gql",
+            }
+          );
+
+        for (const resultItem of bucketResultArray)  resultArray.push(resultItem);
+        currentBucketNumber -= 1;
+      }
 
       if (R.isEmpty(resultArray)) {
         return null;
@@ -214,16 +234,14 @@ export const resolvers = {
           selectParameters
         );
 
-        const {
-          rows: blockResult,
-        }: { rows: unknown[] } = await cassandraClient.execute(
-          blockQuery.query,
-          blockQuery.params,
-          {
+        // .where("bucket_number = %");
+
+        const { rows: blockResult }: { rows: unknown[] } =
+          await cassandraClient.execute(blockQuery.query, blockQuery.params, {
             prepare: true,
             executionProfile: "gql",
-          }
-        );
+          });
+
         result.block = R.isEmpty(blockResult)
           ? null
           : (blockResult[0] as Block);
@@ -273,16 +291,29 @@ export const resolvers = {
             executionProfile: "gql",
           }
         );
-        if (deferedTxResult[0].last_tx) {
+
+        if (
+          deferedTxResult &&
+          deferedTxResult.length > 0 &&
+          deferedTxResult[0].last_tx
+        ) {
           result.anchor = deferedTxResult[0].last_tx || "";
         }
-        if (deferedTxResult[0].reward) {
+        if (
+          deferedTxResult &&
+          deferedTxResult.length > 0 &&
+          deferedTxResult[0].reward
+        ) {
           result.fee = {
             winston: deferedTxResult[0].reward || "",
-            ar: winstonToAr(parent.quantity || "0"),
+            ar: winstonToAr(deferedTxResult[0].quantity || "0"),
           };
         }
-        if (deferedTxResult[0].signature) {
+        if (
+          deferedTxResult &&
+          deferedTxResult.length > 0 &&
+          deferedTxResult[0].signature
+        ) {
           result.signature = deferedTxResult[0].signature || "";
         }
       }
@@ -304,7 +335,7 @@ export const resolvers = {
         Math.min(queryParameters.first || DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE) + 1;
 
       let minHeight = toLong(0);
-      let maxHeight = toLong(750_000); // FIXME poll for topTxIndex
+      let maxHeight = gatewayHeight;
 
       if (queryParameters.block && queryParameters.block.min) {
         minHeight = toLong(queryParameters.block.min).mul(1000);
@@ -351,17 +382,49 @@ export const resolvers = {
 
       const txQuery = generateTransactionQuery(parameters);
 
-      const {
-        rows: result_,
-      }: { rows: unknown[] } = await cassandraClient.execute(
-        txQuery.query,
-        txQuery.params,
-        { prepare: true, executionProfile: "gql" }
-      );
+      const resultArray = [];
+      const bucketCount =
+        parameters.sortOrder === "HEIGHT_ASC"
+          ? CONST.getGqlTxIdAscBucketNumber(gatewayHeight)
+          : CONST.getGqlTxIdDescBucketNumber(gatewayHeight);
+      let currentBucketNumber = Math.max(0, bucketCount);
+      let ascendingTraverseBucketNumber = 0;
 
-      let result = result_ as Partial<
+      while (
+        resultArray.length < fetchSize &&
+        (parameters.sortOrder === "HEIGHT_ASC"
+          ? ascendingTraverseBucketNumber <= bucketCount
+          : currentBucketNumber >= 0)
+      ) {
+        const { rows: bucketResultArray }: { rows: unknown[] } =
+          await cassandraClient.execute(
+            txQuery.query.replace(
+              /%/i,
+              `${
+                parameters.sortOrder === "HEIGHT_ASC"
+                  ? ascendingTraverseBucketNumber
+                  : currentBucketNumber
+              }`
+            ),
+            txQuery.params,
+            {
+              prepare: true,
+              executionProfile: "gql",
+            }
+          );
+
+        for (const resultItem of bucketResultArray)  resultArray.push(resultItem);
+        if (parameters.sortOrder === "HEIGHT_ASC") {
+          ascendingTraverseBucketNumber += 1;
+        } else {
+          currentBucketNumber -= 1;
+        }
+      }
+
+      let result = resultArray as Partial<
         Transaction & { tx_index: CassandraTypes.Long; tx_id?: string }
       >[];
+
       let hasNextPage = false;
 
       if (result.length === fetchSize) {
@@ -403,16 +466,11 @@ export const resolvers = {
             selectParameters
           );
 
-          const {
-            rows: blockResult,
-          }: { rows: unknown[] } = await cassandraClient.execute(
-            blockQuery.query,
-            blockQuery.params,
-            {
+          const { rows: blockResult }: { rows: unknown[] } =
+            await cassandraClient.execute(blockQuery.query, blockQuery.params, {
               prepare: true,
               executionProfile: "gql",
-            }
-          );
+            });
 
           item.block = R.isEmpty(blockResult)
             ? null
@@ -455,16 +513,11 @@ export const resolvers = {
             tx_id: tx.tx_id,
           });
 
-          const {
-            rows: deferedTxResult_,
-          }: { rows: unknown[] } = await cassandraClient.execute(
-            deferedTxQ.query,
-            deferedTxQ.params,
-            {
+          const { rows: deferedTxResult_ }: { rows: unknown[] } =
+            await cassandraClient.execute(deferedTxQ.query, deferedTxQ.params, {
               prepare: true,
               executionProfile: "gql",
-            }
-          );
+            });
 
           const deferedTxResult = deferedTxResult_[0] as {
             last_tx?: string;
@@ -535,7 +588,7 @@ export const resolvers = {
 
       let ids: Array<string> = [];
       let minHeight = toLong(0);
-      let maxHeight = toLong(topHeight);
+      let maxHeight = gatewayHeight;
 
       if (queryParameters.ids) {
         ids = queryParameters.ids;
@@ -574,9 +627,7 @@ export const resolvers = {
 
       let hasNextPage = false;
 
-      let {
-        rows: result,
-      }: { rows: unknown[] } = await cassandraClient.execute(
+      let { rows: result }: { rows: unknown[] } = await cassandraClient.execute(
         blockQuery.query,
         blockQuery.params,
         { prepare: true, executionProfile: "gql" }
@@ -609,7 +660,7 @@ export const resolvers = {
       return parent.signature || "";
     },
     tags: (parent: FieldMap): Tag[] => {
-      return parent.tags.map(utf8DecodeTupleTag);
+      return (parent.tags || []).map(utf8DecodeTupleTag);
     },
     recipient: (parent: FieldMap): string => {
       return parent.target || "";
@@ -622,14 +673,16 @@ export const resolvers = {
     },
     quantity: (parent: FieldMap): Amount => {
       return {
-        ar: winstonToAr(parent.quantity || "0"),
+        ar: winstonToAr((parent.quantity && parent.quantity.toString()) || "0"),
         winston: parent.quantity || "0",
       };
     },
     fee: (parent: FieldMap): Amount => {
+      const maybeFee =
+        parent.fee && parent.fee.winston && parent.fee.winston.toString();
       return {
-        ar: winstonToAr(parent.fee || "0"),
-        winston: parent.fee || "0",
+        ar: winstonToAr(maybeFee || "0"),
+        winston: maybeFee || "0",
       };
     },
     block: (parent: FieldMap): Block => {

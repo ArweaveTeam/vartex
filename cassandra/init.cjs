@@ -144,6 +144,16 @@ async function connect() {
          )
          WITH CLUSTERING ORDER BY (bucket_number DESC, tx_index DESC)`,
 
+        // the benefits of index here outweigh the possible cons (I think and hope, otherwise more redundant tables later if needed...)
+        `CREATE INDEX IF NOT EXISTS ON tx_id_gql_asc_migration_1 (owner)`,
+        `CREATE INDEX IF NOT EXISTS ON tx_id_gql_desc_migration_1 (owner)`,
+        `CREATE INDEX IF NOT EXISTS ON tx_id_gql_asc_migration_1 (target)`,
+        `CREATE INDEX IF NOT EXISTS ON tx_id_gql_desc_migration_1 (target)`,
+        `CREATE INDEX IF NOT EXISTS ON tx_id_gql_asc_migration_1 (bundle_id)`,
+        `CREATE INDEX IF NOT EXISTS ON tx_id_gql_desc_migration_1 (bundle_id)`,
+        `CREATE INDEX IF NOT EXISTS ON tx_id_gql_asc_migration_1 (tx_id)`,
+        `CREATE INDEX IF NOT EXISTS ON tx_id_gql_desc_migration_1 (tx_id)`,
+
         `CREATE TABLE IF NOT EXISTS tx_tag_migration_1 (
            partition_id text,
            bucket_id text,

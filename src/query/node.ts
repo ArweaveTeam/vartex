@@ -1,4 +1,3 @@
-import { existsSync } from "node:fs";
 import fs from "node:fs/promises";
 import { types as CassandraTypes } from "cassandra-driver";
 import * as R from "rambda";

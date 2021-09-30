@@ -1,8 +1,8 @@
 import * as R from "rambda";
 import { types as CassandraTypes } from "cassandra-driver";
-import * as Constants from "../database/constants";
+import * as CONST from "../database/constants";
 import { config } from "dotenv";
-import { KEYSPACE } from "../constants";
+import { KEYSPACE, tableId } from "../constants";
 import { TagFilter } from "./types.graphql";
 import { toB64url } from "../query/transaction";
 import { default as cqlBuilder } from "@ridi/cql-builder";
@@ -40,22 +40,24 @@ interface CqlQuery {
 export function generateTransactionQuery(
   parameters: QueryParameters
 ): CqlQuery {
-  let table = "tx_id_gql_desc_migration_1";
+  let table = tableId.TABLE_GQL_TX_DESC;
 
   table =
     parameters.sortOrder === "HEIGHT_ASC"
-      ? "tx_id_gql_asc_migration_1"
-      : "tx_id_gql_desc_migration_1";
+      ? tableId.TABLE_GQL_TX_ASC
+      : tableId.TABLE_GQL_TX_DESC;
 
   const cql = Select()
     .table(table, KEYSPACE)
     .field(parameters.select)
-    .filtering();
+    .filtering()
+    .where("bucket_number = %");
 
-  if (parameters.id !== undefined) {
-    cql.where("tx_id = ?", parameters.id);
-    return cql.build();
+  if (parameters.id) {
+    cql.where(`tx_id=?`, parameters.id);
+    cql.build();
   } else if (parameters.ids && Array.isArray(parameters.ids)) {
+    cql.limit(parameters.limit);
     cql.where.apply(
       cql,
       R.concat(
@@ -116,22 +118,23 @@ export function generateTransactionQuery(
   //   cql.where('timestamp < ?', params.before);
   // }
 
-  cql.where(
-    "tx_index >= ?",
-    parameters.sortOrder === "HEIGHT_ASC"
-      ? parameters.minHeight.add(parameters.offset).toString()
-      : parameters.minHeight.toString()
-  );
+  if (parameters.minHeight) {
+    cql.where(
+      "tx_index >= ?",
+      parameters.sortOrder === "HEIGHT_ASC"
+        ? parameters.minHeight.add(parameters.offset).toString()
+        : parameters.minHeight.toString()
+    );
+  }
 
-  cql.where(
-    "tx_index <= ?",
-    parameters.sortOrder === "HEIGHT_DESC"
-      ? parameters.maxHeight.sub(parameters.offset).toString()
-      : parameters.maxHeight.toString()
-  );
-
-  cql.limit(parameters.limit);
-
+  if (parameters.maxHeight) {
+    cql.where(
+      "tx_index <= ?",
+      parameters.sortOrder === "HEIGHT_DESC"
+        ? parameters.maxHeight.sub(parameters.offset).toString()
+        : parameters.maxHeight.toString()
+    );
+  }
   return cql.build();
 }
 
@@ -163,13 +166,14 @@ export function generateBlockQuery(parameters: BlockQueryParameters): CqlQuery {
   const cql = Select()
     .table(
       sortOrder === "HEIGHT_ASC"
-        ? "block_gql_asc_migration_1"
-        : "block_gql_desc_migration_1",
+        ? tableId.TABLE_GQL_BLOCK_ASC
+        : tableId.TABLE_GQL_BLOCK_DESC,
       KEYSPACE
     )
     .field(
       select.includes("indep_hash") ? select : R.append("indep_hash", select)
     )
+    .where("bucket_number = %")
     .filtering();
 
   // const query = connection.queryBuilder().select(select).from('blocks');
@@ -221,7 +225,7 @@ export function generateDeferedBlockQuery(
   parameters: DeferedBlockQueryParameters
 ): CqlQuery {
   return Select()
-    .table("block", KEYSPACE)
+    .table(tableId.TABLE_BLOCK, KEYSPACE)
     .where("indep_hash = ?", parameters.indep_hash)
     .field(parameters.deferedSelect)
     .build();
@@ -232,7 +236,7 @@ export function generateDeferedTxQuery(parameters: {
   deferedSelect: unknown;
 }): CqlQuery {
   return Select()
-    .table("transaction", KEYSPACE)
+    .table(tableId.TABLE_TX, KEYSPACE)
     .where("tx_id = ?", parameters.tx_id)
     .field(parameters.deferedSelect)
     .build();
@@ -243,20 +247,18 @@ export function generateDeferedTxBlockQuery(
   fieldSelect: unknown
 ): CqlQuery {
   return Select()
-    .table("block_gql_asc_migration_1", KEYSPACE)
+    .table(tableId.TABLE_GQL_BLOCK_ASC, KEYSPACE)
     .field(fieldSelect)
     .where("height = ?", height)
-    .where(
-      "partition_id = ?",
-      Constants.getGqlBlockHeightAscPartitionName(height)
-    )
-    .where("bucket_id = ?", Constants.getGqlBlockHeightAscBucketName(height))
+    .where("bucket_number = ?", CONST.getGqlBlockHeightAscBucketNumber(height))
+    .where("partition_id = ?", CONST.getGqlBlockHeightAscPartitionName(height))
+    .where("bucket_id = ?", CONST.getGqlBlockHeightAscBucketName(height))
     .build();
 }
 
 export function generateTagQuery(tags: TagFilter[]): CqlQuery {
   const cql = Select()
-    .table("tx_tag_migration_1", KEYSPACE)
+    .table(tableId.TABLE_TAG, KEYSPACE)
     .field("tx_id")
     .filtering();
   for (const tag of tags) {

@@ -141,62 +141,49 @@ export async function getNodeInfo({
   }
 }
 
+const hashListCachePath =
+  process.env.NODE_ENV === "test"
+    ? "cache/hash_list_test.json"
+    : "cache/hash_list.json";
+
 export async function getHashList({
   retry = 0,
 }: {
   retry?: number;
 }): Promise<string[] | undefined> {
-  const hashListCachePath =
-    process.env.NODE_ENV === "test"
-      ? "cache/hash_list_test.json"
-      : "cache/hash_list.json";
-  const cacheExists = existsSync(hashListCachePath);
+  const tryNode = grabNode();
+  const url = `${tryNode}/hash_list`;
+  log.info("[database] fetching the hash_list, this may take a while...");
 
-  if (cacheExists) {
-    log.info("[database] using hash_list from cache");
-    return fs.readFile(hashListCachePath).then((hashListBuf) => {
-      try {
-        return JSON.parse(hashListBuf.toString());
-      } catch {
-        console.error("[node] invalid hash_list from cache");
-        return [];
-      }
+  try {
+    const body: string[] = await got.get(url, {
+      responseType: "json",
+      resolveBodyOnly: true,
+      followRedirect: true,
     });
-  } else {
-    const tryNode = grabNode();
-    const url = `${tryNode}/hash_list`;
-    log.info("[database] fetching the hash_list, this may take a while...");
 
-    try {
-      const body: string[] = await got.get(url, {
-        responseType: "json",
-        resolveBodyOnly: true,
-        followRedirect: true,
-      });
-
-      const linearHashList = R.reverse(body);
-      return fs
-        .writeFile(
-          hashListCachePath,
-          JSON.stringify(linearHashList, undefined, 2)
-        )
-        .then(() => linearHashList as string[]);
-    } catch (error) {
-      process.env.NODE_ENV === "test" && console.error(error);
-      coolNode(tryNode);
-      return new Promise((resolve) => setTimeout(resolve, 10 + 2 * retry)).then(
-        async () => {
-          if (retry < 100) {
-            return await getHashList({ retry: retry + 1 });
-          } else {
-            console.error(
-              "getHashList: failed to establish connection to any specified node after 100 retries\n"
-            );
-            process.exit(1);
-          }
+    const linearHashList = R.reverse(body);
+    return fs
+      .writeFile(
+        hashListCachePath,
+        JSON.stringify(linearHashList, undefined, 2)
+      )
+      .then(() => linearHashList as string[]);
+  } catch (error) {
+    process.env.NODE_ENV === "test" && console.error(error);
+    coolNode(tryNode);
+    return new Promise((resolve) => setTimeout(resolve, 10 + 2 * retry)).then(
+      async () => {
+        if (retry < 100) {
+          return await getHashList({ retry: retry + 1 });
+        } else {
+          console.error(
+            "getHashList: failed to establish connection to any specified node after 100 retries\n"
+          );
+          process.exit(1);
         }
-      );
-    }
+      }
+    );
   }
 }
 

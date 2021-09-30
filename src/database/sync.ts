@@ -269,53 +269,46 @@ async function detectFirstRun(): Promise<boolean> {
   return queryResponse && queryResponse.rowLength > 0 ? false : true;
 }
 
-function findMissingBlocks(hashList: string[]): Promise<UnsyncedBlock[]> {
+async function findMissingBlocks(hashList: string[]): Promise<UnsyncedBlock[]> {
   const hashListObject = hashList.reduce((accumulator, hash, height) => {
     accumulator[height] = { height, hash };
     return accumulator;
   }, {});
 
   log.info("[database] Looking for missing blocks...");
-  return new Promise(function (
-    resolve: (value?: UnsyncedBlock[]) => void,
-    reject: (error: string) => void
-  ) {
-    cassandraClient.eachRow(
-      `SELECT height, indep_hash, timestamp, txs
+  const result = await cassandraClient.execute(
+    `SELECT height, indep_hash, timestamp, txs
          FROM ${KEYSPACE}.block`,
-      [],
-      {
-        autoPage: true,
-        prepare: false,
-        executionProfile: "fast",
-      },
-      async function (n, row) {
-        const matchingRow = hashListObject[row.height];
+    [],
+    { prepare: true, executionProfile: "fast" }
+  );
 
-        if (
-          matchingRow &&
-          R.equals(matchingRow["hash"], row.indep_hash) &&
-          R.equals(matchingRow["height"], row.height)
-        ) {
-          // log.info('DEQUEUEING' + row.height);
-          delete hashListObject[row.height];
-        } else {
-          log.info(`Found missing block: ${n}`);
-        }
-      },
-      async function (error) {
-        if (error) {
-          reject((error || "").toString());
-        } else {
-          resolve(
-            R.sortBy(R.prop("height"))(
-              R.values(hashListObject) as UnsyncedBlock[]
-            )
-          );
-        }
+  for await (const rowRes of result) {
+    const matchingRow = hashListObject[rowRes.height.toString()];
+
+    if (
+      matchingRow &&
+      R.equals(matchingRow["hash"], rowRes.indep_hash) &&
+      R.equals(matchingRow["height"], rowRes.height)
+    ) {
+      delete hashListObject[rowRes.height];
+    } else {
+      if (!matchingRow) {
+        log.info(`Found missing block: ${rowRes.height}`);
+      } else if (!R.equals(matchingRow["height"], rowRes.height)) {
+        log.info(
+          `Found mismatching block at: ${rowRes.height} because ${matchingRow["height"]} != ${rowRes.height}`
+        );
+      } else if (!R.equals(matchingRow["hash"], rowRes.indep_hash)) {
+        log.info(
+          `Found mismatching block at: ${rowRes.height} because ${matchingRow["hash"]} != ${rowRes.indep_hash}`
+        );
       }
-    );
-  });
+    }
+  }
+  return R.sortBy(R.prop("height"))(
+    R.values(hashListObject) as UnsyncedBlock[]
+  );
 }
 
 export async function startSync({

@@ -37,8 +37,13 @@ interface CqlQuery {
   params: unknown[];
 }
 
+interface CqlQueryConfiguration {
+  isFilteringByTags?: boolean;
+}
+
 export function generateTransactionQuery(
-  parameters: QueryParameters
+  parameters: QueryParameters,
+  configuration?: CqlQueryConfiguration
 ): CqlQuery {
   let table = tableId.TABLE_GQL_TX_DESC;
 
@@ -50,13 +55,16 @@ export function generateTransactionQuery(
   const cql = Select()
     .table(table, KEYSPACE)
     .field(parameters.select)
-    // .filtering()
     .where("partition_id = %1")
     .where("bucket_id = %2")
     .where("bucket_number = %3");
 
+  if (configuration && configuration.isFilteringByTags) {
+    cql.filtering();
+  }
+
   if (parameters.id) {
-    cql.where(`tx_id=?`, parameters.id);
+    cql.where(`tx_id = ?`, parameters.id);
     cql.build();
   } else if (parameters.ids && Array.isArray(parameters.ids)) {
     cql.limit(parameters.limit);
@@ -145,6 +153,7 @@ export function generateTransactionQuery(
       cql.where("tx_index <= ?", txsMaxHeight);
     }
   }
+
   return cql.build();
 }
 

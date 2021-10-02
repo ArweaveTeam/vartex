@@ -166,10 +166,12 @@ export const resolvers = {
         id: queryParameters.id || undefined,
         select: resolveGqlTxSelect(fieldsWithSubFields, true),
       };
+
       // No selection = no search
       if (R.isEmpty(parameters.select)) {
-        return null;
+        return null; // returning null is a backwards-compatible behavior
       }
+
       // todo, elide selectors not selected from user
       if (!parameters.select.includes("tx_id")) {
         parameters.select = R.append("tx_id", parameters.select);
@@ -183,9 +185,15 @@ export const resolvers = {
       let currentBucketNumber = Math.max(0, bucketCount);
 
       while (resultArray.length === 0 && currentBucketNumber >= 0) {
+        const { partition_id, bucket_id, bucket_number } =
+          CONST.convertGqlTxIdAscBucketNumberToPrimaryKeys(currentBucketNumber);
+
         const { rows: bucketResultArray }: { rows: unknown[] } =
           await cassandraClient.execute(
-            txQuery.query.replace(/%/i, `${currentBucketNumber}`),
+            txQuery.query
+              .replace(/%1/i, `'${partition_id}'`)
+              .replace(/%2/i, `'${bucket_id}'`)
+              .replace(/%3/i, bucket_number),
             txQuery.params,
             {
               prepare: true,
@@ -193,8 +201,9 @@ export const resolvers = {
             }
           );
 
-        for (const resultItem of bucketResultArray)
+        for (const resultItem of bucketResultArray) {
           resultArray.push(resultItem);
+        }
         currentBucketNumber -= 1;
       }
 
@@ -344,6 +353,11 @@ export const resolvers = {
         typeof queryParameters === "object" &&
         !Number.isNaN(queryParameters.ids);
 
+      const isFilteringByTags =
+        typeof queryParameters === "object" &&
+        Array.isArray(queryParameters.tags) &&
+        queryParameters.tags.length > 0;
+
       const limit = isQueryingBySingleId
         ? 1
         : isFilteringByFirstX
@@ -353,7 +367,7 @@ export const resolvers = {
       const fetchSize = isQueryingBySingleId ? 1 : limit + 1;
 
       let minHeight = toLong(0);
-      let maxHeight = gatewayHeight;
+      let maxHeight = gatewayHeight.mul(1000);
 
       if (queryParameters.block && queryParameters.block.min) {
         minHeight = toLong(queryParameters.block.min).mul(1000);
@@ -389,7 +403,9 @@ export const resolvers = {
 
       parameters.select = R.append("tx_index", parameters.select);
 
-      const txQuery = generateTransactionQuery(parameters);
+      const txQuery = generateTransactionQuery(parameters, {
+        isFilteringByTags,
+      });
 
       const resultArray = [];
       const bucketCount =
@@ -414,18 +430,16 @@ export const resolvers = {
                 currentBucketNumber
               );
 
+        const txCqlQuery = txQuery.query
+          .replace(/%1/i, `'${partition_id}'`)
+          .replace(/%2/i, `'${bucket_id}'`)
+          .replace(/%3/i, bucket_number);
+
         const { rows: bucketResultArray }: { rows: unknown[] } =
-          await cassandraClient.execute(
-            txQuery.query
-              .replace(/%1/i, `'${partition_id}'`)
-              .replace(/%2/i, `'${bucket_id}'`)
-              .replace(/%3/i, bucket_number),
-            txQuery.params,
-            {
-              prepare: true,
-              executionProfile: "gql",
-            }
-          );
+          await cassandraClient.execute(txCqlQuery, txQuery.params, {
+            prepare: true,
+            executionProfile: "gql",
+          });
 
         for (const resultItem of bucketResultArray)
           resultArray.push(resultItem);

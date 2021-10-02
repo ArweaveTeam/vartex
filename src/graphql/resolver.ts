@@ -67,6 +67,7 @@ interface ArFee {
 interface FieldMap {
   indep_hash: string;
   id: string;
+  ids: string[] | string; // legacy support, should only be string[]
   tx_id: string;
   anchor: string;
   recipient: string;
@@ -192,7 +193,8 @@ export const resolvers = {
             }
           );
 
-        for (const resultItem of bucketResultArray)  resultArray.push(resultItem);
+        for (const resultItem of bucketResultArray)
+          resultArray.push(resultItem);
         currentBucketNumber -= 1;
       }
 
@@ -331,8 +333,24 @@ export const resolvers = {
       );
       const fieldsWithSubFields = graphqlFields(info);
 
-      const fetchSize =
-        Math.min(queryParameters.first || DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE) + 1;
+      const isQueryingByIds =
+        typeof queryParameters === "object" &&
+        Array.isArray(queryParameters.ids);
+
+      const isQueryingBySingleId =
+        isQueryingByIds && queryParameters.ids.length === 1;
+
+      const isFilteringByFirstX =
+        typeof queryParameters === "object" &&
+        !Number.isNaN(queryParameters.ids);
+
+      const limit = isQueryingBySingleId
+        ? 1
+        : isFilteringByFirstX
+        ? Math.min(queryParameters.first, MAX_PAGE_SIZE)
+        : DEFAULT_PAGE_SIZE;
+
+      const fetchSize = isQueryingBySingleId ? 1 : limit + 1;
 
       let minHeight = toLong(0);
       let maxHeight = gatewayHeight;
@@ -346,12 +364,13 @@ export const resolvers = {
       }
 
       const selectsBlock = R.hasPath("edges.node.block", fieldsWithSubFields);
+
       const parameters: Partial<
         Omit<QueryParameters, "after"> & { before: string }
       > = {
         limit: fetchSize,
         offset: offset,
-        // ids: queryParameters.ids || undefined,
+        ids: queryParameters.ids || undefined,
         recipients: queryParameters.recipients || undefined,
         from: queryParameters.owners || undefined,
         tags: queryParameters.tags || undefined,
@@ -362,16 +381,6 @@ export const resolvers = {
         maxHeight,
         sortOrder: queryParameters.sort || undefined,
       };
-
-      // No selection = no search
-      if (R.isEmpty(parameters.select) && !selectsBlock) {
-        return {
-          pageInfo: {
-            hasNextPage: false,
-          },
-          edges: [],
-        };
-      }
 
       // todo, elide selectors not selected from user
       if (!parameters.select.includes("tx_id")) {
@@ -396,16 +405,21 @@ export const resolvers = {
           ? ascendingTraverseBucketNumber <= bucketCount
           : currentBucketNumber >= 0)
       ) {
+        const { partition_id, bucket_id, bucket_number } =
+          parameters.sortOrder === "HEIGHT_ASC"
+            ? CONST.convertGqlTxIdAscBucketNumberToPrimaryKeys(
+                ascendingTraverseBucketNumber
+              )
+            : CONST.convertGqlTxIdDescBucketNumberToPrimaryKeys(
+                currentBucketNumber
+              );
+
         const { rows: bucketResultArray }: { rows: unknown[] } =
           await cassandraClient.execute(
-            txQuery.query.replace(
-              /%/i,
-              `${
-                parameters.sortOrder === "HEIGHT_ASC"
-                  ? ascendingTraverseBucketNumber
-                  : currentBucketNumber
-              }`
-            ),
+            txQuery.query
+              .replace(/%1/i, `'${partition_id}'`)
+              .replace(/%2/i, `'${bucket_id}'`)
+              .replace(/%3/i, bucket_number),
             txQuery.params,
             {
               prepare: true,
@@ -413,7 +427,8 @@ export const resolvers = {
             }
           );
 
-        for (const resultItem of bucketResultArray)  resultArray.push(resultItem);
+        for (const resultItem of bucketResultArray)
+          resultArray.push(resultItem);
         if (parameters.sortOrder === "HEIGHT_ASC") {
           ascendingTraverseBucketNumber += 1;
         } else {
@@ -626,16 +641,61 @@ export const resolvers = {
       });
 
       let hasNextPage = false;
-
-      let { rows: result }: { rows: unknown[] } = await cassandraClient.execute(
-        blockQuery.query,
-        blockQuery.params,
-        { prepare: true, executionProfile: "gql" }
+      const resultArray = [];
+      const bucketCount =
+        queryParameters.sort === "HEIGHT_ASC"
+          ? CONST.getGqlTxIdAscBucketNumber(gatewayHeight)
+          : CONST.getGqlTxIdDescBucketNumber(gatewayHeight);
+      let currentBucketNumber = Math.max(
+        0,
+        CONST.getGqlTxIdDescBucketNumber(gatewayHeight)
       );
+      let ascendingTraverseBucketNumber =
+        CONST.getGqlTxIdAscBucketNumber(minHeight);
 
-      if (result.length === fetchSize) {
+      while (
+        resultArray.length < fetchSize &&
+        (queryParameters.sort === "HEIGHT_ASC"
+          ? ascendingTraverseBucketNumber <= bucketCount
+          : currentBucketNumber >= CONST.getGqlTxIdAscBucketNumber(minHeight))
+      ) {
+        const { partition_id, bucket_id, bucket_number } =
+          queryParameters.sort === "HEIGHT_ASC"
+            ? CONST.convertGqlBlockHeightAscBucketNumberToPrimaryKeys(
+                ascendingTraverseBucketNumber
+              )
+            : CONST.convertGqlBlockHeightDescBucketNumberToPrimaryKeys(
+                currentBucketNumber
+              );
+
+        const { rows: bucketResultArray }: { rows: unknown[] } =
+          await cassandraClient.execute(
+            blockQuery.query
+              .replace(/%1/i, `'${partition_id}'`)
+              .replace(/%2/i, `'${bucket_id}'`)
+              .replace(/%3/i, bucket_number),
+
+            blockQuery.params,
+            {
+              prepare: true,
+              executionProfile: "gql",
+            }
+          );
+
+        for (const resultItem of bucketResultArray)
+          resultArray.push(resultItem);
+        if (queryParameters.sort === "HEIGHT_ASC") {
+          ascendingTraverseBucketNumber += 1;
+        } else {
+          currentBucketNumber -= 1;
+        }
+      }
+
+      let result = resultArray;
+
+      if (resultArray.length === fetchSize) {
         hasNextPage = true;
-        result = R.dropLast(1, result);
+        result = R.dropLast(1, resultArray);
       }
 
       return {

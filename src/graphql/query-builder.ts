@@ -50,8 +50,10 @@ export function generateTransactionQuery(
   const cql = Select()
     .table(table, KEYSPACE)
     .field(parameters.select)
-    .filtering()
-    .where("bucket_number = %");
+    // .filtering()
+    .where("partition_id = %1")
+    .where("bucket_id = %2")
+    .where("bucket_number = %3");
 
   if (parameters.id) {
     cql.where(`tx_id=?`, parameters.id);
@@ -118,22 +120,30 @@ export function generateTransactionQuery(
   //   cql.where('timestamp < ?', params.before);
   // }
 
-  if (parameters.minHeight) {
-    cql.where(
-      "tx_index >= ?",
-      parameters.sortOrder === "HEIGHT_ASC"
-        ? parameters.minHeight.add(parameters.offset).toString()
-        : parameters.minHeight.toString()
-    );
-  }
+  if (
+    parameters.minHeight &&
+    parameters.maxHeight &&
+    parameters.maxHeight.eq(parameters.minHeight)
+  ) {
+    cql.where("tx_index >= ?", parameters.minHeight.toString());
+    cql.where("tx_index < ?", parameters.minHeight.add(1000).toString());
+  } else {
+    if (parameters.minHeight) {
+      const txsMinHeight =
+        parameters.sortOrder === "HEIGHT_ASC"
+          ? parameters.minHeight.add(parameters.offset).toString()
+          : parameters.minHeight.toString();
 
-  if (parameters.maxHeight) {
-    cql.where(
-      "tx_index <= ?",
-      parameters.sortOrder === "HEIGHT_DESC"
-        ? parameters.maxHeight.sub(parameters.offset).toString()
-        : parameters.maxHeight.toString()
-    );
+      cql.where("tx_index >= ?", txsMinHeight);
+    }
+
+    if (parameters.maxHeight) {
+      const txsMaxHeight =
+        parameters.sortOrder === "HEIGHT_DESC"
+          ? parameters.maxHeight.sub(parameters.offset).toString()
+          : parameters.maxHeight.toString();
+      cql.where("tx_index <= ?", txsMaxHeight);
+    }
   }
   return cql.build();
 }
@@ -173,7 +183,9 @@ export function generateBlockQuery(parameters: BlockQueryParameters): CqlQuery {
     .field(
       select.includes("indep_hash") ? select : R.append("indep_hash", select)
     )
-    .where("bucket_number = %")
+    .where("partition_id = %1")
+    .where("bucket_id = %2")
+    .where("bucket_number = %3")
     .filtering();
 
   // const query = connection.queryBuilder().select(select).from('blocks');

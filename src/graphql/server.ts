@@ -22,6 +22,7 @@ export function graphServer(
       return {
         req: context.req,
         conection: {},
+        tracing: true,
         // connection,
       };
     },

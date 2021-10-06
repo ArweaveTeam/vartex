@@ -37,3 +37,23 @@ export interface UnsyncedBlock {
 export interface DeleteRowData extends UnsyncedBlock {
   timestamp: CassandraTypes.Long;
 }
+
+export interface Transaction {
+  tx_index: CassandraTypes.Long;
+  block_height: CassandraTypes.Long;
+  block_hash: string;
+  bundled_in: string;
+  data_root: string;
+  data_size: CassandraTypes.Long;
+  data_tree: string[];
+  format: number;
+  tx_id: string;
+  last_tx: string;
+  owner: string;
+  quantity: CassandraTypes.Long;
+  reward: CassandraTypes.Long;
+  signature: string;
+  tags: CassandraTypes.Tuple[];
+  tag_count: number;
+  target: number;
+}

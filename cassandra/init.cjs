@@ -197,15 +197,26 @@ async function connect() {
          PRIMARY KEY(tx_id)
        )`,
 
-        // `CREATE TABLE IF NOT EXISTS manifest (
-        //    manifest_url text,
-        //    manifest_id text,
-        //    tx_id text,
-        //    path text,
-        //    PRIMARY KEY(manifest_id, tx_id)
-        //  )
-        //  WITH CLUSTERING ORDER BY (tx_id DESC)`,
-      ].concat(tagTables);
+        `CREATE TABLE IF NOT EXISTS manifest (
+          tx_id text,
+          manifest_type text,
+          manifest_version text,
+          manifest_index text,
+          manifest_paths text,
+          PRIMARY KEY(tx_id)
+        )`,
+
+        `CREATE TABLE IF NOT EXISTS permaweb_path (
+          domain_id text,
+          uri_path text,
+          target_id text,
+          content_length text,
+          content_type text,
+          blacklisted boolean,
+          custom_headers list<frozen<tuple<text,text>>>,
+          PRIMARY KEY(domain_id, uri_path)
+        )`,
+      ].concat(tagTables.createTableQueries);
       let p = Promise.resolve();
       let aresolve;
       let a = new Promise((resolve) => {

@@ -50,249 +50,310 @@ function generateTagFilterTables(tableName, filters) {
     .map(({ name, type }) => `${name} ${type},`)
     .join("\n");
 
-  const primaryKeys =
-    filters.length === 0
-      ? "tag_sum"
-      : `(tag_sum, ${filters.map((nt) => nt.name).join(", ")})`;
-  return `
-    CREATE TABLE IF NOT EXISTS tx_tag_gql_by_${tableName}_asc_migration_0 (
-           tag_sum text,
-           ${columns}
-           tx_index bigint,
-           data_item_index bigint,
-           PRIMARY KEY (${primaryKeys}, tx_index, data_item_index)
-        )
-    WITH CLUSTERING ORDER BY (tx_index ASC, data_item_index ASC)
+  const extraPrimaryKeys =
+    R.reject(R.equals("tx_id"), filters).length === 0
+      ? ""
+      : `, ${filters.map((nt) => nt.name).join(", ")}`;
 
-    CREATE TABLE IF NOT EXISTS tx_tag_gql_by_${tableName}_desc_migration_0 (
-           tag_sum text,
-           ${columns}
+  return [
+    `
+    CREATE TABLE IF NOT EXISTS tx_tag_gql_by${
+      filters.length !== 0 ? "_" : ""
+    }${tableName}_asc_migration_0 (
+           tag_name text,
+           tag_value text,
+           tx_id text,
            tx_index bigint,
            data_item_index bigint,
-           PRIMARY KEY (${primaryKeys}, tx_index, data_item_index)
+           tag_index text,
+           ${columns}
+           PRIMARY KEY ((tag_name, tag_value ${extraPrimaryKeys}), tx_index, data_item_index, tag_index)
         )
-    WITH CLUSTERING ORDER BY (tx_index DESC, data_item_index DESC)`;
+    WITH CLUSTERING ORDER BY (tx_index ASC, data_item_index ASC, tag_index ASC)`,
+
+    `CREATE TABLE IF NOT EXISTS tx_tag_gql_by${
+      filters.length !== 0 ? "_" : ""
+    }${tableName}_desc_migration_0 (
+           tag_name text,
+           tag_value text,
+           tx_id text,
+           tx_index bigint,
+           data_item_index bigint,
+           tag_index text,
+           ${columns}
+           PRIMARY KEY ((tag_name, tag_value ${extraPrimaryKeys}), tx_index, data_item_index, tag_index)
+        )
+    WITH CLUSTERING ORDER BY (tx_index DESC, data_item_index DESC, tag_index DESC);
+`,
+  ];
 }
 
 // tags of 1 (no tx filter other than tag)
-const tagFilters1 = [generateTagFilterTables("tagsum", [])];
+const tagFilters1 = R.flatten([generateTagFilterTables("", [])]);
 
 // tags of 2
-const tagFilters2 = [
+const tagFilters2 = R.flatten([
   // tags ids
-  generateTagFilterTables("tagsum_and_tx_id", [
-    { name: "tx_id", type: "string" },
-  ]),
+  generateTagFilterTables("tx_id", [{ name: "tx_id", type: "string" }]),
   // tags owners
-  generateTagFilterTables("tagsum_and_owner", [
-    { name: "owner", type: "string" },
-  ]),
+  generateTagFilterTables("owner", [{ name: "owner", type: "string" }]),
   // tags recipient (target)
-  generateTagFilterTables("tagsum_and_target", [
-    { name: "target", type: "string" },
-  ]),
+  generateTagFilterTables("target", [{ name: "target", type: "string" }]),
   // tags bundleid
-  generateTagFilterTables("tagsum_and_bundle_id", [
-    { name: "bundle_id", type: "string" },
+  generateTagFilterTables("bundled_in", [
+    { name: "bundled_in", type: "string" },
   ]),
   // tags dataRoot
-  generateTagFilterTables("tagsum_and_data_root", [
-    { name: "data_root", type: "string" },
-  ]),
-];
+  generateTagFilterTables("data_root", [{ name: "data_root", type: "string" }]),
+]);
 
 // tags of 3
-const tagFilters3 = [
+const tagFilters3 = R.flatten([
   // tags+ids+owners
-  generateTagFilterTables("tagsum_and_tx_id_and_owner", [
+  generateTagFilterTables("tx_id_and_owner", [
     { name: "tx_id", type: "string" },
     { name: "owner", type: "string" },
   ]),
   // tags+ids+recipients(target)
-  generateTagFilterTables("tagsum_and_tx_id_and_target", [
+  generateTagFilterTables("tx_id_and_target", [
     { name: "tx_id", type: "string" },
     { name: "target", type: "string" },
   ]),
   // tags+ids+bundleIds
-  generateTagFilterTables("tagsum_and_tx_id_and_bundle_id", [
+  generateTagFilterTables("tx_id_and_bundled_in", [
     { name: "tx_id", type: "string" },
-    { name: "bundle_id", type: "string" },
+    { name: "bundled_in", type: "string" },
   ]),
   // tags+ids+dataRoot
-  generateTagFilterTables("tagsum_and_tx_id_and_data_root", [
+  generateTagFilterTables("tx_id_and_data_root", [
     { name: "tx_id", type: "string" },
     { name: "data_root", type: "string" },
   ]),
   // tags+owners+recipients(target)
-  generateTagFilterTables("tagsum_and_owner_and_target", [
+  generateTagFilterTables("owner_and_target", [
     { name: "owner", type: "string" },
     { name: "target", type: "string" },
   ]),
   // tags+owners+bundleIds
-  generateTagFilterTables("tagsum_and_owner_and_bundle_id", [
+  generateTagFilterTables("owner_and_bundled_in", [
     { name: "owner", type: "string" },
-    { name: "bundle_id", type: "string" },
+    { name: "bundled_in", type: "string" },
   ]),
   // tags+owners+dataRoot
-  generateTagFilterTables("tagsum_and_owner_and_data_root", [
+  generateTagFilterTables("owner_and_data_root", [
     { name: "owner", type: "string" },
     { name: "data_root", type: "string" },
   ]),
   // tags+target+bundleId
-  generateTagFilterTables("tagsum_and_target_and_bundle_id", [
+  generateTagFilterTables("target_and_bundled_in", [
     { name: "target", type: "string" },
-    { name: "bundle_id", type: "string" },
+    { name: "bundled_in", type: "string" },
   ]),
   // tags+target+dataRoot
-  generateTagFilterTables("tagsum_and_target_and_data_root", [
+  generateTagFilterTables("target_and_data_root", [
     { name: "target", type: "string" },
     { name: "data_root", type: "string" },
   ]),
   // tags+bundleId+dataRoot
-  generateTagFilterTables("tagsum_and_bundle_id_and_data_root", [
-    { name: "bundle_id", type: "string" },
+  generateTagFilterTables("bundled_in_and_data_root", [
+    { name: "bundled_in", type: "string" },
     { name: "data_root", type: "string" },
   ]),
-];
+]);
 
 // tags of 4
-const tagFilters4 = [
+const tagFilters4 = R.flatten([
   // tags+ids+owners+target
-  generateTagFilterTables("tagsum_and_tx_id_and_owner_and_target", [
+  generateTagFilterTables("tx_id_and_owner_and_target", [
     { name: "tx_id", type: "string" },
     { name: "owner", type: "string" },
     { name: "target", type: "string" },
   ]),
-  // tags+ids+owners+bundle_id
-  generateTagFilterTables("tagsum_and_tx_id_and_owner_and_bundle_id", [
+  // tags+ids+owners+bundled_in
+  generateTagFilterTables("tx_id_and_owner_and_bundled_in", [
     { name: "tx_id", type: "string" },
     { name: "owner", type: "string" },
-    { name: "bundle_id", type: "string" },
+    { name: "bundled_in", type: "string" },
   ]),
   // tags+ids+owners+data_root
-  generateTagFilterTables("tagsum_and_tx_id_and_owner_and_data_root", [
+  generateTagFilterTables("tx_id_and_owner_and_data_root", [
     { name: "tx_id", type: "string" },
     { name: "owner", type: "string" },
     { name: "data_root", type: "string" },
   ]),
-  // tags+ids+target+bundle_id
-  generateTagFilterTables("tagsum_and_tx_id_and_target_and_bundle_id", [
+  // tags+ids+target+bundled_in
+  generateTagFilterTables("tx_id_and_target_and_bundled_in", [
     { name: "tx_id", type: "string" },
     { name: "target", type: "string" },
-    { name: "bundle_id", type: "string" },
+    { name: "bundled_in", type: "string" },
   ]),
   // tags+ids+target+data_root
-  generateTagFilterTables("tagsum_and_tx_id_and_target_and_data_root", [
+  generateTagFilterTables("tx_id_and_target_and_data_root", [
     { name: "tx_id", type: "string" },
     { name: "target", type: "string" },
     { name: "data_root", type: "string" },
   ]),
-  // tags+ids+bundle_id+data_root
-  generateTagFilterTables("tagsum_and_tx_id_and_bundle_id_and_data_root", [
+  // tags+ids+bundled_in+data_root
+  generateTagFilterTables("tx_id_and_bundled_in_and_data_root", [
     { name: "tx_id", type: "string" },
-    { name: "bundle_id", type: "string" },
+    { name: "bundled_in", type: "string" },
     { name: "data_root", type: "string" },
   ]),
-  // tags+owner+target+bundle_id
-  generateTagFilterTables("tagsum_and_owner_and_target_and_bundle_id", [
+  // tags+owner+target+bundled_in
+  generateTagFilterTables("owner_and_target_and_bundled_in", [
     { name: "owner", type: "string" },
     { name: "target", type: "string" },
-    { name: "bundle_id", type: "string" },
+    { name: "bundled_in", type: "string" },
   ]),
   // tags+owner+target+data_root
-  generateTagFilterTables("tagsum_and_owner_and_target_and_data_root", [
+  generateTagFilterTables("owner_and_target_and_data_root", [
     { name: "owner", type: "string" },
     { name: "target", type: "string" },
     { name: "data_root", type: "string" },
   ]),
-  // tags+owner+bundle_id+data_root
-  generateTagFilterTables("tagsum_and_owner_and_bundle_id_and_data_root", [
+  // tags+owner+bundled_in+data_root
+  generateTagFilterTables("owner_and_bundled_in_and_data_root", [
     { name: "owner", type: "string" },
-    { name: "bundle_id", type: "string" },
+    { name: "bundled_in", type: "string" },
     { name: "data_root", type: "string" },
   ]),
-  // tags+target+bundle_id+data_root
-  generateTagFilterTables("tagsum_and_target_and_bundle_id_and_data_root", [
+  // tags+target+bundled_in+data_root
+  generateTagFilterTables("target_and_bundled_in_and_data_root", [
     { name: "target", type: "string" },
-    { name: "bundle_id", type: "string" },
+    { name: "bundled_in", type: "string" },
     { name: "data_root", type: "string" },
   ]),
-];
+]);
 
 // tage of 5
-const tagFilters5 = [
-  // tags+ids+owners+target+bundle_id
-  generateTagFilterTables(
-    "tagsum_and_tx_id_and_owner_and_target_and_bundle_id",
-    [
-      { name: "tx_id", type: "string" },
-      { name: "owner", type: "string" },
-      { name: "target", type: "string" },
-      { name: "bundle_id", type: "string" },
-    ]
-  ),
+const tagFilters5 = R.flatten([
+  // tags+ids+owners+target+bundled_in
+  generateTagFilterTables("tx_id_and_owner_and_target_and_bundled_in", [
+    { name: "tx_id", type: "string" },
+    { name: "owner", type: "string" },
+    { name: "target", type: "string" },
+    { name: "bundled_in", type: "string" },
+  ]),
   // tags+ids+owners+target+data_root
-  generateTagFilterTables(
-    "tagsum_and_tx_id_and_owner_and_target_and_data_root",
-    [
-      { name: "tx_id", type: "string" },
-      { name: "owner", type: "string" },
-      { name: "target", type: "string" },
-      { name: "data_root", type: "string" },
-    ]
-  ),
-  // tags+ids+owners+bundle_id+data_root
-  generateTagFilterTables(
-    "tagsum_and_tx_id_and_owner_and_bundle_id_and_data_root",
-    [
-      { name: "tx_id", type: "string" },
-      { name: "owner", type: "string" },
-      { name: "bundle_id", type: "string" },
-      { name: "data_root", type: "string" },
-    ]
-  ),
-  // tags+ids+target+bundle_id+data_root
-  generateTagFilterTables(
-    "tagsum_and_tx_id_and_target_and_bundle_id_and_data_root",
-    [
-      { name: "tx_id", type: "string" },
-      { name: "target", type: "string" },
-      { name: "bundle_id", type: "string" },
-      { name: "data_root", type: "string" },
-    ]
-  ),
-  // tags+owner+target+bundle_id+data_root
-  generateTagFilterTables(
-    "tagsum_and_owner_and_target_and_bundle_id_and_data_root",
-    [
-      { name: "owner", type: "string" },
-      { name: "target", type: "string" },
-      { name: "bundle_id", type: "string" },
-      { name: "data_root", type: "string" },
-    ]
-  ),
-];
+  generateTagFilterTables("tx_id_and_owner_and_target_and_data_root", [
+    { name: "tx_id", type: "string" },
+    { name: "owner", type: "string" },
+    { name: "target", type: "string" },
+    { name: "data_root", type: "string" },
+  ]),
+  // tags+ids+owners+bundled_in+data_root
+  generateTagFilterTables("tx_id_and_owner_and_bundled_in_and_data_root", [
+    { name: "tx_id", type: "string" },
+    { name: "owner", type: "string" },
+    { name: "bundled_in", type: "string" },
+    { name: "data_root", type: "string" },
+  ]),
+  // tags+ids+target+bundled_in+data_root
+  generateTagFilterTables("tx_id_and_target_and_bundled_in_and_data_root", [
+    { name: "tx_id", type: "string" },
+    { name: "target", type: "string" },
+    { name: "bundled_in", type: "string" },
+    { name: "data_root", type: "string" },
+  ]),
+  // tags+owner+target+bundled_in+data_root
+  generateTagFilterTables("owner_and_target_and_bundled_in_and_data_root", [
+    { name: "owner", type: "string" },
+    { name: "target", type: "string" },
+    { name: "bundled_in", type: "string" },
+    { name: "data_root", type: "string" },
+  ]),
+]);
 
 // tags of 6
-const tagFilters6 = [
-  // tags+ids+owners+target+bundle_id+data_root
+const tagFilters6 = R.flatten([
+  // tags+ids+owners+target+bundled_in+data_root
   generateTagFilterTables(
-    "tagsum_and_tx_id_and_owner_and_target_and_bundle_id_and_data_root",
+    "tx_id_and_owner_and_target_and_bundled_in_and_data_root",
     [
       { name: "tx_id", type: "string" },
       { name: "owner", type: "string" },
       { name: "target", type: "string" },
-      { name: "bundle_id", type: "string" },
+      { name: "bundled_in", type: "string" },
       { name: "data_root", type: "string" },
     ]
   ),
+]);
+
+const tables = [
+  "tx_tag_gql_asc_migration_0",
+  "tx_tag_gql_desc_migration_0",
+  "tx_tag_gql_by_tx_id_asc_migration_0",
+  "tx_tag_gql_by_tx_id_desc_migration_0",
+  "tx_tag_gql_by_owner_asc_migration_0",
+  "tx_tag_gql_by_owner_desc_migration_0",
+  "tx_tag_gql_by_target_asc_migration_0",
+  "tx_tag_gql_by_target_desc_migration_0",
+  "tx_tag_gql_by_bundled_in_asc_migration_0",
+  "tx_tag_gql_by_bundled_in_desc_migration_0",
+  "tx_tag_gql_by_data_root_asc_migration_0",
+  "tx_tag_gql_by_data_root_desc_migration_0",
+  "tx_tag_gql_by_tx_id_and_owner_asc_migration_0",
+  "tx_tag_gql_by_tx_id_and_owner_desc_migration_0",
+  "tx_tag_gql_by_tx_id_and_target_asc_migration_0",
+  "tx_tag_gql_by_tx_id_and_target_desc_migration_0",
+  "tx_tag_gql_by_tx_id_and_bundled_in_asc_migration_0",
+  "tx_tag_gql_by_tx_id_and_bundled_in_desc_migration_0",
+  "tx_tag_gql_by_tx_id_and_data_root_asc_migration_0",
+  "tx_tag_gql_by_tx_id_and_data_root_desc_migration_0",
+  "tx_tag_gql_by_owner_and_target_asc_migration_0",
+  "tx_tag_gql_by_owner_and_target_desc_migration_0",
+  "tx_tag_gql_by_owner_and_bundled_in_asc_migration_0",
+  "tx_tag_gql_by_owner_and_bundled_in_desc_migration_0",
+  "tx_tag_gql_by_owner_and_data_root_asc_migration_0",
+  "tx_tag_gql_by_owner_and_data_root_desc_migration_0",
+  "tx_tag_gql_by_target_and_bundled_in_asc_migration_0",
+  "tx_tag_gql_by_target_and_bundled_in_desc_migration_0",
+  "tx_tag_gql_by_target_and_data_root_asc_migration_0",
+  "tx_tag_gql_by_target_and_data_root_desc_migration_0",
+  "tx_tag_gql_by_bundled_in_and_data_root_asc_migration_0",
+  "tx_tag_gql_by_bundled_in_and_data_root_desc_migration_0",
+  "tx_tag_gql_by_tx_id_and_owner_and_target_asc_migration_0",
+  "tx_tag_gql_by_tx_id_and_owner_and_target_desc_migration_0",
+  "tx_tag_gql_by_tx_id_and_owner_and_bundled_in_asc_migration_0",
+  "tx_tag_gql_by_tx_id_and_owner_and_bundled_in_desc_migration_0",
+  "tx_tag_gql_by_tx_id_and_owner_and_data_root_asc_migration_0",
+  "tx_tag_gql_by_tx_id_and_owner_and_data_root_desc_migration_0",
+  "tx_tag_gql_by_tx_id_and_target_and_bundled_in_asc_migration_0",
+  "tx_tag_gql_by_tx_id_and_target_and_bundled_in_desc_migration_0",
+  "tx_tag_gql_by_tx_id_and_target_and_data_root_asc_migration_0",
+  "tx_tag_gql_by_tx_id_and_target_and_data_root_desc_migration_0",
+  "tx_tag_gql_by_tx_id_and_bundled_in_and_data_root_asc_migration_0",
+  "tx_tag_gql_by_tx_id_and_bundled_in_and_data_root_desc_migration_0",
+  "tx_tag_gql_by_owner_and_target_and_bundled_in_asc_migration_0",
+  "tx_tag_gql_by_owner_and_target_and_bundled_in_desc_migration_0",
+  "tx_tag_gql_by_owner_and_target_and_data_root_asc_migration_0",
+  "tx_tag_gql_by_owner_and_target_and_data_root_desc_migration_0",
+  "tx_tag_gql_by_owner_and_bundled_in_and_data_root_asc_migration_0",
+  "tx_tag_gql_by_owner_and_bundled_in_and_data_root_desc_migration_0",
+  "tx_tag_gql_by_target_and_bundled_in_and_data_root_asc_migration_0",
+  "tx_tag_gql_by_target_and_bundled_in_and_data_root_desc_migration_0",
+  "tx_tag_gql_by_tx_id_and_owner_and_target_and_bundled_in_asc_migration_0",
+  "tx_tag_gql_by_tx_id_and_owner_and_target_and_bundled_in_desc_migration_0",
+  "tx_tag_gql_by_tx_id_and_owner_and_target_and_data_root_asc_migration_0",
+  "tx_tag_gql_by_tx_id_and_owner_and_target_and_data_root_desc_migration_0",
+  "tx_tag_gql_by_tx_id_and_owner_and_bundled_in_and_data_root_asc_migration_0",
+  "tx_tag_gql_by_tx_id_and_owner_and_bundled_in_and_data_root_desc_migration_0",
+  "tx_tag_gql_by_tx_id_and_target_and_bundled_in_and_data_root_asc_migration_0",
+  "tx_tag_gql_by_tx_id_and_target_and_bundled_in_and_data_root_desc_migration_0",
+  "tx_tag_gql_by_owner_and_target_and_bundled_in_and_data_root_asc_migration_0",
+  "tx_tag_gql_by_owner_and_target_and_bundled_in_and_data_root_desc_migration_0",
+  "tx_tag_gql_by_tx_id_and_owner_and_target_and_bundled_in_and_data_root_asc_migration_0",
+  "tx_tag_gql_by_tx_id_and_owner_and_target_and_bundled_in_and_data_root_desc_migration_0",
 ];
 
-module.exports = concatAll([
-  tagFilters1,
-  tagFilters2,
-  tagFilters3,
-  tagFilters4,
-  tagFilters5,
-  tagFilters6,
-]).join(`\n`);
+module.exports = {
+  tables,
+  createTableQueries: concatAll([
+    tagFilters1,
+    tagFilters2,
+    tagFilters3,
+    tagFilters4,
+    tagFilters5,
+    tagFilters6,
+  ]),
+};

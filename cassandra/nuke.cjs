@@ -2,6 +2,7 @@
 // IN CASSANDRA, BE CAREFUL!
 "use strict";
 const cassandra = require("cassandra-driver");
+const tagTables = require("./tag-tables.cjs");
 process.env.NODE_ENV !== "test" && require("dotenv").config();
 
 const KEYSPACE = process.env["KEYSPACE"] ? process.env["KEYSPACE"] : "gateway";
@@ -66,7 +67,9 @@ client
       `DROP TABLE IF EXISTS tx_tag_gql_by_name_desc`,
 
       `DROP TABLE IF EXISTS tx_tag`,
-    ];
+    ].concat(
+      tagTables.tables.map((tableName) => `DROP TABLE IF EXISTS ${tableName}`)
+    );
     let p = Promise.resolve();
     // Create the schema executing the queries serially
     queries.forEach((query) => (p = p.then(() => client.execute(query))));

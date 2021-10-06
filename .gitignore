@@ -14,6 +14,7 @@ snapshot
 .import
 *.temp
 .nyc_output
+.private
 
 **/*.log
 **/.DS_Store

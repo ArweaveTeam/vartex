@@ -379,6 +379,16 @@ export const resolvers = {
 
       const selectsBlock = R.hasPath("edges.node.block", fieldsWithSubFields);
 
+      const tagSearchMode =
+        queryParameters.tags && !R.isEmpty(queryParameters.tags);
+
+      const selectedDeferedKeysUser = [];
+
+      if (tagSearchMode && R.hasPath("edges.node.tags", fieldsWithSubFields)) {
+        selectedDeferedKeysUser.push("tags");
+        delete fieldsWithSubFields["edges"]["node"]["tags"];
+      }
+
       const parameters: Partial<
         Omit<QueryParameters, "after"> & { before: string }
       > = {
@@ -394,6 +404,7 @@ export const resolvers = {
         minHeight,
         maxHeight,
         sortOrder: queryParameters.sort || undefined,
+        tagSearchMode,
       };
 
       // todo, elide selectors not selected from user
@@ -408,10 +419,13 @@ export const resolvers = {
       });
 
       const resultArray = [];
-      const bucketCount =
-        parameters.sortOrder === "HEIGHT_ASC"
-          ? CONST.getGqlTxIdAscBucketNumber(gatewayHeight)
-          : CONST.getGqlTxIdDescBucketNumber(gatewayHeight);
+      const bucketCount = tagSearchMode
+        ? parameters.sortOrder === "HEIGHT_ASC"
+          ? CONST.getGqlTxTagAscBucketNumber(gatewayHeight)
+          : CONST.getGqlTxTagDescBucketNumber(gatewayHeight)
+        : parameters.sortOrder === "HEIGHT_ASC"
+        ? CONST.getGqlTxIdAscBucketNumber(gatewayHeight)
+        : CONST.getGqlTxIdDescBucketNumber(gatewayHeight);
       let currentBucketNumber = Math.max(0, bucketCount);
       let ascendingTraverseBucketNumber = 0;
 
@@ -421,26 +435,34 @@ export const resolvers = {
           ? ascendingTraverseBucketNumber <= bucketCount
           : currentBucketNumber >= 0)
       ) {
-        const { partition_id, bucket_id, bucket_number } =
-          parameters.sortOrder === "HEIGHT_ASC"
-            ? CONST.convertGqlTxIdAscBucketNumberToPrimaryKeys(
+        const { partition_id, bucket_id, bucket_number } = tagSearchMode
+          ? parameters.sortOrder === "HEIGHT_ASC"
+            ? CONST.convertGqlTxTagAscBucketNumberToPrimaryKeys(
                 ascendingTraverseBucketNumber
               )
-            : CONST.convertGqlTxIdDescBucketNumberToPrimaryKeys(
+            : CONST.convertGqlTxTagDescBucketNumberToPrimaryKeys(
                 currentBucketNumber
-              );
+              )
+          : parameters.sortOrder === "HEIGHT_ASC"
+          ? CONST.convertGqlTxIdAscBucketNumberToPrimaryKeys(
+              ascendingTraverseBucketNumber
+            )
+          : CONST.convertGqlTxIdDescBucketNumberToPrimaryKeys(
+              currentBucketNumber
+            );
 
         const txCqlQuery = txQuery.query
           .replace(/%1/i, `'${partition_id}'`)
           .replace(/%2/i, `'${bucket_id}'`)
           .replace(/%3/i, bucket_number);
 
+        console.error({ txCqlQuery, txQueryParams: txQuery.params });
         const { rows: bucketResultArray }: { rows: unknown[] } =
           await cassandraClient.execute(txCqlQuery, txQuery.params, {
             prepare: true,
             executionProfile: "gql",
           });
-
+        console.error({ bucketResultArray });
         for (const resultItem of bucketResultArray)
           resultArray.push(resultItem);
         if (parameters.sortOrder === "HEIGHT_ASC") {
@@ -507,7 +529,6 @@ export const resolvers = {
         }
       }
 
-      const selectedDeferedKeysUser = [];
       for (const k of R.keys(fieldsWithSubFields.edges.node) as string[]) {
         ["anchor", "fee", "signature", "quantity"].includes(k) &&
           selectedDeferedKeysUser.push(

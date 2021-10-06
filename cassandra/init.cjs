@@ -3,6 +3,7 @@ const fs = require("fs");
 const path = require("path");
 const net = require("net");
 const cassandra = require("cassandra-driver");
+const tagTables = require("./tag-tables.cjs");
 const migration1 = require("./migration1.cjs");
 const dotenvPath = path.resolve(__dirname, "../.env");
 const dotenvPathFallback = path.resolve(__dirname, "../.env.example");
@@ -168,38 +169,6 @@ async function connect() {
         )
         WITH CLUSTERING ORDER BY (bucket_number DESC, tx_index DESC, tag_index DESC)`,
 
-        `CREATE TABLE IF NOT EXISTS tx_tag_gql_by_name_asc_migration_1 (
-           partition_id text,
-           bucket_id text,
-           bucket_number int,
-           tx_index bigint,
-           tag_index int,
-           tag_name text,
-           tag_value text,
-           tx_id text,
-           owner text,
-           target text,
-           bundle_id text,
-           PRIMARY KEY ((partition_id, bucket_id), bucket_number, tx_index, tag_index)
-         )
-         WITH CLUSTERING ORDER BY (bucket_number ASC, tx_index ASC, tag_index ASC)`,
-
-        `CREATE TABLE IF NOT EXISTS tx_tag_gql_by_name_desc_migration_1 (
-           partition_id text,
-           bucket_id text,
-           bucket_number int,
-           tx_index bigint,
-           tag_index int,
-           tag_name text,
-           tag_value text,
-           tx_id text,
-           owner text,
-           target text,
-           bundle_id text,
-           PRIMARY KEY ((partition_id, bucket_id), bucket_number, tx_index, tag_index)
-        )
-        WITH CLUSTERING ORDER BY (bucket_number DESC, tx_index DESC, tag_index DESC)`,
-
         `CREATE TABLE IF NOT EXISTS transaction (
           tx_index bigint,
           block_height bigint,
@@ -227,6 +196,7 @@ async function connect() {
          offset bigint,
          PRIMARY KEY(tx_id)
        )`,
+
         // `CREATE TABLE IF NOT EXISTS manifest (
         //    manifest_url text,
         //    manifest_id text,
@@ -235,7 +205,7 @@ async function connect() {
         //    PRIMARY KEY(manifest_id, tx_id)
         //  )
         //  WITH CLUSTERING ORDER BY (tx_id DESC)`,
-      ];
+      ].concat(tagTables);
       let p = Promise.resolve();
       let aresolve;
       let a = new Promise((resolve) => {

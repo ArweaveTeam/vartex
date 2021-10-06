@@ -142,6 +142,17 @@ export const getGqlTxTagAscBucketNumber = (
   height: CassandraTypes.Long
 ): number => height.divide(GQL_TX_TAG_BUCKET_SIZE).toInt();
 
+export const convertGqlTxTagAscBucketNumberToPrimaryKeys = (
+  bucketNumber: number
+): CqlPrimaryKeys => {
+  const height = toLong(bucketNumber * GQL_TX_TAG_BUCKET_SIZE).add(1);
+  return {
+    partition_id: getGqlTxTagAscPartitionName(height),
+    bucket_id: getGqlTxTagAscBucketName(height),
+    bucket_number: `${bucketNumber}`,
+  };
+};
+
 export const getGqlTxTagDescPartitionName = (
   height: CassandraTypes.Long
 ): string =>
@@ -157,6 +168,17 @@ export const getGqlTxTagDescBucketName = (
 export const getGqlTxTagDescBucketNumber = (
   height: CassandraTypes.Long
 ): number => height.divide(GQL_TX_TAG_BUCKET_SIZE).toInt();
+
+export const convertGqlTxTagDescBucketNumberToPrimaryKeys = (
+  bucketNumber: number
+): CqlPrimaryKeys => {
+  const height = toLong(bucketNumber * GQL_TX_TAG_BUCKET_SIZE).add(1);
+  return {
+    partition_id: getGqlTxTagDescPartitionName(height),
+    bucket_id: getGqlTxTagDescBucketName(height),
+    bucket_number: `${bucketNumber}`,
+  };
+};
 
 export const getTxTagPartitionName = (height: CassandraTypes.Long): string =>
   `tx_tag_partition_${height.divide(GQL_TX_TAG_PARTITION_SIZE).toString()}`;

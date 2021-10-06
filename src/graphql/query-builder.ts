@@ -30,6 +30,7 @@ export interface QueryParameters {
   pendingMinutes?: number;
   minHeight?: CassandraTypes.Long;
   maxHeight?: CassandraTypes.Long;
+  tagSearchMode?: boolean;
 }
 
 interface CqlQuery {
@@ -47,10 +48,17 @@ export function generateTransactionQuery(
 ): CqlQuery {
   let table = tableId.TABLE_GQL_TX_DESC;
 
-  table =
-    parameters.sortOrder === "HEIGHT_ASC"
-      ? tableId.TABLE_GQL_TX_ASC
-      : tableId.TABLE_GQL_TX_DESC;
+  if (parameters.tags && !R.isEmpty(parameters.tags)) {
+    table =
+      parameters.sortOrder === "HEIGHT_ASC"
+        ? tableId.TABLE_TAG_NAME_ASC
+        : tableId.TABLE_TAG_NAME_DESC;
+  } else {
+    table =
+      parameters.sortOrder === "HEIGHT_ASC"
+        ? tableId.TABLE_GQL_TX_ASC
+        : tableId.TABLE_GQL_TX_DESC;
+  }
 
   const cql = Select()
     .table(table, KEYSPACE)
@@ -83,20 +91,9 @@ export function generateTransactionQuery(
 
   if (Array.isArray(parameters.tags) && !R.isEmpty(parameters.tags)) {
     for (const { name, values = "" } of parameters.tags) {
-      if (Array.isArray(values)) {
-        for (const value of values) {
-          cql.where(
-            "tags CONTAINS (?, ?)",
-            toB64url(name || ""),
-            toB64url(value || "")
-          );
-        }
-      } else {
-        cql.where(
-          "tags CONTAINS (?, ?)",
-          toB64url(name || ""),
-          toB64url(values || "")
-        );
+      cql.where("tag_name = ?", toB64url(name || ""));
+      for (const value of values) {
+        cql.where("tag_value = ?", toB64url(value || ""));
       }
     }
   }

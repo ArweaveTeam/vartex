@@ -340,7 +340,7 @@ export async function startSync({
   let lastBlock: CassandraTypes.Long = toLong(-1);
   // let lastTx: CassandraTypes.Long = toLong(-1);
 
-  if (!firstRun) {
+  if (!firstRun && !developmentSyncLength) {
     // await Dr.enqueueUnhandledCache(
     //   enqueueIncomingTxQueue,
     //   enqueueTxQueue,

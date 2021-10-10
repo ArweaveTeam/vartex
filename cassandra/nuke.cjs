@@ -36,6 +36,8 @@ client
       `DROP TABLE IF EXISTS block_by_tx_id`,
       `DROP TABLE IF EXISTS block_height_by_block_hash`,
       `DROP TABLE IF EXISTS block`,
+      `DROP TABLE IF EXISTS manifest`,
+      `DROP TABLE IF EXISTS permaweb_path`,
 
       `DROP TABLE IF EXISTS tx_offset`,
       `DROP TABLE IF EXISTS transaction`,

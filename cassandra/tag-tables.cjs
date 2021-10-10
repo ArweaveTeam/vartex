@@ -46,40 +46,39 @@ const concatAll = R.converge(R.reduce(R.concat), [R.head, R.tail]);
 // tags
 
 function generateTagFilterTables(tableName, filters) {
-  const columns = filters
+  const newCols = R.reject(R.propEq("name", "tx_id"), filters);
+  const columns = newCols
     .map(({ name, type }) => `${name} ${type},`)
     .join("\n");
 
   const extraPrimaryKeys =
-    R.reject(R.equals("tx_id"), filters).length === 0
-      ? ""
-      : `, ${filters.map((nt) => nt.name).join(", ")}`;
+    filters.length === 0 ? "" : `, ${filters.map((nt) => nt.name).join(", ")}`;
 
   return [
     `
-    CREATE TABLE IF NOT EXISTS tx_tag_gql_by${
-      filters.length !== 0 ? "_" : ""
+    CREATE TABLE IF NOT EXISTS tx_tag_gql${
+      filters.length !== 0 ? "_by_" : ""
     }${tableName}_asc_migration_0 (
            tag_name text,
            tag_value text,
            tx_id text,
            tx_index bigint,
            data_item_index bigint,
-           tag_index text,
+           tag_index int,
            ${columns}
            PRIMARY KEY ((tag_name, tag_value ${extraPrimaryKeys}), tx_index, data_item_index, tag_index)
         )
     WITH CLUSTERING ORDER BY (tx_index ASC, data_item_index ASC, tag_index ASC)`,
 
-    `CREATE TABLE IF NOT EXISTS tx_tag_gql_by${
-      filters.length !== 0 ? "_" : ""
+    `CREATE TABLE IF NOT EXISTS tx_tag_gql${
+      filters.length !== 0 ? "_by_" : ""
     }${tableName}_desc_migration_0 (
            tag_name text,
            tag_value text,
            tx_id text,
            tx_index bigint,
            data_item_index bigint,
-           tag_index text,
+           tag_index int,
            ${columns}
            PRIMARY KEY ((tag_name, tag_value ${extraPrimaryKeys}), tx_index, data_item_index, tag_index)
         )
@@ -94,70 +93,68 @@ const tagFilters1 = R.flatten([generateTagFilterTables("", [])]);
 // tags of 2
 const tagFilters2 = R.flatten([
   // tags ids
-  generateTagFilterTables("tx_id", [{ name: "tx_id", type: "string" }]),
+  generateTagFilterTables("tx_id", [{ name: "tx_id", type: "text" }]),
   // tags owners
-  generateTagFilterTables("owner", [{ name: "owner", type: "string" }]),
+  generateTagFilterTables("owner", [{ name: "owner", type: "text" }]),
   // tags recipient (target)
-  generateTagFilterTables("target", [{ name: "target", type: "string" }]),
+  generateTagFilterTables("target", [{ name: "target", type: "text" }]),
   // tags bundleid
-  generateTagFilterTables("bundled_in", [
-    { name: "bundled_in", type: "string" },
-  ]),
+  generateTagFilterTables("bundled_in", [{ name: "bundled_in", type: "text" }]),
   // tags dataRoot
-  generateTagFilterTables("data_root", [{ name: "data_root", type: "string" }]),
+  generateTagFilterTables("data_root", [{ name: "data_root", type: "text" }]),
 ]);
 
 // tags of 3
 const tagFilters3 = R.flatten([
   // tags+ids+owners
   generateTagFilterTables("tx_id_and_owner", [
-    { name: "tx_id", type: "string" },
-    { name: "owner", type: "string" },
+    { name: "tx_id", type: "text" },
+    { name: "owner", type: "text" },
   ]),
   // tags+ids+recipients(target)
   generateTagFilterTables("tx_id_and_target", [
-    { name: "tx_id", type: "string" },
-    { name: "target", type: "string" },
+    { name: "tx_id", type: "text" },
+    { name: "target", type: "text" },
   ]),
   // tags+ids+bundleIds
   generateTagFilterTables("tx_id_and_bundled_in", [
-    { name: "tx_id", type: "string" },
-    { name: "bundled_in", type: "string" },
+    { name: "tx_id", type: "text" },
+    { name: "bundled_in", type: "text" },
   ]),
   // tags+ids+dataRoot
   generateTagFilterTables("tx_id_and_data_root", [
-    { name: "tx_id", type: "string" },
-    { name: "data_root", type: "string" },
+    { name: "tx_id", type: "text" },
+    { name: "data_root", type: "text" },
   ]),
   // tags+owners+recipients(target)
   generateTagFilterTables("owner_and_target", [
-    { name: "owner", type: "string" },
-    { name: "target", type: "string" },
+    { name: "owner", type: "text" },
+    { name: "target", type: "text" },
   ]),
   // tags+owners+bundleIds
   generateTagFilterTables("owner_and_bundled_in", [
-    { name: "owner", type: "string" },
-    { name: "bundled_in", type: "string" },
+    { name: "owner", type: "text" },
+    { name: "bundled_in", type: "text" },
   ]),
   // tags+owners+dataRoot
   generateTagFilterTables("owner_and_data_root", [
-    { name: "owner", type: "string" },
-    { name: "data_root", type: "string" },
+    { name: "owner", type: "text" },
+    { name: "data_root", type: "text" },
   ]),
   // tags+target+bundleId
   generateTagFilterTables("target_and_bundled_in", [
-    { name: "target", type: "string" },
-    { name: "bundled_in", type: "string" },
+    { name: "target", type: "text" },
+    { name: "bundled_in", type: "text" },
   ]),
   // tags+target+dataRoot
   generateTagFilterTables("target_and_data_root", [
-    { name: "target", type: "string" },
-    { name: "data_root", type: "string" },
+    { name: "target", type: "text" },
+    { name: "data_root", type: "text" },
   ]),
   // tags+bundleId+dataRoot
   generateTagFilterTables("bundled_in_and_data_root", [
-    { name: "bundled_in", type: "string" },
-    { name: "data_root", type: "string" },
+    { name: "bundled_in", type: "text" },
+    { name: "data_root", type: "text" },
   ]),
 ]);
 
@@ -165,63 +162,63 @@ const tagFilters3 = R.flatten([
 const tagFilters4 = R.flatten([
   // tags+ids+owners+target
   generateTagFilterTables("tx_id_and_owner_and_target", [
-    { name: "tx_id", type: "string" },
-    { name: "owner", type: "string" },
-    { name: "target", type: "string" },
+    { name: "tx_id", type: "text" },
+    { name: "owner", type: "text" },
+    { name: "target", type: "text" },
   ]),
   // tags+ids+owners+bundled_in
   generateTagFilterTables("tx_id_and_owner_and_bundled_in", [
-    { name: "tx_id", type: "string" },
-    { name: "owner", type: "string" },
-    { name: "bundled_in", type: "string" },
+    { name: "tx_id", type: "text" },
+    { name: "owner", type: "text" },
+    { name: "bundled_in", type: "text" },
   ]),
   // tags+ids+owners+data_root
   generateTagFilterTables("tx_id_and_owner_and_data_root", [
-    { name: "tx_id", type: "string" },
-    { name: "owner", type: "string" },
-    { name: "data_root", type: "string" },
+    { name: "tx_id", type: "text" },
+    { name: "owner", type: "text" },
+    { name: "data_root", type: "text" },
   ]),
   // tags+ids+target+bundled_in
   generateTagFilterTables("tx_id_and_target_and_bundled_in", [
-    { name: "tx_id", type: "string" },
-    { name: "target", type: "string" },
-    { name: "bundled_in", type: "string" },
+    { name: "tx_id", type: "text" },
+    { name: "target", type: "text" },
+    { name: "bundled_in", type: "text" },
   ]),
   // tags+ids+target+data_root
   generateTagFilterTables("tx_id_and_target_and_data_root", [
-    { name: "tx_id", type: "string" },
-    { name: "target", type: "string" },
-    { name: "data_root", type: "string" },
+    { name: "tx_id", type: "text" },
+    { name: "target", type: "text" },
+    { name: "data_root", type: "text" },
   ]),
   // tags+ids+bundled_in+data_root
   generateTagFilterTables("tx_id_and_bundled_in_and_data_root", [
-    { name: "tx_id", type: "string" },
-    { name: "bundled_in", type: "string" },
-    { name: "data_root", type: "string" },
+    { name: "tx_id", type: "text" },
+    { name: "bundled_in", type: "text" },
+    { name: "data_root", type: "text" },
   ]),
   // tags+owner+target+bundled_in
   generateTagFilterTables("owner_and_target_and_bundled_in", [
-    { name: "owner", type: "string" },
-    { name: "target", type: "string" },
-    { name: "bundled_in", type: "string" },
+    { name: "owner", type: "text" },
+    { name: "target", type: "text" },
+    { name: "bundled_in", type: "text" },
   ]),
   // tags+owner+target+data_root
   generateTagFilterTables("owner_and_target_and_data_root", [
-    { name: "owner", type: "string" },
-    { name: "target", type: "string" },
-    { name: "data_root", type: "string" },
+    { name: "owner", type: "text" },
+    { name: "target", type: "text" },
+    { name: "data_root", type: "text" },
   ]),
   // tags+owner+bundled_in+data_root
   generateTagFilterTables("owner_and_bundled_in_and_data_root", [
-    { name: "owner", type: "string" },
-    { name: "bundled_in", type: "string" },
-    { name: "data_root", type: "string" },
+    { name: "owner", type: "text" },
+    { name: "bundled_in", type: "text" },
+    { name: "data_root", type: "text" },
   ]),
   // tags+target+bundled_in+data_root
   generateTagFilterTables("target_and_bundled_in_and_data_root", [
-    { name: "target", type: "string" },
-    { name: "bundled_in", type: "string" },
-    { name: "data_root", type: "string" },
+    { name: "target", type: "text" },
+    { name: "bundled_in", type: "text" },
+    { name: "data_root", type: "text" },
   ]),
 ]);
 
@@ -229,38 +226,38 @@ const tagFilters4 = R.flatten([
 const tagFilters5 = R.flatten([
   // tags+ids+owners+target+bundled_in
   generateTagFilterTables("tx_id_and_owner_and_target_and_bundled_in", [
-    { name: "tx_id", type: "string" },
-    { name: "owner", type: "string" },
-    { name: "target", type: "string" },
-    { name: "bundled_in", type: "string" },
+    { name: "tx_id", type: "text" },
+    { name: "owner", type: "text" },
+    { name: "target", type: "text" },
+    { name: "bundled_in", type: "text" },
   ]),
   // tags+ids+owners+target+data_root
   generateTagFilterTables("tx_id_and_owner_and_target_and_data_root", [
-    { name: "tx_id", type: "string" },
-    { name: "owner", type: "string" },
-    { name: "target", type: "string" },
-    { name: "data_root", type: "string" },
+    { name: "tx_id", type: "text" },
+    { name: "owner", type: "text" },
+    { name: "target", type: "text" },
+    { name: "data_root", type: "text" },
   ]),
   // tags+ids+owners+bundled_in+data_root
   generateTagFilterTables("tx_id_and_owner_and_bundled_in_and_data_root", [
-    { name: "tx_id", type: "string" },
-    { name: "owner", type: "string" },
-    { name: "bundled_in", type: "string" },
-    { name: "data_root", type: "string" },
+    { name: "tx_id", type: "text" },
+    { name: "owner", type: "text" },
+    { name: "bundled_in", type: "text" },
+    { name: "data_root", type: "text" },
   ]),
   // tags+ids+target+bundled_in+data_root
   generateTagFilterTables("tx_id_and_target_and_bundled_in_and_data_root", [
-    { name: "tx_id", type: "string" },
-    { name: "target", type: "string" },
-    { name: "bundled_in", type: "string" },
-    { name: "data_root", type: "string" },
+    { name: "tx_id", type: "text" },
+    { name: "target", type: "text" },
+    { name: "bundled_in", type: "text" },
+    { name: "data_root", type: "text" },
   ]),
   // tags+owner+target+bundled_in+data_root
   generateTagFilterTables("owner_and_target_and_bundled_in_and_data_root", [
-    { name: "owner", type: "string" },
-    { name: "target", type: "string" },
-    { name: "bundled_in", type: "string" },
-    { name: "data_root", type: "string" },
+    { name: "owner", type: "text" },
+    { name: "target", type: "text" },
+    { name: "bundled_in", type: "text" },
+    { name: "data_root", type: "text" },
   ]),
 ]);
 
@@ -270,11 +267,11 @@ const tagFilters6 = R.flatten([
   generateTagFilterTables(
     "tx_id_and_owner_and_target_and_bundled_in_and_data_root",
     [
-      { name: "tx_id", type: "string" },
-      { name: "owner", type: "string" },
-      { name: "target", type: "string" },
-      { name: "bundled_in", type: "string" },
-      { name: "data_root", type: "string" },
+      { name: "tx_id", type: "text" },
+      { name: "owner", type: "text" },
+      { name: "target", type: "text" },
+      { name: "bundled_in", type: "text" },
+      { name: "data_root", type: "text" },
     ]
   ),
 ]);

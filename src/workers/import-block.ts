@@ -44,9 +44,8 @@ const isIncomingTxQueueEmpty = txIncomingQueue.isEmpty.bind(txIncomingQueue);
 // const hasIncomingTxQueueNoneLt = txIncomingQueue.hasNoneLt.bind(
 //   txIncomingQueue
 // );
-export const getIncomingTxQueueSize = txIncomingQueue.getSize.bind(
-  txIncomingQueue
-);
+export const getIncomingTxQueueSize =
+  txIncomingQueue.getSize.bind(txIncomingQueue);
 const getIncomingTxQueuePeek = txIncomingQueue.peek.bind(txIncomingQueue);
 const popIncomingTxQueue = txIncomingQueue.pop.bind(txIncomingQueue);
 const sortIncomingTxQueue = txIncomingQueue.sortQueue.bind(txIncomingQueue);
@@ -231,7 +230,14 @@ function txImportCallback(fileCacheKey: string) {
       process.exit(1);
     }
     const { height, index, tx, block } = JSON.parse(cached);
-    await makeTxImportQuery(toLong(height), toLong(index), tx, block)();
+    try {
+      await makeTxImportQuery(toLong(height), toLong(index), tx, block)();
+    } catch (error) {
+      log(error);
+      await rmCache(fileCacheKey);
+      process.exit(1);
+    }
+
     await rmCache(fileCacheKey);
   };
 }

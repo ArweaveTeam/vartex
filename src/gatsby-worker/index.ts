@@ -39,18 +39,17 @@ type WrapReturnInArray<MaybeFunction> = MaybeFunction extends (
   ? (...a: Parameters<MaybeFunction>) => Array<ReturnType<MaybeFunction>>
   : never;
 
-export type CreateWorkerPoolType<ExposedFunctions> = WorkerPool &
-  {
-    [FunctionName in keyof ExposedFunctions]: EnsureFunctionReturnsAPromise<
-      ExposedFunctions[FunctionName]
+export type CreateWorkerPoolType<ExposedFunctions> = WorkerPool & {
+  [FunctionName in keyof ExposedFunctions]: EnsureFunctionReturnsAPromise<
+    ExposedFunctions[FunctionName]
+  >;
+} & {
+  all: {
+    [FunctionName in keyof ExposedFunctions]: WrapReturnInArray<
+      EnsureFunctionReturnsAPromise<ExposedFunctions[FunctionName]>
     >;
-  } & {
-    all: {
-      [FunctionName in keyof ExposedFunctions]: WrapReturnInArray<
-        EnsureFunctionReturnsAPromise<ExposedFunctions[FunctionName]>
-      >;
-    };
   };
+};
 
 const childWrapperPath = process.cwd() + `/src/gatsby-worker/child`;
 
@@ -154,10 +153,10 @@ export class WorkerPool<
             exportName
           ) as WorkerPool<WorkerModuleExports>["single"][typeof exportName];
 
-          all[exportName] = (this.scheduleWorkAll.bind(
+          all[exportName] = this.scheduleWorkAll.bind(
             this,
             exportName
-          ) as unknown) as WorkerPool<WorkerModuleExports>["all"][typeof exportName];
+          ) as unknown as WorkerPool<WorkerModuleExports>["all"][typeof exportName];
         }
       });
 
@@ -196,6 +195,7 @@ export class WorkerPool<
         exitedPromise: new Promise((resolve) => {
           worker.on(`exit`, (code, signal) => {
             if (workerInfo.currentTask) {
+              console.error("Received code:", code, "signal:", signal);
               // worker exited without finishing a task
               workerInfo.currentTask.reject(
                 new Error(`Worker exited before finishing task`)
@@ -210,61 +210,62 @@ export class WorkerPool<
 
       worker.on(`message`, (message: ChildMessageUnion) => {
         switch (message[0]) {
-        case RESULT: {
-          if (!workerInfo.currentTask) {
-            throw new Error(
-              `Invariant: gatsby-worker received execution result, but it wasn't expecting it.`
-            );
+          case RESULT: {
+            if (!workerInfo.currentTask) {
+              throw new Error(
+                `Invariant: gatsby-worker received execution result, but it wasn't expecting it.`
+              );
+            }
+            const task = workerInfo.currentTask;
+            workerInfo.currentTask = undefined;
+            this.checkForWork(workerInfo);
+            task.resolve(message[1]);
+
+            break;
           }
-          const task = workerInfo.currentTask;
-          workerInfo.currentTask = undefined;
-          this.checkForWork(workerInfo);
-          task.resolve(message[1]);
-        
-        break;
-        }
-        case ERROR: {
-          if (!workerInfo.currentTask) {
-            throw new Error(
-              `Invariant: gatsby-worker received execution rejection, but it wasn't expecting it.`
-            );
-          }
+          case ERROR: {
+            if (!workerInfo.currentTask) {
+              throw new Error(
+                `Invariant: gatsby-worker received execution rejection, but it wasn't expecting it.`
+              );
+            }
 
-          let error = message[4];
+            let error = message[4];
 
-          if (error !== null && typeof error === `object`) {
-            const extra = error;
+            if (error !== null && typeof error === `object`) {
+              const extra = error;
 
-            const NativeCtor = global[message[1]];
-            const Ctor = typeof NativeCtor === `function` ? NativeCtor : Error;
+              const NativeCtor = global[message[1]];
+              const Ctor =
+                typeof NativeCtor === `function` ? NativeCtor : Error;
 
-            error = new Ctor(message[2]);
-            // @ts-ignore type doesn't exist on Error, but that's what jest-worker does for errors :shrug:
-            error.type = message[1];
-            error.stack = message[3];
+              error = new Ctor(message[2]);
+              // @ts-ignore type doesn't exist on Error, but that's what jest-worker does for errors :shrug:
+              error.type = message[1];
+              error.stack = message[3];
 
-            for (const key in extra) {
-              if (Object.prototype.hasOwnProperty.call(extra, key)) {
-                error[key] = extra[key];
+              for (const key in extra) {
+                if (Object.prototype.hasOwnProperty.call(extra, key)) {
+                  error[key] = extra[key];
+                }
               }
             }
-          }
 
-          const task = workerInfo.currentTask;
-          workerInfo.currentTask = undefined;
-          this.checkForWork(workerInfo);
-          task.reject(error);
-        
-        break;
-        }
-        case CUSTOM_MESSAGE: {
-          for (const listener of this.listeners) {
-            listener(message[1] as MessagesFromChild, workerId);
+            const task = workerInfo.currentTask;
+            workerInfo.currentTask = undefined;
+            this.checkForWork(workerInfo);
+            task.reject(error);
+
+            break;
           }
-        
-        break;
-        }
-        // No default
+          case CUSTOM_MESSAGE: {
+            for (const listener of this.listeners) {
+              listener(message[1] as MessagesFromChild, workerId);
+            }
+
+            break;
+          }
+          // No default
         }
       });
 
@@ -393,7 +394,11 @@ export class WorkerPool<
   ): Array<Promise<unknown>> {
     return this.workers.map((workerInfo) =>
       this.scheduleWork(
-        new TaskInfo({ assignedToWorker: workerInfo, functionName, args: arguments_ })
+        new TaskInfo({
+          assignedToWorker: workerInfo,
+          functionName,
+          args: arguments_,
+        })
       )
     );
   }

@@ -391,6 +391,9 @@ module.exports = async (client) => {
           if (typeof tx.bundled_in !== "string") {
             tx.bundled_in = "";
           }
+          // possible artifacts of the 2.0 migration
+          // nodes always ignore data_root on v1 txs
+          // because for them it must be equal to the one they construct from data
           if (typeof tx.data_root !== "string") {
             tx.data_root = "";
           }
@@ -401,39 +404,19 @@ module.exports = async (client) => {
     migrationState.current += 1;
     fs.writeFileSync(migrationStateFile, JSON.stringify(migrationState));
   }
-  console.log("DONE");
-  process.exit(1);
-  /*
-  const KEYSPACE = process.env["KEYSPACE"]
-    ? process.env["KEYSPACE"]
-    : "gateway";
-  let warned = false;
-
-  for (const table of newTagTables) {
-    console.error("migrating " + table);
-
-    const result = await client.execute(
-      `SELECT tx_id,tx_index,owner,target,data_root FROM ${KEYSPACE}.${row.name}`,
-      [],
-      { prepare: true }
-    );
-
-    for await (const rowRes of result) {
-      const [bucketNumericString] = rowRes.bucket_id.match(/\d+$/);
-      const bucket_number = Number.parseInt(bucketNumericString);
-      const [query, params] = insertQueries[row.name](KEYSPACE, {
-        bucket_number,
-        ...rowRes,
-      });
-      await pWaitFor(() => concurrent < 100);
-      concurrent += 1;
-      client.execute(query, params, { prepare: true }).then(() => {
-        concurrent -= 1;
-      });
-    }
-    await client.execute(`DROP TABLE ${KEYSPACE}.${row.name}`, [], {
+  console.log("migration2: DONE");
+  await client.execute(
+    `DROP TABLE IF EXISTS ${KEYSPACE}.tx_tag_gql_by_name_asc_migration_1`,
+    [],
+    {
       prepare: true,
-    });
-  }
-*/
+    }
+  );
+  await client.execute(
+    `DROP TABLE IF EXISTS ${KEYSPACE}.tx_tag_gql_by_name_desc_migration_1`,
+    [],
+    {
+      prepare: true,
+    }
+  );
 };

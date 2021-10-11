@@ -358,7 +358,7 @@ module.exports = async (client) => {
   let migrationState;
   const migrationStateFile = path.resolve(__dirname, "./migration2.json");
 
-  if (needsMigration || true) {
+  if (needsMigration) {
     if (fs.existsSync(migrationStateFile)) {
       migrationState = JSON.parse(fs.readFileSync(migrationStateFile));
     } else {

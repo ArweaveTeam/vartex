@@ -378,19 +378,21 @@ module.exports = async (client) => {
       `SELECT height,txs,txs_count FROM ${KEYSPACE}.block WHERE indep_hash = '${blockHash}'`
     );
     const txs = blockQ.rows[0].txs;
-    for (const txId of txs) {
-      const txQ = await client.execute(
-        `SELECT * FROM ${KEYSPACE}.transaction WHERE tx_id = '${txId}'`
-      );
-      const tx = txQ.rows[0];
-      if (tx && tx.tag_count && tx.tag_count > 0) {
-        if (typeof tx.target !== "string") {
-          tx.target = "";
+    if (Array.isArray(txs)) {
+      for (const txId of txs) {
+        const txQ = await client.execute(
+          `SELECT * FROM ${KEYSPACE}.transaction WHERE tx_id = '${txId}'`
+        );
+        const tx = txQ.rows[0];
+        if (tx && tx.tag_count && tx.tag_count > 0) {
+          if (typeof tx.target !== "string") {
+            tx.target = "";
+          }
+          if (typeof tx.bundled_in !== "string") {
+            tx.bundled_in = "";
+          }
+          await insertGqlTag(tagsMapper, tx);
         }
-        if (typeof tx.bundled_in !== "string") {
-          tx.bundled_in = "";
-        }
-        await insertGqlTag(tagsMapper, tx);
       }
     }
     migrationState.current += 1;

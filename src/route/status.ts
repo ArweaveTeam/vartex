@@ -23,6 +23,10 @@ export async function statusRoute(
 ): Promise<void> {
   try {
     const info = await getNodeInfo({ maxRetry: 100 });
+    const gwHeightLong = gatewayHeight.gt(currentHeight)
+      ? gatewayHeight
+      : currentHeight;
+    const arweaveHeight = Math.max(topHeight, info.height);
     const delta = toLong(info.height).sub(gatewayHeight).toString();
     let txsInFlight = 0;
     try {
@@ -30,10 +34,8 @@ export async function statusRoute(
     } catch {}
     response.status(200).send({
       status: gatewayHeight.toString() === "0" ? "BOOTING" : "OK",
-      gatewayHeight: gatewayHeight.gt(currentHeight)
-        ? gatewayHeight.toString()
-        : `${currentHeight}`,
-      arweaveHeight: Math.max(topHeight, info.height),
+      gatewayHeight: gwHeightLong.toString(),
+      arweaveHeight,
       txsInFlight,
       delta,
       vartex_git_revision: gitRevision,

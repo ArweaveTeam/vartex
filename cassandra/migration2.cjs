@@ -393,6 +393,8 @@ module.exports = async (client) => {
         await insertGqlTag(tagsMapper, tx);
       }
     }
+    migrationState.current += 1;
+    fs.writeFileSync(migrationStateFile, JSON.stringify(migrationState));
   }
   console.log("DONE");
   process.exit(1);

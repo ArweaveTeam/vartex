@@ -391,6 +391,9 @@ module.exports = async (client) => {
           if (typeof tx.bundled_in !== "string") {
             tx.bundled_in = "";
           }
+          if (typeof tx.data_root !== "string") {
+            tx.data_root = "";
+          }
           await insertGqlTag(tagsMapper, tx);
         }
       }

@@ -28,3 +28,6 @@ result
 
 # emacs
 *#
+
+# migration state
+cassandra/migration2.json

@@ -16,6 +16,11 @@ try {
   console.error("[nuke] Invalid array of contact points.");
 }
 
+if (contactPoints.includes("162.55.87.54")) {
+  console.error("thank god for paranoia, preventing disaster by exiting...");
+  process.exit(1);
+}
+
 const client = new cassandra.Client({
   contactPoints,
   localDataCenter: "datacenter1",

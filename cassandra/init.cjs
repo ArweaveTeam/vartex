@@ -5,6 +5,7 @@ const net = require("net");
 const cassandra = require("cassandra-driver");
 const tagTables = require("./tag-tables.cjs");
 const migration1 = require("./migration1.cjs");
+const migration2 = require("./migration2.cjs");
 const dotenvPath = path.resolve(__dirname, "../.env");
 const dotenvPathFallback = path.resolve(__dirname, "../.env.example");
 
@@ -248,6 +249,8 @@ async function connect() {
         if (!process.env.SKIP_MIGRATION) {
           // skipped when fully migrated
           await migration1(client);
+          await migration2(client);
+          process.exit(1);
         }
       });
     })

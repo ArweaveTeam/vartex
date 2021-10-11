@@ -356,9 +356,9 @@ module.exports = async (client) => {
 
   const tagsMapper = makeTagsMapper(client);
   let migrationState;
+  const migrationStateFile = path.resolve(__dirname, "./migration2.json");
 
   if (needsMigration || true) {
-    const migrationStateFile = path.resolve(__dirname, "./migration2.json");
     if (fs.existsSync(migrationStateFile)) {
       migrationState = JSON.parse(fs.readFileSync(migrationStateFile));
     } else {

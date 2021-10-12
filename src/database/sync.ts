@@ -4,7 +4,11 @@ import Gauge from "gauge";
 import GaugeThemes from "gauge/themes";
 import { config } from "dotenv";
 import { types as CassandraTypes } from "cassandra-driver";
-import { KEYSPACE, POLLTIME_DELAY_SECONDS } from "../constants";
+import {
+  KEYSPACE,
+  POLLTIME_DELAY_SECONDS,
+  isGatewayNodeModeEnabled,
+} from "../constants";
 import { log } from "../utility/log";
 import mkdirp from "mkdirp";
 import { WorkerPool } from "../gatsby-worker";
@@ -13,6 +17,7 @@ import { getHashList, getNodeInfo } from "../query/node";
 import { BlockType, fetchBlockByHash } from "../query/block";
 import { UnsyncedBlock } from "../types/cassandra";
 import { cassandraClient, getMaxHeightBlock, toLong } from "./cassandra";
+import { statusMapper } from "./mapper";
 import * as Dr from "./doctor";
 
 let gauge_: any;
@@ -128,8 +133,6 @@ const developmentSyncLength: number | undefined =
   R.isEmpty(process.env["DEVELOPMENT_SYNC_LENGTH"])
     ? undefined
     : Number.parseInt(process.env["DEVELOPMENT_SYNC_LENGTH"] as string);
-
-const isGatewayNodeModeEnabled = !!process.env["VARTEX_GW_NODE"];
 
 // eslint-disable-next-line use-isnan
 if (developmentSyncLength === Number.NaN) {
@@ -320,7 +323,9 @@ async function startGatewayNodeMode(): Promise<void> {
 
 export async function startSync({
   isTesting = false, // eslint-disable-line @typescript-eslint/no-unused-vars
+  session,
 }: {
+  session: { uuid: CassandraTypes.TimeUuid };
   isTesting?: boolean;
 }): Promise<void> {
   if (isGatewayNodeModeEnabled) {
@@ -422,8 +427,16 @@ export async function startSync({
 
     // initialLastBlock = toLong(developmentSyncLength).sub(1);
     gatewayHeight = initialLastBlock;
+    statusMapper.update({
+      session: session.uuid,
+      gateway_height: `${gatewayHeight}`,
+    });
   } else {
     gatewayHeight = lastBlock;
+    statusMapper.update({
+      session: session.uuid,
+      gateway_height: `${lastBlock}`,
+    });
   }
 
   // blockQueueState.nextHeight = initialLastBlock.lt(1)
@@ -465,9 +478,19 @@ export async function startSync({
           const singleJob = workerPool.single; // you have 1 job!
           const blockPromise = singleJob.importBlock(height);
           currentHeight = height;
+          statusMapper.update({
+            session: session.uuid,
+            gateway_height: `${height}`,
+          });
           blockPromise
             .then(() => {
               fresolve({});
+              statusMapper.update({
+                session: session.uuid,
+                status: "OK",
+                gateway_height: `${currentHeight}`,
+                arweave_height: `${topHeight}`,
+              });
               gauge.show(
                 `blocks: ${currentHeight}/${topHeight}\t tx: ${getTxsInFlight()}`
               );

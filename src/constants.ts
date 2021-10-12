@@ -15,6 +15,8 @@ export const KEYSPACE: string = process.env["KEYSPACE"]
   ? process.env["KEYSPACE"]
   : "gateway";
 
+export const isGatewayNodeModeEnabled = !!process.env["VARTEX_GW_NODE"];
+
 export const IPC_DATA = {};
 
 export const POLLTIME_DELAY_SECONDS: number = process.env[

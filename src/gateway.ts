@@ -25,8 +25,10 @@ import {
 import { proxyGetRoute, proxyPostRoute } from "./route/proxy";
 import { hashListRoute } from "./route/hash-list";
 import { koiLogger, koiLogsRoute, koiLogsRawRoute } from "./route/koi";
+import { types as CassandraTypes } from "cassandra-driver";
 import { cassandraClient } from "./database/cassandra";
 import { startSync } from "./database/sync";
+import { isGatewayNodeModeEnabled } from "./constants";
 
 /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
 const { default: expressPlayground } = gpmeImport as any;
@@ -39,6 +41,10 @@ if (realFs.existsSync(dotenvPath)) {
 } else {
   config({ path: dotenvPathFallback });
 }
+
+export const session: { uuid: CassandraTypes.TimeUuid } = {
+  uuid: CassandraTypes.TimeUuid.fromDate(new Date()),
+};
 
 export const app: Express = express();
 
@@ -97,8 +103,24 @@ export function start(): void {
       });
     });
 
-    initializeStatusSession(cassandraClient);
-    startSync({ isTesting: process.env.NODE_ENV === "test" });
+    initializeStatusSession(cassandraClient, session.uuid).then(
+      (sessionUuid: CassandraTypes.TimeUuid) => {
+        session.uuid = sessionUuid;
+
+        startSync({ session, isTesting: process.env.NODE_ENV === "test" });
+
+        if (isGatewayNodeModeEnabled) {
+          // recheck every minute if session changes
+          setInterval(() => {
+            initializeStatusSession(cassandraClient, session.uuid).then(
+              (newSessionUuid: CassandraTypes.TimeUuid) => {
+                session.uuid = newSessionUuid;
+              }
+            );
+          }, 60 * 1000);
+        }
+      }
+    );
   });
 
   app.get(

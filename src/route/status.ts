@@ -1,15 +1,27 @@
 import { Request, Response } from "express";
+import { types as CassandraTypes } from "cassandra-driver";
 import {
   topHeight,
   gatewayHeight,
   currentHeight,
   getTxsInFlight,
 } from "../database/sync";
+import { statusMapper } from "../database/mapper";
 import { toLong } from "../database/cassandra";
 import { getNodeInfo } from "../query/node";
+import { KEYSPACE } from "../constants";
 import gitRev from "git-rev-sync";
 
-export const start = Date.now();
+export const sessionUuid: CassandraTypes.TimeUuid =
+  CassandraTypes.TimeUuid.fromDate(new Date());
+
+export const initializeStatusSession = async (cassandraClient) => {
+  // const maybeLastSession = await cassandraClient.execute(
+  //   `SELECT * FROM ${KEYSPACE}.status session LIMIT 1`
+  // );
+  // console.log("maybeLastSession", maybeLastSession);
+  // statusMapper.insert({ date: sessionUuid, status: "BOOTING" });
+};
 
 let gitRevision = "unknown";
 

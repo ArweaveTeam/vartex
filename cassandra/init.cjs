@@ -217,6 +217,17 @@ async function connect() {
           custom_headers list<frozen<tuple<text,text>>>,
           PRIMARY KEY(domain_id, uri_path)
         )`,
+
+        `CREATE TABLE IF NOT EXISTS status (
+          session timeuuid,
+          status text,
+          arweave_height text,
+          gateway_height text,
+          vartex_git_revision text,
+          current_imports list<text>,
+          current_migrations map<int, text>,
+          PRIMARY KEY(session)
+        )`,
       ].concat(tagTables.createTableQueries);
       let p = Promise.resolve();
       let aresolve;
@@ -250,7 +261,6 @@ async function connect() {
           // skipped when fully migrated
           await migration1(client);
           await migration2(client);
-          process.exit(1);
         }
       });
     })

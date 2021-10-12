@@ -366,57 +366,57 @@ module.exports = async (client) => {
       migrationState = { goal: lastMaxHeight[1].add(1).toInt(), current: 0 };
       fs.writeFileSync(migrationStateFile, JSON.stringify(migrationState));
     }
-  }
 
-  while (migrationState.current < migrationState.goal) {
-    console.log(migrationState);
-    const blockHashQ = await client.execute(
-      `SELECT block_hash FROM ${KEYSPACE}.block_height_by_block_hash WHERE block_height = ${migrationState.current}`
-    );
-    const blockHash = blockHashQ.rows[0].block_hash;
-    const blockQ = await client.execute(
-      `SELECT height,txs,txs_count FROM ${KEYSPACE}.block WHERE indep_hash = '${blockHash}'`
-    );
-    const txs = blockQ.rows[0].txs;
-    if (Array.isArray(txs)) {
-      for (const txId of txs) {
-        const txQ = await client.execute(
-          `SELECT * FROM ${KEYSPACE}.transaction WHERE tx_id = '${txId}'`
-        );
-        const tx = txQ.rows[0];
-        if (tx && tx.tag_count && tx.tag_count > 0) {
-          if (typeof tx.target !== "string") {
-            tx.target = "";
+    while (migrationState.current < migrationState.goal) {
+      console.log(migrationState);
+      const blockHashQ = await client.execute(
+        `SELECT block_hash FROM ${KEYSPACE}.block_height_by_block_hash WHERE block_height = ${migrationState.current}`
+      );
+      const blockHash = blockHashQ.rows[0].block_hash;
+      const blockQ = await client.execute(
+        `SELECT height,txs,txs_count FROM ${KEYSPACE}.block WHERE indep_hash = '${blockHash}'`
+      );
+      const txs = blockQ.rows[0].txs;
+      if (Array.isArray(txs)) {
+        for (const txId of txs) {
+          const txQ = await client.execute(
+            `SELECT * FROM ${KEYSPACE}.transaction WHERE tx_id = '${txId}'`
+          );
+          const tx = txQ.rows[0];
+          if (tx && tx.tag_count && tx.tag_count > 0) {
+            if (typeof tx.target !== "string") {
+              tx.target = "";
+            }
+            if (typeof tx.bundled_in !== "string") {
+              tx.bundled_in = "";
+            }
+            // possible artifacts of the 2.0 migration
+            // nodes always ignore data_root on v1 txs
+            // because for them it must be equal to the one they construct from data
+            if (typeof tx.data_root !== "string") {
+              tx.data_root = "";
+            }
+            await insertGqlTag(tagsMapper, tx);
           }
-          if (typeof tx.bundled_in !== "string") {
-            tx.bundled_in = "";
-          }
-          // possible artifacts of the 2.0 migration
-          // nodes always ignore data_root on v1 txs
-          // because for them it must be equal to the one they construct from data
-          if (typeof tx.data_root !== "string") {
-            tx.data_root = "";
-          }
-          await insertGqlTag(tagsMapper, tx);
         }
       }
+      migrationState.current += 1;
+      fs.writeFileSync(migrationStateFile, JSON.stringify(migrationState));
     }
-    migrationState.current += 1;
-    fs.writeFileSync(migrationStateFile, JSON.stringify(migrationState));
+    console.log("migration2: DONE");
+    await client.execute(
+      `DROP TABLE IF EXISTS ${KEYSPACE}.tx_tag_gql_by_name_asc_migration_1`,
+      [],
+      {
+        prepare: true,
+      }
+    );
+    await client.execute(
+      `DROP TABLE IF EXISTS ${KEYSPACE}.tx_tag_gql_by_name_desc_migration_1`,
+      [],
+      {
+        prepare: true,
+      }
+    );
   }
-  console.log("migration2: DONE");
-  await client.execute(
-    `DROP TABLE IF EXISTS ${KEYSPACE}.tx_tag_gql_by_name_asc_migration_1`,
-    [],
-    {
-      prepare: true,
-    }
-  );
-  await client.execute(
-    `DROP TABLE IF EXISTS ${KEYSPACE}.tx_tag_gql_by_name_desc_migration_1`,
-    [],
-    {
-      prepare: true,
-    }
-  );
 };

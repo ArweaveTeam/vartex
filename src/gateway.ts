@@ -16,7 +16,7 @@ import {
   blockByHashRoute,
   blockByHeightRoute,
 } from "./route/block";
-import { statusRoute } from "./route/status";
+import { initializeStatusSession, statusRoute } from "./route/status";
 import {
   txOffsetRoute,
   txUploadRoute,
@@ -25,6 +25,7 @@ import {
 import { proxyGetRoute, proxyPostRoute } from "./route/proxy";
 import { hashListRoute } from "./route/hash-list";
 import { koiLogger, koiLogsRoute, koiLogsRawRoute } from "./route/koi";
+import { cassandraClient } from "./database/cassandra";
 import { startSync } from "./database/sync";
 
 /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
@@ -96,6 +97,7 @@ export function start(): void {
       });
     });
 
+    initializeStatusSession(cassandraClient);
     startSync({ isTesting: process.env.NODE_ENV === "test" });
   });
 

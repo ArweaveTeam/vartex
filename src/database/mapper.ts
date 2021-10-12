@@ -1,6 +1,7 @@
 import * as R from "rambda";
 import { mapping, types as CassandraTypes } from "cassandra-driver";
 import { cassandraClient } from "./cassandra";
+import { KEYSPACE } from "../constants";
 
 const { Mapper } = mapping;
 
@@ -22,7 +23,7 @@ const withDefault = ({
 const mapper = new Mapper(cassandraClient, {
   models: {
     BlockHeightByBlockHash: {
-      keyspace: "gateway",
+      keyspace: KEYSPACE,
       tables: ["block_height_by_block_hash"],
     },
     Block: {
@@ -38,17 +39,13 @@ const mapper = new Mapper(cassandraClient, {
         withDefault({ name: "txs", fallback: [] }),
       ]),
     },
-    BlockByTxId: {
-      keyspace: "gateway",
-      tables: ["block_by_tx_id"],
-    },
     Poa: {
-      keyspace: "gateway",
+      keyspace: KEYSPACE,
       tables: ["poa"],
     },
-    PollStatus: {
-      keyspace: "gateway",
-      tables: ["poll_status"],
+    Status: {
+      keyspace: KEYSPACE,
+      tables: ["status"],
     },
     Transaction: {
       keyspace: "gateway",
@@ -63,11 +60,11 @@ const mapper = new Mapper(cassandraClient, {
       ]),
     },
     TxTag: {
-      keyspace: "gateway",
+      keyspace: KEYSPACE,
       tables: ["tx_tag_migration_1"],
     },
     TxOffset: {
-      keyspace: "gateway",
+      keyspace: KEYSPACE,
       tables: ["tx_offset"],
     },
   },
@@ -81,11 +78,9 @@ export const blockMapper = mapper.forModel("Block");
 
 export const poaMapper = mapper.forModel("Poa");
 
-export const pollStatusMapper = mapper.forModel("PollStatus");
+export const statusMapper = mapper.forModel("Status");
 
 export const transactionMapper = mapper.forModel("Transaction");
-
-export const txIdToBlockMapper = mapper.forModel("BlockByTxId");
 
 export const txTagMapper = mapper.forModel("TxTag");
 

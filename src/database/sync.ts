@@ -465,6 +465,9 @@ export async function startSync({
 
   gauge.enable();
   gauge_ = gauge;
+
+  const currentImports = new Set();
+
   fork(function (reason: string | void) {
     console.error("Fatal", reason || "");
     process.exit(1);
@@ -477,6 +480,11 @@ export async function startSync({
         return Fluture(function (reject, fresolve) {
           const singleJob = workerPool.single; // you have 1 job!
           const blockPromise = singleJob.importBlock(height);
+          currentImports.add(height);
+          statusMapper.update({
+            session: session.uuid,
+            current_imports: [...currentImports].map((x) => `${x}`),
+          });
           currentHeight = height;
           statusMapper.update({
             session: session.uuid,
@@ -485,11 +493,13 @@ export async function startSync({
           blockPromise
             .then(() => {
               fresolve({});
+              currentImports.delete(height);
               statusMapper.update({
                 session: session.uuid,
                 status: "OK",
                 gateway_height: `${currentHeight}`,
                 arweave_height: `${topHeight}`,
+                current_imports: [...currentImports].map((x) => `${x}`),
               });
               gauge.show(
                 `blocks: ${currentHeight}/${topHeight}\t tx: ${getTxsInFlight()}`

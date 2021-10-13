@@ -46,6 +46,10 @@ const mapper = new Mapper(cassandraClient, {
     Status: {
       keyspace: KEYSPACE,
       tables: ["status"],
+      columns: R.mergeAll([
+        withDefault({ name: "current_migrations", fallback: {} }),
+        withDefault({ name: "current_imports", fallback: [] }),
+      ]),
     },
     Transaction: {
       keyspace: "gateway",

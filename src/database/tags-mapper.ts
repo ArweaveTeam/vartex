@@ -1,18 +1,7 @@
-import * as R from "rambda";
-import { mapping, types as CassandraTypes } from "cassandra-driver";
-import { Transaction } from "../types/cassandra";
+import { Client as CassandraClient, mapping } from "cassandra-driver";
 import { KEYSPACE } from "../constants";
 
 const { Mapper } = mapping;
-
-type TagModelKeys =
-  | "tag_name"
-  | "tag_value"
-  | "tx_id"
-  | "owner"
-  | "target"
-  | "bundled_in"
-  | "data_root";
 
 export const tagModels = {
   Tag: [],
@@ -80,7 +69,7 @@ export const tagModels = {
   ],
 };
 
-export const makeTagsMapper = (cassandraClient) =>
+export const makeTagsMapper = (cassandraClient: CassandraClient): Mapper =>
   new Mapper(cassandraClient, {
     models: {
       Tag: {

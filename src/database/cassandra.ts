@@ -401,9 +401,8 @@ export const insertGqlTag = async (tx: Transaction): Promise<void> => {
       for (const tuple of tx.tags) {
         const [tag_name, tag_value] = tuple.values();
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const insertObject = R.merge(object as any, {
-          tag_name,
-          tag_value,
+        const insertObject = R.merge(obj as any, {
+          tag_pair: `${tag_name}-${tag_value}`,
           tag_index: index,
         });
 

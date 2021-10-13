@@ -58,29 +58,27 @@ function generateTagFilterTables(tableName, filters) {
     `
     CREATE TABLE IF NOT EXISTS tx_tag_gql${
       filters.length !== 0 ? "_by_" : ""
-    }${tableName}_asc_migration_0 (
-           tag_name text,
-           tag_value text,
+    }${tableName}_asc_migration_1 (
+           tag_pair text,
            tx_id text,
            tx_index bigint,
            data_item_index bigint,
            tag_index int,
            ${columns}
-           PRIMARY KEY ((tag_name, tag_value ${extraPrimaryKeys}), tx_index, data_item_index, tag_index)
+           PRIMARY KEY ((tag_pair ${extraPrimaryKeys}), tx_index, data_item_index, tag_index)
         )
     WITH CLUSTERING ORDER BY (tx_index ASC, data_item_index ASC, tag_index ASC)`,
 
     `CREATE TABLE IF NOT EXISTS tx_tag_gql${
       filters.length !== 0 ? "_by_" : ""
-    }${tableName}_desc_migration_0 (
-           tag_name text,
-           tag_value text,
+    }${tableName}_desc_migration_1 (
+           tag_pair text,
            tx_id text,
            tx_index bigint,
            data_item_index bigint,
            tag_index int,
            ${columns}
-           PRIMARY KEY ((tag_name, tag_value ${extraPrimaryKeys}), tx_index, data_item_index, tag_index)
+           PRIMARY KEY ((tag_pair ${extraPrimaryKeys}), tx_index, data_item_index, tag_index)
         )
     WITH CLUSTERING ORDER BY (tx_index DESC, data_item_index DESC, tag_index DESC);
 `,

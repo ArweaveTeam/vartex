@@ -5,6 +5,77 @@ const { mapping, types } = require("cassandra-driver");
 const { Mapper } = mapping;
 const KEYSPACE = process.env["KEYSPACE"] ? process.env["KEYSPACE"] : "gateway";
 
+// short lived migration 0 didn't work
+// due to cassandra's inability to
+// filter pairs of columns with IN operator
+// on primary keys (works only with clustering keys)
+const migration0Tables = [
+  "tx_tag_gql_asc_migration_0",
+  "tx_tag_gql_desc_migration_0",
+  "tx_tag_gql_by_tx_id_asc_migration_0",
+  "tx_tag_gql_by_tx_id_desc_migration_0",
+  "tx_tag_gql_by_owner_asc_migration_0",
+  "tx_tag_gql_by_owner_desc_migration_0",
+  "tx_tag_gql_by_target_asc_migration_0",
+  "tx_tag_gql_by_target_desc_migration_0",
+  "tx_tag_gql_by_bundled_in_asc_migration_0",
+  "tx_tag_gql_by_bundled_in_desc_migration_0",
+  "tx_tag_gql_by_data_root_asc_migration_0",
+  "tx_tag_gql_by_data_root_desc_migration_0",
+  "tx_tag_gql_by_tx_id_and_owner_asc_migration_0",
+  "tx_tag_gql_by_tx_id_and_owner_desc_migration_0",
+  "tx_tag_gql_by_tx_id_and_target_asc_migration_0",
+  "tx_tag_gql_by_tx_id_and_target_desc_migration_0",
+  "tx_tag_gql_by_tx_id_and_bundled_in_asc_migration_0",
+  "tx_tag_gql_by_tx_id_and_bundled_in_desc_migration_0",
+  "tx_tag_gql_by_tx_id_and_data_root_asc_migration_0",
+  "tx_tag_gql_by_tx_id_and_data_root_desc_migration_0",
+  "tx_tag_gql_by_owner_and_target_asc_migration_0",
+  "tx_tag_gql_by_owner_and_target_desc_migration_0",
+  "tx_tag_gql_by_owner_and_bundled_in_asc_migration_0",
+  "tx_tag_gql_by_owner_and_bundled_in_desc_migration_0",
+  "tx_tag_gql_by_owner_and_data_root_asc_migration_0",
+  "tx_tag_gql_by_owner_and_data_root_desc_migration_0",
+  "tx_tag_gql_by_target_and_bundled_in_asc_migration_0",
+  "tx_tag_gql_by_target_and_bundled_in_desc_migration_0",
+  "tx_tag_gql_by_target_and_data_root_asc_migration_0",
+  "tx_tag_gql_by_target_and_data_root_desc_migration_0",
+  "tx_tag_gql_by_bundled_in_and_data_root_asc_migration_0",
+  "tx_tag_gql_by_bundled_in_and_data_root_desc_migration_0",
+  "tx_tag_gql_by_tx_id_and_owner_and_target_asc_migration_0",
+  "tx_tag_gql_by_tx_id_and_owner_and_target_desc_migration_0",
+  "tx_tag_gql_by_tx_id_and_owner_and_bundled_in_asc_migration_0",
+  "tx_tag_gql_by_tx_id_and_owner_and_bundled_in_desc_migration_0",
+  "tx_tag_gql_by_tx_id_and_owner_and_data_root_asc_migration_0",
+  "tx_tag_gql_by_tx_id_and_owner_and_data_root_desc_migration_0",
+  "tx_tag_gql_by_tx_id_and_target_and_bundled_in_asc_migration_0",
+  "tx_tag_gql_by_tx_id_and_target_and_bundled_in_desc_migration_0",
+  "tx_tag_gql_by_tx_id_and_target_and_data_root_asc_migration_0",
+  "tx_tag_gql_by_tx_id_and_target_and_data_root_desc_migration_0",
+  "tx_tag_gql_by_tx_id_and_bundled_in_and_data_root_asc_migration_0",
+  "tx_tag_gql_by_tx_id_and_bundled_in_and_data_root_desc_migration_0",
+  "tx_tag_gql_by_owner_and_target_and_bundled_in_asc_migration_0",
+  "tx_tag_gql_by_owner_and_target_and_bundled_in_desc_migration_0",
+  "tx_tag_gql_by_owner_and_target_and_data_root_asc_migration_0",
+  "tx_tag_gql_by_owner_and_target_and_data_root_desc_migration_0",
+  "tx_tag_gql_by_owner_and_bundled_in_and_data_root_asc_migration_0",
+  "tx_tag_gql_by_owner_and_bundled_in_and_data_root_desc_migration_0",
+  "tx_tag_gql_by_target_and_bundled_in_and_data_root_asc_migration_0",
+  "tx_tag_gql_by_target_and_bundled_in_and_data_root_desc_migration_0",
+  "tx_tag_gql_by_tx_id_and_owner_and_target_and_bundled_in_asc_migration_0",
+  "tx_tag_gql_by_tx_id_and_owner_and_target_and_bundled_in_desc_migration_0",
+  "tx_tag_gql_by_tx_id_and_owner_and_target_and_data_root_asc_migration_0",
+  "tx_tag_gql_by_tx_id_and_owner_and_target_and_data_root_desc_migration_0",
+  "tx_tag_gql_by_tx_id_and_owner_and_bundled_in_and_data_root_asc_migration_0",
+  "tx_tag_gql_by_tx_id_and_owner_and_bundled_in_and_data_root_desc_migration_0",
+  "tx_tag_gql_by_tx_id_and_target_and_bundled_in_and_data_root_asc_migration_0",
+  "tx_tag_gql_by_tx_id_and_target_and_bundled_in_and_data_root_desc_migration_0",
+  "tx_tag_gql_by_owner_and_target_and_bundled_in_and_data_root_asc_migration_0",
+  "tx_tag_gql_by_owner_and_target_and_bundled_in_and_data_root_desc_migration_0",
+  "tx_tag_gql_by_tx_id_and_owner_and_target_and_bundled_in_and_data_root_asc_migration_0",
+  "tx_tag_gql_by_tx_id_and_owner_and_target_and_bundled_in_and_data_root_desc_migration_0",
+];
+
 const tagModels = {
   Tag: [],
   TagAndTxId: ["tx_id"],
@@ -76,223 +147,223 @@ const makeTagsMapper = (cassandraClient) =>
     models: {
       Tag: {
         keyspace: KEYSPACE,
-        tables: ["tx_tag_gql_asc_migration_0", "tx_tag_gql_desc_migration_0"],
+        tables: ["tx_tag_gql_asc_migration_1", "tx_tag_gql_desc_migration_1"],
       },
       TagAndTxId: {
         keyspace: KEYSPACE,
         tables: [
-          "tx_tag_gql_by_tx_id_asc_migration_0",
-          "tx_tag_gql_by_tx_id_desc_migration_0",
+          "tx_tag_gql_by_tx_id_asc_migration_1",
+          "tx_tag_gql_by_tx_id_desc_migration_1",
         ],
       },
       TagAndOwner: {
         keyspace: KEYSPACE,
         tables: [
-          "tx_tag_gql_by_owner_asc_migration_0",
-          "tx_tag_gql_by_owner_desc_migration_0",
+          "tx_tag_gql_by_owner_asc_migration_1",
+          "tx_tag_gql_by_owner_desc_migration_1",
         ],
       },
       TagAndTarget: {
         keyspace: KEYSPACE,
         tables: [
-          "tx_tag_gql_by_target_asc_migration_0",
-          "tx_tag_gql_by_target_desc_migration_0",
+          "tx_tag_gql_by_target_asc_migration_1",
+          "tx_tag_gql_by_target_desc_migration_1",
         ],
       },
       TagAndBundledIn: {
         keyspace: KEYSPACE,
         tables: [
-          "tx_tag_gql_by_bundled_in_asc_migration_0",
-          "tx_tag_gql_by_bundled_in_desc_migration_0",
+          "tx_tag_gql_by_bundled_in_asc_migration_1",
+          "tx_tag_gql_by_bundled_in_desc_migration_1",
         ],
       },
       TagAndDataRoot: {
         keyspace: KEYSPACE,
         tables: [
-          "tx_tag_gql_by_data_root_asc_migration_0",
-          "tx_tag_gql_by_data_root_desc_migration_0",
+          "tx_tag_gql_by_data_root_asc_migration_1",
+          "tx_tag_gql_by_data_root_desc_migration_1",
         ],
       },
       TagAndTxIdAndOwner: {
         keyspace: KEYSPACE,
         tables: [
-          "tx_tag_gql_by_tx_id_and_owner_asc_migration_0",
-          "tx_tag_gql_by_tx_id_and_owner_desc_migration_0",
+          "tx_tag_gql_by_tx_id_and_owner_asc_migration_1",
+          "tx_tag_gql_by_tx_id_and_owner_desc_migration_1",
         ],
       },
       TagAndTxIdAndTarget: {
         keyspace: KEYSPACE,
         tables: [
-          "tx_tag_gql_by_tx_id_and_target_asc_migration_0",
-          "tx_tag_gql_by_tx_id_and_target_desc_migration_0",
+          "tx_tag_gql_by_tx_id_and_target_asc_migration_1",
+          "tx_tag_gql_by_tx_id_and_target_desc_migration_1",
         ],
       },
       TagAndTxIdAndBundledIn: {
         keyspace: KEYSPACE,
         tables: [
-          "tx_tag_gql_by_tx_id_and_bundled_in_asc_migration_0",
-          "tx_tag_gql_by_tx_id_and_bundled_in_desc_migration_0",
+          "tx_tag_gql_by_tx_id_and_bundled_in_asc_migration_1",
+          "tx_tag_gql_by_tx_id_and_bundled_in_desc_migration_1",
         ],
       },
       TagAndTxIdAndDataRoot: {
         keyspace: KEYSPACE,
         tables: [
-          "tx_tag_gql_by_tx_id_and_data_root_asc_migration_0",
-          "tx_tag_gql_by_tx_id_and_data_root_desc_migration_0",
+          "tx_tag_gql_by_tx_id_and_data_root_asc_migration_1",
+          "tx_tag_gql_by_tx_id_and_data_root_desc_migration_1",
         ],
       },
       TagAndOwnerAndTarget: {
         keyspace: KEYSPACE,
         tables: [
-          "tx_tag_gql_by_owner_and_target_asc_migration_0",
-          "tx_tag_gql_by_owner_and_target_desc_migration_0",
+          "tx_tag_gql_by_owner_and_target_asc_migration_1",
+          "tx_tag_gql_by_owner_and_target_desc_migration_1",
         ],
       },
       TagAndOwnerAndBundledIn: {
         keyspace: KEYSPACE,
         tables: [
-          "tx_tag_gql_by_owner_and_bundled_in_asc_migration_0",
-          "tx_tag_gql_by_owner_and_bundled_in_desc_migration_0",
+          "tx_tag_gql_by_owner_and_bundled_in_asc_migration_1",
+          "tx_tag_gql_by_owner_and_bundled_in_desc_migration_1",
         ],
       },
       TagAndOwnerAndDataRoot: {
         keyspace: KEYSPACE,
         tables: [
-          "tx_tag_gql_by_owner_and_data_root_asc_migration_0",
-          "tx_tag_gql_by_owner_and_data_root_desc_migration_0",
+          "tx_tag_gql_by_owner_and_data_root_asc_migration_1",
+          "tx_tag_gql_by_owner_and_data_root_desc_migration_1",
         ],
       },
       TagAndTargetAndBundledIn: {
         keyspace: KEYSPACE,
         tables: [
-          "tx_tag_gql_by_target_and_bundled_in_asc_migration_0",
-          "tx_tag_gql_by_target_and_bundled_in_desc_migration_0",
+          "tx_tag_gql_by_target_and_bundled_in_asc_migration_1",
+          "tx_tag_gql_by_target_and_bundled_in_desc_migration_1",
         ],
       },
       TagAndTargetAndDataRoot: {
         keyspace: KEYSPACE,
         tables: [
-          "tx_tag_gql_by_target_and_data_root_asc_migration_0",
-          "tx_tag_gql_by_target_and_data_root_desc_migration_0",
+          "tx_tag_gql_by_target_and_data_root_asc_migration_1",
+          "tx_tag_gql_by_target_and_data_root_desc_migration_1",
         ],
       },
       TagAndBundledInAndDataRoot: {
         keyspace: KEYSPACE,
         tables: [
-          "tx_tag_gql_by_bundled_in_and_data_root_asc_migration_0",
-          "tx_tag_gql_by_bundled_in_and_data_root_desc_migration_0",
+          "tx_tag_gql_by_bundled_in_and_data_root_asc_migration_1",
+          "tx_tag_gql_by_bundled_in_and_data_root_desc_migration_1",
         ],
       },
       TagAndTxIdAndOwnerAndTarget: {
         keyspace: KEYSPACE,
         tables: [
-          "tx_tag_gql_by_tx_id_and_owner_and_target_asc_migration_0",
-          "tx_tag_gql_by_tx_id_and_owner_and_target_desc_migration_0",
+          "tx_tag_gql_by_tx_id_and_owner_and_target_asc_migration_1",
+          "tx_tag_gql_by_tx_id_and_owner_and_target_desc_migration_1",
         ],
       },
       TagAndTxIdAndOwnerAndBundledIn: {
         keyspace: KEYSPACE,
         tables: [
-          "tx_tag_gql_by_tx_id_and_owner_and_bundled_in_asc_migration_0",
-          "tx_tag_gql_by_tx_id_and_owner_and_bundled_in_desc_migration_0",
+          "tx_tag_gql_by_tx_id_and_owner_and_bundled_in_asc_migration_1",
+          "tx_tag_gql_by_tx_id_and_owner_and_bundled_in_desc_migration_1",
         ],
       },
       TagAndTxIdAndOwnerAndDataRoot: {
         keyspace: KEYSPACE,
         tables: [
-          "tx_tag_gql_by_tx_id_and_owner_and_data_root_asc_migration_0",
-          "tx_tag_gql_by_tx_id_and_owner_and_data_root_desc_migration_0",
+          "tx_tag_gql_by_tx_id_and_owner_and_data_root_asc_migration_1",
+          "tx_tag_gql_by_tx_id_and_owner_and_data_root_desc_migration_1",
         ],
       },
       TagAndTxIdAndTargetAndBundledIn: {
         keyspace: KEYSPACE,
         tables: [
-          "tx_tag_gql_by_tx_id_and_target_and_bundled_in_asc_migration_0",
-          "tx_tag_gql_by_tx_id_and_target_and_bundled_in_desc_migration_0",
+          "tx_tag_gql_by_tx_id_and_target_and_bundled_in_asc_migration_1",
+          "tx_tag_gql_by_tx_id_and_target_and_bundled_in_desc_migration_1",
         ],
       },
       TagAndTxIdAndTargetAndDataRoot: {
         keyspace: KEYSPACE,
         tables: [
-          "tx_tag_gql_by_tx_id_and_target_and_data_root_asc_migration_0",
-          "tx_tag_gql_by_tx_id_and_target_and_data_root_desc_migration_0",
+          "tx_tag_gql_by_tx_id_and_target_and_data_root_asc_migration_1",
+          "tx_tag_gql_by_tx_id_and_target_and_data_root_desc_migration_1",
         ],
       },
       TagAndTxIdAndBundledInAndDataRoot: {
         keyspace: KEYSPACE,
         tables: [
-          "tx_tag_gql_by_tx_id_and_bundled_in_and_data_root_asc_migration_0",
-          "tx_tag_gql_by_tx_id_and_bundled_in_and_data_root_desc_migration_0",
+          "tx_tag_gql_by_tx_id_and_bundled_in_and_data_root_asc_migration_1",
+          "tx_tag_gql_by_tx_id_and_bundled_in_and_data_root_desc_migration_1",
         ],
       },
       TagAndOwnerAndTargetAndBundledIn: {
         keyspace: KEYSPACE,
         tables: [
-          "tx_tag_gql_by_owner_and_target_and_bundled_in_asc_migration_0",
-          "tx_tag_gql_by_owner_and_target_and_bundled_in_desc_migration_0",
+          "tx_tag_gql_by_owner_and_target_and_bundled_in_asc_migration_1",
+          "tx_tag_gql_by_owner_and_target_and_bundled_in_desc_migration_1",
         ],
       },
       TagAndOwnerAndTargetAndDataRoot: {
         keyspace: KEYSPACE,
         tables: [
-          "tx_tag_gql_by_owner_and_target_and_data_root_asc_migration_0",
-          "tx_tag_gql_by_owner_and_target_and_data_root_desc_migration_0",
+          "tx_tag_gql_by_owner_and_target_and_data_root_asc_migration_1",
+          "tx_tag_gql_by_owner_and_target_and_data_root_desc_migration_1",
         ],
       },
       TagAndOwnerAndBundledInAndDataRoot: {
         keyspace: KEYSPACE,
         tables: [
-          "tx_tag_gql_by_owner_and_bundled_in_and_data_root_asc_migration_0",
-          "tx_tag_gql_by_owner_and_bundled_in_and_data_root_desc_migration_0",
+          "tx_tag_gql_by_owner_and_bundled_in_and_data_root_asc_migration_1",
+          "tx_tag_gql_by_owner_and_bundled_in_and_data_root_desc_migration_1",
         ],
       },
       TagAndTargetAndBundledInAndDataRoot: {
         keyspace: KEYSPACE,
         tables: [
-          "tx_tag_gql_by_target_and_bundled_in_and_data_root_asc_migration_0",
-          "tx_tag_gql_by_target_and_bundled_in_and_data_root_desc_migration_0",
+          "tx_tag_gql_by_target_and_bundled_in_and_data_root_asc_migration_1",
+          "tx_tag_gql_by_target_and_bundled_in_and_data_root_desc_migration_1",
         ],
       },
       TagAndTxIdAndOwnerAndTargetAndBundledIn: {
         keyspace: KEYSPACE,
         tables: [
-          "tx_tag_gql_by_tx_id_and_owner_and_target_and_bundled_in_asc_migration_0",
-          "tx_tag_gql_by_tx_id_and_owner_and_target_and_bundled_in_desc_migration_0",
+          "tx_tag_gql_by_tx_id_and_owner_and_target_and_bundled_in_asc_migration_1",
+          "tx_tag_gql_by_tx_id_and_owner_and_target_and_bundled_in_desc_migration_1",
         ],
       },
       TagAndTxIdAndOwnerAndTargetAndDataRoot: {
         keyspace: KEYSPACE,
         tables: [
-          "tx_tag_gql_by_tx_id_and_owner_and_target_and_data_root_asc_migration_0",
-          "tx_tag_gql_by_tx_id_and_owner_and_target_and_data_root_desc_migration_0",
+          "tx_tag_gql_by_tx_id_and_owner_and_target_and_data_root_asc_migration_1",
+          "tx_tag_gql_by_tx_id_and_owner_and_target_and_data_root_desc_migration_1",
         ],
       },
       TagAndTxIdAndOwnerAndBundledInAndDataRoot: {
         keyspace: KEYSPACE,
         tables: [
-          "tx_tag_gql_by_tx_id_and_owner_and_bundled_in_and_data_root_asc_migration_0",
-          "tx_tag_gql_by_tx_id_and_owner_and_bundled_in_and_data_root_desc_migration_0",
+          "tx_tag_gql_by_tx_id_and_owner_and_bundled_in_and_data_root_asc_migration_1",
+          "tx_tag_gql_by_tx_id_and_owner_and_bundled_in_and_data_root_desc_migration_1",
         ],
       },
       TagAndTxIdAndTargetAndBundledInAndDataRoot: {
         keyspace: KEYSPACE,
         tables: [
-          "tx_tag_gql_by_tx_id_and_target_and_bundled_in_and_data_root_asc_migration_0",
-          "tx_tag_gql_by_tx_id_and_target_and_bundled_in_and_data_root_desc_migration_0",
+          "tx_tag_gql_by_tx_id_and_target_and_bundled_in_and_data_root_asc_migration_1",
+          "tx_tag_gql_by_tx_id_and_target_and_bundled_in_and_data_root_desc_migration_1",
         ],
       },
       TagAndOwnerAndTargetAndBundledInAndDataRoot: {
         keyspace: KEYSPACE,
         tables: [
-          "tx_tag_gql_by_owner_and_target_and_bundled_in_and_data_root_asc_migration_0",
-          "tx_tag_gql_by_owner_and_target_and_bundled_in_and_data_root_desc_migration_0",
+          "tx_tag_gql_by_owner_and_target_and_bundled_in_and_data_root_asc_migration_1",
+          "tx_tag_gql_by_owner_and_target_and_bundled_in_and_data_root_desc_migration_1",
         ],
       },
       TagAndTxIdAndOwnerAndTargetAndBundledInAndDataRoot: {
         keyspace: KEYSPACE,
         tables: [
-          "tx_tag_gql_by_tx_id_and_owner_and_target_and_bundled_in_and_data_root_asc_migration_0",
-          "tx_tag_gql_by_tx_id_and_owner_and_target_and_bundled_in_and_data_root_desc_migration_0",
+          "tx_tag_gql_by_tx_id_and_owner_and_target_and_bundled_in_and_data_root_asc_migration_1",
+          "tx_tag_gql_by_tx_id_and_owner_and_target_and_bundled_in_and_data_root_desc_migration_1",
         ],
       },
     },
@@ -334,8 +405,7 @@ const insertGqlTag = async (tagsMapper, tx) => {
       for (const tuple of tx.tags) {
         const [tag_name, tag_value] = tuple.values();
         const insertObject = R.merge(obj, {
-          tag_name,
-          tag_value,
+          tag_pair: `${tag_name}-${tag_value}`,
           tag_index: index,
         });
         // console.error(tagModelName, insertObject);
@@ -346,12 +416,17 @@ const insertGqlTag = async (tagsMapper, tx) => {
   }
 };
 
+let concurrent = 0;
+
 module.exports = async (client) => {
   const pWaitFor = (await import("p-wait-for")).default;
   const allTables = await client.execute("describe tables");
   const needsMigration =
-    allTables.rows.filter(
-      (row) => row.name === "tx_tag_gql_by_name_asc_migration_1"
+    allTables.rows.filter((row) =>
+      [
+        "tx_tag_gql_by_name_asc_migration_1",
+        "tx_tag_gql_asc_migration_0",
+      ].includes(row.name)
     ).length > 0;
 
   const tagsMapper = makeTagsMapper(client);
@@ -396,7 +471,11 @@ module.exports = async (client) => {
             if (typeof tx.data_root !== "string") {
               tx.data_root = "";
             }
-            await insertGqlTag(tagsMapper, tx);
+            await pWaitFor(() => concurrent < 100);
+            concurrent += 1;
+            insertGqlTag(tagsMapper, tx).then(() => {
+              concurrent -= 1;
+            });
           }
         }
       }
@@ -418,5 +497,14 @@ module.exports = async (client) => {
         prepare: true,
       }
     );
+    for (const migration0Table of migration0Tables) {
+      await client.execute(
+        `DROP TABLE IF EXISTS ${KEYSPACE}.${migration0Table}`,
+        [],
+        {
+          prepare: true,
+        }
+      );
+    }
   }
 };

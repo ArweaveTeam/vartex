@@ -69,7 +69,7 @@ export const tagModels = {
   ],
 };
 
-export const makeTagsMapper = (cassandraClient: CassandraClient): Mapper =>
+export const makeTagsMapper = (cassandraClient: CassandraClient): any =>
   new Mapper(cassandraClient, {
     models: {
       Tag: {

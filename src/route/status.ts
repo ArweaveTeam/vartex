@@ -16,6 +16,16 @@ try {
 
 let lastKnownSessionUuid: CassandraTypes.TimeUuid;
 
+interface StatusSchema {
+  session?: CassandraTypes.TimeUuid;
+  status: string;
+  arweave_height: string;
+  gateway_height: string;
+  vartex_git_revision: string;
+  current_imports: string[];
+  current_migrations: Record<string, string>;
+}
+
 export const initializeStatusSession = async (
   cassandraClient: CassandraClient,
   sessionUuid: CassandraTypes.TimeUuid
@@ -32,7 +42,7 @@ export const initializeStatusSession = async (
     return sessionUuid;
   }
 
-  let lastSession = {
+  let lastSession: StatusSchema = {
     status: "BOOTING",
     arweave_height: "-1",
     gateway_height: "-1",
@@ -47,7 +57,7 @@ export const initializeStatusSession = async (
         `DELETE FROM ${KEYSPACE}.status WHERE session = ${session} IF EXISTS`
       );
     }
-    lastSession = maybeLastSession.rows[0];
+    lastSession = (maybeLastSession as any).rows[0] as StatusSchema;
   }
 
   await statusMapper.insert(

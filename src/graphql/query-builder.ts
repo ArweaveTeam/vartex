@@ -46,21 +46,33 @@ export function generateTransactionQuery(
   parameters: QueryParameters,
   configuration?: CqlQueryConfiguration
 ): CqlQuery {
-  let table = tableId.TABLE_GQL_TX_DESC;
+  const cql = Select();
 
-  if (parameters.tags && !R.isEmpty(parameters.tags)) {
-    table =
-      parameters.sortOrder === "HEIGHT_ASC"
-        ? tableId.TABLE_TAG_NAME_ASC
-        : tableId.TABLE_TAG_NAME_DESC;
-  } else {
-    table =
-      parameters.sortOrder === "HEIGHT_ASC"
-        ? tableId.TABLE_GQL_TX_ASC
-        : tableId.TABLE_GQL_TX_DESC;
+  if (
+    parameters.ids &&
+    Array.isArray(parameters.ids) &&
+    parameters.ids.length > 0
+  ) {
+    cql.table("transaction", KEYSPACE).field(parameters.select);
+    cql.where.apply(
+      cql,
+      R.concat(
+        [
+          `tx_id IN ( ${R.range(0, parameters.ids.length)
+            .map(() => "?")
+            .join(", ")} )`,
+        ],
+        parameters.ids
+      )
+    );
+    return cql.build();
   }
+  let table =
+    parameters.sortOrder === "HEIGHT_ASC"
+      ? tableId.TABLE_GQL_TX_ASC
+      : tableId.TABLE_GQL_TX_DESC;
 
-  const cql = Select()
+  cql
     .table(table, KEYSPACE)
     .field(parameters.select)
     .where("partition_id = %1")
@@ -74,20 +86,22 @@ export function generateTransactionQuery(
   if (parameters.id) {
     cql.where(`tx_id = ?`, parameters.id);
     cql.build();
-  } else if (parameters.ids && Array.isArray(parameters.ids)) {
-    cql.limit(parameters.limit);
-    cql.where.apply(
-      cql,
-      R.concat(
-        [
-          `tx_id IN ( ${R.range(0, parameters.ids.length)
-            .map(() => "?")
-            .join(", ")} )`,
-        ],
-        parameters.ids
-      )
-    );
   }
+
+  // else if (parameters.ids && Array.isArray(parameters.ids)) {
+  //   cql.limit(parameters.limit);
+  //   cql.where.apply(
+  //     cql,
+  //     R.concat(
+  //       [
+  //         `tx_id IN ( ${R.range(0, parameters.ids.length)
+  //           .map(() => "?")
+  //           .join(", ")} )`,
+  //       ],
+  //       parameters.ids
+  //     )
+  //   );
+  // }
 
   if (Array.isArray(parameters.tags) && !R.isEmpty(parameters.tags)) {
     for (const { name, values = "" } of parameters.tags) {

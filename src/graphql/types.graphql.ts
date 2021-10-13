@@ -142,6 +142,7 @@ export type QueryTransactionsArgs = {
   after?: Maybe<Scalars['String']>;
   block?: Maybe<BlockFilter>;
   bundledIn?: Maybe<Array<Scalars['ID']>>;
+  dataRoots?: Maybe<Array<Scalars['String']>>;
   first?: Maybe<Scalars['Int']>;
   ids?: Maybe<Array<Scalars['ID']>>;
   owners?: Maybe<Array<Scalars['String']>>;
@@ -207,6 +208,7 @@ export type Transaction = {
    */
   bundledIn?: Maybe<Bundle>;
   data: MetaData;
+  dataRoot: Scalars['String'];
   fee: Amount;
   id: Scalars['ID'];
   owner: Owner;
@@ -432,6 +434,7 @@ export type TransactionResolvers<ContextType = any, ParentType extends Resolvers
   block?: Resolver<Maybe<ResolversTypes['Block']>, ParentType, ContextType>;
   bundledIn?: Resolver<Maybe<ResolversTypes['Bundle']>, ParentType, ContextType>;
   data?: Resolver<ResolversTypes['MetaData'], ParentType, ContextType>;
+  dataRoot?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   fee?: Resolver<ResolversTypes['Amount'], ParentType, ContextType>;
   id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
   owner?: Resolver<ResolversTypes['Owner'], ParentType, ContextType>;

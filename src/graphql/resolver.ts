@@ -24,6 +24,7 @@ import {
   Transaction,
 } from "./types.graphql";
 import { Tag } from "../types/arweave";
+import { findTxIDsFromTagFilters } from "./tag-search";
 import {
   ownerToAddress,
   winstonToAr,
@@ -342,7 +343,7 @@ export const resolvers = {
       );
       const fieldsWithSubFields = graphqlFields(info);
 
-      const isQueryingByIds =
+      let isQueryingByIds =
         typeof queryParameters === "object" &&
         Array.isArray(queryParameters.ids);
 
@@ -382,6 +383,49 @@ export const resolvers = {
       const tagSearchMode =
         queryParameters.tags && !R.isEmpty(queryParameters.tags);
 
+      if (tagSearchMode) {
+        const tagFilterKeys = [];
+        const tagFilterVals = {};
+
+        for (const param of Object.keys(queryParameters)) {
+          if (
+            [
+              "tags",
+              "ids",
+              "recipients",
+              "owners",
+              "dataRoots",
+              "bundledIn",
+            ].includes(param) &&
+            !R.isEmpty(queryParameters[param])
+          ) {
+            tagFilterVals[param] = queryParameters[param];
+            tagFilterKeys.push(param);
+            delete queryParameters[param];
+          }
+        }
+        const tagsResult = await findTxIDsFromTagFilters({
+          tagFilterKeys,
+          tagFilterVals,
+          minHeight,
+          maxHeight,
+          limit,
+          sortOrder: queryParameters.sort || "HEIGHT_DESC",
+        });
+        console.error({ tagsResult });
+        if (R.isEmpty(tagsResult)) {
+          return {
+            pageInfo: {
+              hasNextPage: false,
+            },
+            edges: [],
+          };
+        } else {
+          isQueryingByIds = true;
+          queryParameters.ids = tagsResult.map((x) => x.tx_id);
+        }
+      }
+
       const selectedDeferedKeysUser = [];
 
       if (tagSearchMode && R.hasPath("edges.node.tags", fieldsWithSubFields)) {
@@ -414,61 +458,65 @@ export const resolvers = {
 
       parameters.select = R.append("tx_index", parameters.select);
 
+      const resultArray = [];
+
       const txQuery = generateTransactionQuery(parameters, {
         isFilteringByTags,
       });
 
-      const resultArray = [];
-      const bucketCount = tagSearchMode
-        ? parameters.sortOrder === "HEIGHT_ASC"
-          ? CONST.getGqlTxTagAscBucketNumber(gatewayHeight)
-          : CONST.getGqlTxTagDescBucketNumber(gatewayHeight)
-        : parameters.sortOrder === "HEIGHT_ASC"
-        ? CONST.getGqlTxIdAscBucketNumber(gatewayHeight)
-        : CONST.getGqlTxIdDescBucketNumber(gatewayHeight);
-      let currentBucketNumber = Math.max(0, bucketCount);
-      let ascendingTraverseBucketNumber = 0;
-
-      while (
-        resultArray.length < fetchSize &&
-        (parameters.sortOrder === "HEIGHT_ASC"
-          ? ascendingTraverseBucketNumber <= bucketCount
-          : currentBucketNumber >= 0)
-      ) {
-        const { partition_id, bucket_id, bucket_number } = tagSearchMode
-          ? parameters.sortOrder === "HEIGHT_ASC"
-            ? CONST.convertGqlTxTagAscBucketNumberToPrimaryKeys(
-                ascendingTraverseBucketNumber
-              )
-            : CONST.convertGqlTxTagDescBucketNumberToPrimaryKeys(
-                currentBucketNumber
-              )
-          : parameters.sortOrder === "HEIGHT_ASC"
-          ? CONST.convertGqlTxIdAscBucketNumberToPrimaryKeys(
-              ascendingTraverseBucketNumber
-            )
-          : CONST.convertGqlTxIdDescBucketNumberToPrimaryKeys(
-              currentBucketNumber
-            );
-
-        const txCqlQuery = txQuery.query
-          .replace(/%1/i, `'${partition_id}'`)
-          .replace(/%2/i, `'${bucket_id}'`)
-          .replace(/%3/i, bucket_number);
-
-        console.error({ txCqlQuery, txQueryParams: txQuery.params });
-        const { rows: bucketResultArray }: { rows: unknown[] } =
-          await cassandraClient.execute(txCqlQuery, txQuery.params, {
+      if (isQueryingByIds) {
+        console.log({ txQuery });
+        const { rows: txRowsResult }: { rows: unknown[] } =
+          await cassandraClient.execute(txQuery.query, txQuery.params, {
             prepare: true,
             executionProfile: "gql",
           });
-        console.error({ bucketResultArray });
-        for (const resultItem of bucketResultArray)
+        for (const resultItem of txRowsResult) {
           resultArray.push(resultItem);
-        if (parameters.sortOrder === "HEIGHT_ASC") {
-          ascendingTraverseBucketNumber += 1;
-        } else {
-          currentBucketNumber -= 1;
+        }
+      } else {
+        const bucketCount =
+          parameters.sortOrder === "HEIGHT_ASC"
+            ? CONST.getGqlTxIdAscBucketNumber(gatewayHeight)
+            : CONST.getGqlTxIdDescBucketNumber(gatewayHeight);
+        let currentBucketNumber = Math.max(0, bucketCount);
+        let ascendingTraverseBucketNumber = 0;
+
+        while (
+          resultArray.length < fetchSize &&
+          (parameters.sortOrder === "HEIGHT_ASC"
+            ? ascendingTraverseBucketNumber <= bucketCount
+            : currentBucketNumber >= 0)
+        ) {
+          const { partition_id, bucket_id, bucket_number } =
+            parameters.sortOrder === "HEIGHT_ASC"
+              ? CONST.convertGqlTxIdAscBucketNumberToPrimaryKeys(
+                  ascendingTraverseBucketNumber
+                )
+              : CONST.convertGqlTxIdDescBucketNumberToPrimaryKeys(
+                  currentBucketNumber
+                );
+
+          const txCqlQuery = txQuery.query
+            .replace(/%1/i, `'${partition_id}'`)
+            .replace(/%2/i, `'${bucket_id}'`)
+            .replace(/%3/i, bucket_number);
+          console.error({ txCqlQuery });
+          const { rows: bucketResultArray }: { rows: unknown[] } =
+            await cassandraClient.execute(txCqlQuery, txQuery.params, {
+              prepare: true,
+              executionProfile: "gql",
+            });
+
+          for (const resultItem of bucketResultArray) {
+            resultArray.push(resultItem);
+          }
+
+          if (parameters.sortOrder === "HEIGHT_ASC") {
+            ascendingTraverseBucketNumber += 1;
+          } else {
+            currentBucketNumber -= 1;
+          }
         }
       }
 

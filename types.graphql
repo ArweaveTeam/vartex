@@ -12,6 +12,10 @@ type Query {
     """
     ids: [ID!]
     """
+    Find transactions from a list of data roots.
+    """
+    dataRoots: [String!]
+    """
     Find transactions from a list of owner wallet addresses, or wallet owner public keys.
     """
     owners: [String!]
@@ -107,7 +111,10 @@ input TagFilter {
   """
   @deprecated (now ignored) The operator to apply to to the tag filter. Defaults to EQ (equal).
   """
-  op: TagOperator = EQ @deprecated(reason: "op is too expensive filter as it requires iterating trough every row and is furthermore unsupported in cassandra-db")
+  op: TagOperator = EQ
+    @deprecated(
+      reason: "op is too expensive filter as it requires iterating trough every row and is furthermore unsupported in cassandra-db"
+    )
 }
 """
 Find blocks within a given range
@@ -179,6 +186,7 @@ type Transaction {
   anchor: String!
   signature: String!
   recipient: String!
+  dataRoot: String!
   owner: Owner!
   fee: Amount!
   quantity: Amount!

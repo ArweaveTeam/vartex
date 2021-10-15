@@ -476,7 +476,7 @@ module.exports = async (client) => {
       let blockHashQ = await client.execute(
         `SELECT block_hash FROM ${KEYSPACE}.block_height_by_block_hash WHERE block_height = ${migrationState.current}`
       );
-      if (blockHashQ.rows[0] === 0) {
+      if (blockHashQ.rows.length === 0) {
         await importBlock(migrationState.current);
         // allow it to settle
         await new Promise((resolve) => setTimeout(resolve, 30000));

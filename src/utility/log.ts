@@ -13,11 +13,15 @@ export const mkWorkerLog = (
   messenger: IGatsbyWorkerMessenger<unknown>
 ): ((message: string, context?: unknown) => void) => {
   return function (message: string, context?: unknown) {
-    messenger.sendMessage({
-      type: "log:info",
-      message: `${message || ""}\n${
-        typeof context === "object" ? JSON.stringify(context) : context || ""
-      }`,
-    });
+    if (messenger) {
+      messenger.sendMessage({
+        type: "log:info",
+        message: `${message || ""}\n${
+          typeof context === "object" ? JSON.stringify(context) : context || ""
+        }`,
+      });
+    } else {
+      context ? console.log(message, context) : console.log(message);
+    }
   };
 };

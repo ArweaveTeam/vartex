@@ -365,7 +365,7 @@ export async function importBlock(height: number): Promise<boolean> {
   }
 
   if (!success) {
-    return false;
+    process.exit(1);
   }
 
   await pWaitFor(() => isTxQueueEmpty() && isIncomingTxQueueEmpty());
@@ -379,6 +379,7 @@ export async function importBlock(height: number): Promise<boolean> {
   } catch (error) {
     log(`Failed to import fetched block: ${error}`);
     success = false;
+    process.exit(1);
   }
 
   return success;

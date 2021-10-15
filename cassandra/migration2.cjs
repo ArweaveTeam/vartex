@@ -416,6 +416,35 @@ const insertGqlTag = async (tagsMapper, tx) => {
   }
 };
 
+// in case of undetected gap
+async function importBlock(height) {
+  const childProcess = spawn(
+    "node",
+    [
+      "--experimental-specifier-resolution=node",
+      "--loader=ts-node/esm.mjs",
+      "./cli/_import-block",
+      height,
+    ],
+    {
+      shell: true,
+      stdio: "inherit",
+      env: { ...process.env, TS_NODE_FILES: "true" },
+    }
+  );
+  return new Promise((done, error) => {
+    childProcess.on("exit", (exitCode) => {
+      if (exitCode === 0) {
+        console.log(`block ${height} was successfully imported`);
+        done();
+      } else {
+        console.log(`block ${height} couldn't be imported`);
+        error();
+      }
+    });
+  });
+}
+
 let concurrent = 0;
 
 module.exports = async (client) => {
@@ -444,9 +473,17 @@ module.exports = async (client) => {
 
     while (migrationState.current < migrationState.goal) {
       console.log(migrationState);
-      const blockHashQ = await client.execute(
+      let blockHashQ = await client.execute(
         `SELECT block_hash FROM ${KEYSPACE}.block_height_by_block_hash WHERE block_height = ${migrationState.current}`
       );
+      if (blockHashQ.rows[0] === 0) {
+        await importBlock(migrationState.current);
+        // allow it to settle
+        await new Promise((resolve) => setTimeout(resolve, 30000));
+        blockHashQ = await client.execute(
+          `SELECT block_hash FROM ${KEYSPACE}.block_height_by_block_hash WHERE block_height = ${migrationState.current}`
+        );
+      }
       const blockHash = blockHashQ.rows[0].block_hash;
       const blockQ = await client.execute(
         `SELECT height,txs,txs_count FROM ${KEYSPACE}.block WHERE indep_hash = '${blockHash}'`

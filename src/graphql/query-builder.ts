@@ -15,7 +15,7 @@ process.env.NODE_ENV !== "test" && config();
 
 export interface QueryParameters {
   recipients?: string[];
-  from?: string[];
+  owners?: string[];
   id?: string;
   ids?: string[];
   limit?: number;
@@ -126,10 +126,28 @@ export function generateTransactionQuery(
   //   cql.where('block_height >= ?', CassandraTypes.Long.fromNumber(0));
   // }
 
+  if (parameters.owners && !R.isEmpty(parameters.owners)) {
+    if (parameters.owners.length === 1) {
+      cql.where(`owner = ?`, parameters.owners[0]);
+    } else {
+      cql.where.apply(
+        cql,
+        `owner IN ( ${parameters.owners.map(() => "?").join(", ")} )`,
+        parameters.owners
+      );
+    }
+  }
+
   if (parameters.recipients && !R.isEmpty(parameters.recipients)) {
-    cql.where(
-      `target IN ( ${parameters.recipients.map(() => "?").join(", ")} )`
-    );
+    if (parameters.recipients.length === 1) {
+      cql.where(`target = ?`, parameters.recipients[0]);
+    } else {
+      cql.where.apply(
+        cql,
+        `target IN ( ${parameters.recipients.map(() => "?").join(", ")} )`,
+        parameters.recipients
+      );
+    }
   }
 
   // if (params.before) {
@@ -162,7 +180,7 @@ export function generateTransactionQuery(
     }
   }
 
-  return cql.build();
+  return cql.limit(parameters.limit).build();
 }
 
 export interface BlockQueryParameters {

@@ -434,7 +434,7 @@ export const resolvers = {
         offset: offset,
         ids: queryParameters.ids || undefined,
         recipients: queryParameters.recipients || undefined,
-        from: queryParameters.owners || undefined,
+        owners: queryParameters.owners || undefined,
         tags: queryParameters.tags || undefined,
         blocks: true,
         before: timestamp,
@@ -455,7 +455,7 @@ export const resolvers = {
       const resultArray = [];
 
       const txQuery = generateTransactionQuery(parameters);
-
+      console.log({ txQuery });
       if (isQueryingByIds) {
         const { rows: txRowsResult }: { rows: unknown[] } =
           await cassandraClient.execute(txQuery.query, txQuery.params, {

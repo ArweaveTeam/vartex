@@ -241,7 +241,7 @@ module.exports = async (client) => {
         }
         await pWaitFor(() => concurrent < 100);
         concurrent += 1;
-        const mappr = tagsMapper.forModel(badTables(row.name));
+        const mappr = tagsMapper.forModel(badTables[row.name]);
         mappr.update(rowRes).then(() => {
           concurrent -= 1;
         });

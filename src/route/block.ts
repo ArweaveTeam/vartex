@@ -21,6 +21,10 @@ export async function blockByHeightRoute(
       const { block_hash } = await blockHeightToHashMapper.get({
         block_height: height,
       });
+      if (!block_hash) {
+        next(`{error: "not_found"}`);
+        return;
+      }
       const poa = await poaMapper.get({ block_hash, block_height: height });
       const blockResult = await blockMapper.get({
         // height,

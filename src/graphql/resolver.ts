@@ -30,6 +30,7 @@ import {
   ownerToAddress,
   winstonToAr,
   utf8DecodeTupleTag,
+  fromB64Url,
 } from "../utility/encoding";
 import {
   QueryParameters,
@@ -122,6 +123,21 @@ const blockFieldMap = {
   // extended: 'blocks.extended',
 };
 
+const resolveGqlSingleTxSelect = (userFields: unknown): string[] => {
+  const select = [];
+  for (const keyPath of R.keys(edgeFieldMapTx)) {
+    if (
+      R.hasPath(
+        keyPath.replace("edges.node.", ""),
+        userFields as Record<string, unknown>
+      )
+    ) {
+      select.push(edgeFieldMapTx[keyPath]);
+    }
+  }
+  return select;
+};
+
 const resolveGqlTxSelect = (userFields: unknown): string[] => {
   const select = [];
   for (const keyPath of R.keys(edgeFieldMapTx)) {
@@ -159,7 +175,7 @@ export const resolvers = {
         select: string[];
       } = {
         id: queryParameters.id || undefined,
-        select: resolveGqlTxSelect(fieldsWithSubFields),
+        select: resolveGqlSingleTxSelect(fieldsWithSubFields),
       };
 
       // No selection = no search
@@ -167,52 +183,19 @@ export const resolvers = {
         return null; // returning null is a backwards-compatible behavior
       }
 
-      // todo, elide selectors not selected from user
-      if (!parameters.select.includes("tx_id")) {
-        parameters.select = R.append("tx_id", parameters.select);
-      }
-
-      parameters.select = R.append("tx_index", parameters.select);
-      const txQuery = generateTransactionQuery(parameters);
-
-      const resultArray = [];
-      const bucketCount = CONST.getGqlTxIdDescBucketNumber(gatewayHeight);
-      let currentBucketNumber = Math.max(0, bucketCount);
-
-      while (resultArray.length === 0 && currentBucketNumber >= 0) {
-        const { partition_id, bucket_id, bucket_number } =
-          CONST.convertGqlTxIdAscBucketNumberToPrimaryKeys(currentBucketNumber);
-
-        const { rows: bucketResultArray }: { rows: unknown[] } =
-          await cassandraClient.execute(
-            txQuery.query
-              .replace(/%1/i, `'${partition_id}'`)
-              .replace(/%2/i, `'${bucket_id}'`)
-              .replace(/%3/i, bucket_number),
-            txQuery.params,
-            {
-              prepare: true,
-              executionProfile: "gql",
-            }
-          );
-
-        for (const resultItem of bucketResultArray) {
-          resultArray.push(resultItem);
-        }
-        currentBucketNumber -= 1;
-      }
-
-      if (R.isEmpty(resultArray)) {
-        return null;
-      }
-
-      const result = resultArray[0] as Partial<
+      const result = (await transactionMapper.get({
+        tx_id: parameters.id,
+      })) as Partial<
         Transaction & {
           tx_id: string;
           tx_index?: CassandraTypes.Long;
           block: Block | null;
         }
       >;
+
+      if (!result) {
+        return null;
+      }
 
       if (fieldsWithSubFields.block !== undefined) {
         let selectParameters = [];
@@ -420,7 +403,6 @@ export const resolvers = {
           const txs = await Promise.all(
             tagsResult.map(({ tx_id }) => transactionMapper.get({ tx_id }))
           );
-          console.log("RES?");
           return {
             pageInfo: {
               hasNextPage: false,
@@ -514,7 +496,7 @@ export const resolvers = {
             .replace(/%1/i, `'${partition_id}'`)
             .replace(/%2/i, `'${bucket_id}'`)
             .replace(/%3/i, bucket_number);
-          console.error({ txCqlQuery });
+
           const { rows: bucketResultArray }: { rows: unknown[] } =
             await cassandraClient.execute(txCqlQuery, txQuery.params, {
               prepare: true,
@@ -822,9 +804,20 @@ export const resolvers = {
       return parent.target || "";
     },
     data: (parent: FieldMap): MetaData => {
+      // Q29udGVudC1UeXBl = "Content-Type"
+      // Y29udGVudC10eXBl = "content-type"
+      const maybeContentType =
+        Array.isArray(parent.tags) &&
+        parent.tags.find((tag) =>
+          ["Q29udGVudC1UeXBl", "Y29udGVudC10eXBl"].includes(tag.get(0))
+        );
+
       return {
         size: `${parent.data_size || 0}`,
-        type: parent.data_type,
+        type:
+          parent.data_type ||
+          (maybeContentType &&
+            fromB64Url(maybeContentType.get(1)).toString("utf8")),
       };
     },
     quantity: (parent: FieldMap): Amount => {

@@ -392,7 +392,8 @@ export const insertGqlTag = async (tx: Transaction): Promise<void> => {
     for (const tagModelName of Object.keys(tagModels)) {
       const tagMapper = tagsMapper.forModel(tagModelName);
       const allFields = R.concat(commonFields, tagModels[tagModelName]);
-      const object = R.pickAll(allFields, tx);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const object: any = R.pickAll(allFields, tx);
 
       // until ans104 comes
       if (!object["data_item_index"]) {
@@ -405,8 +406,8 @@ export const insertGqlTag = async (tx: Transaction): Promise<void> => {
       let index = 0;
       for (const tuple of tx.tags) {
         const [tag_name, tag_value] = tuple.values();
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const insertObject = R.merge(object as any, {
+
+        const insertObject = R.merge(object, {
           tag_pair: `${tag_name}-${tag_value}`,
           tag_index: index,
         });

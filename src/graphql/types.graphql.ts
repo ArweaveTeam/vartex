@@ -52,7 +52,7 @@ export type BlockEdge = {
    *
    * Pass this to the \`after\` parameter in \`blocks(after: $cursor)\`, the next page will start from the next item after this.
    */
-  cursor: Scalars['String'];
+  cursor?: Maybe<Scalars['String']>;
   /** A block object. */
   node: Block;
 };
@@ -241,7 +241,7 @@ export type TransactionEdge = {
    *
    * Pass this to the \`after\` parameter in \`transactions(after: $cursor)\`, the next page will start from the next item after this.
    */
-  cursor: Scalars['String'];
+  cursor?: Maybe<Scalars['String']>;
   /** A transaction object. */
   node: Transaction;
 };
@@ -384,7 +384,7 @@ export type BlockConnectionResolvers<ContextType = any, ParentType extends Resol
 };
 
 export type BlockEdgeResolvers<ContextType = any, ParentType extends ResolversParentTypes['BlockEdge'] = ResolversParentTypes['BlockEdge']> = {
-  cursor?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  cursor?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   node?: Resolver<ResolversTypes['Block'], ParentType, ContextType>;
   __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
 };
@@ -453,7 +453,7 @@ export type TransactionConnectionResolvers<ContextType = any, ParentType extends
 };
 
 export type TransactionEdgeResolvers<ContextType = any, ParentType extends ResolversParentTypes['TransactionEdge'] = ResolversParentTypes['TransactionEdge']> = {
-  cursor?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  cursor?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   node?: Resolver<ResolversTypes['Transaction'], ParentType, ContextType>;
   __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
 };

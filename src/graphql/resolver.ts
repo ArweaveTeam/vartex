@@ -320,7 +320,7 @@ export const resolvers = {
       );
       const fieldsWithSubFields = graphqlFields(info);
 
-      let isQueryingByIds =
+      const isQueryingByIds =
         typeof queryParameters === "object" &&
         Array.isArray(queryParameters.ids);
 
@@ -360,6 +360,8 @@ export const resolvers = {
       const tagSearchMode =
         queryParameters.tags && !R.isEmpty(queryParameters.tags);
 
+      let tagQueryResult = [];
+
       if (tagSearchMode) {
         const tagFilterKeys = [];
         const tagFilterVals = {};
@@ -381,7 +383,7 @@ export const resolvers = {
             delete queryParameters[param];
           }
         }
-        const tagsResult = await findTxIDsFromTagFilters({
+        tagQueryResult = await findTxIDsFromTagFilters({
           tagFilterKeys,
           tagFilterVals,
           minHeight,
@@ -390,9 +392,8 @@ export const resolvers = {
           limit,
           sortOrder: queryParameters.sort || "HEIGHT_DESC",
         });
-        // console.error({ tagsResult });
 
-        if (R.isEmpty(tagsResult)) {
+        if (R.isEmpty(tagQueryResult)) {
           return {
             pageInfo: {
               hasNextPage: false,
@@ -401,7 +402,7 @@ export const resolvers = {
           };
         } else {
           const txs = await Promise.all(
-            tagsResult.map(({ tx_id }) => transactionMapper.get({ tx_id }))
+            tagQueryResult.map(({ tx_id }) => transactionMapper.get({ tx_id }))
           );
           return {
             pageInfo: {
@@ -416,9 +417,6 @@ export const resolvers = {
               ])
             ) as any,
           };
-          // console.log("TXS", txs);
-          // isQueryingByIds = true;
-          // queryParameters.ids = tagsResult.map((x) => x.tx_id);
         }
       }
 
@@ -456,9 +454,7 @@ export const resolvers = {
 
       const resultArray = [];
 
-      const txQuery = generateTransactionQuery(parameters, {
-        isFilteringByTags,
-      });
+      const txQuery = generateTransactionQuery(parameters);
 
       if (isQueryingByIds) {
         const { rows: txRowsResult }: { rows: unknown[] } =
@@ -521,7 +517,8 @@ export const resolvers = {
 
       let hasNextPage = false;
 
-      if (result.length === fetchSize) {
+      // the amount of ids allowed is 100, so this will never be true
+      if (!isQueryingByIds && result.length === fetchSize) {
         hasNextPage = true;
         result = R.dropLast(1, result);
       }
@@ -578,6 +575,7 @@ export const resolvers = {
             R.find(R.equals(k))(["anchor", "fee", "signature", "quantity"])
           );
       }
+
       if (!R.isEmpty(selectedDeferedKeysUser)) {
         const selectedDeferedKeysDatabase = [];
         for (const k of selectedDeferedKeysUser) {
@@ -644,7 +642,9 @@ export const resolvers = {
             : sortByTxIndexDesc,
           result
         ).map((tx, index) => ({
-          cursor: encodeCursor({ timestamp, offset: offset + index + 1 }),
+          ...(hasNextPage && {
+            cursor: encodeCursor({ timestamp, offset: offset + index + 1 }),
+          }),
           node: tx as Transaction,
         })),
       };

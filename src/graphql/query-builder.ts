@@ -38,13 +38,8 @@ interface CqlQuery {
   params: unknown[];
 }
 
-interface CqlQueryConfiguration {
-  isFilteringByTags?: boolean;
-}
-
 export function generateTransactionQuery(
-  parameters: QueryParameters,
-  configuration?: CqlQueryConfiguration
+  parameters: QueryParameters
 ): CqlQuery {
   const cql = Select();
 
@@ -53,19 +48,25 @@ export function generateTransactionQuery(
     Array.isArray(parameters.ids) &&
     parameters.ids.length > 0
   ) {
-    cql.table("transaction", KEYSPACE).field(parameters.select);
-    cql.where.apply(
-      cql,
-      R.concat(
-        [
-          `tx_id IN ( ${R.range(0, parameters.ids.length)
-            .map(() => "?")
-            .join(", ")} )`,
-        ],
-        parameters.ids
-      )
-    );
-    return cql.build();
+    if (parameters.ids.length === 1) {
+      return cql
+        .table("transaction", KEYSPACE)
+        .field(parameters.select)
+        .where("tx_id = ?", parameters.ids[0])
+        .build();
+    } else {
+      cql.where.apply(
+        cql,
+        R.concat(
+          [
+            `tx_id IN ( ${R.range(0, parameters.ids.length)
+              .map(() => "?")
+              .join(", ")} )`,
+          ],
+          parameters.ids
+        )
+      );
+    }
   }
   let table =
     parameters.sortOrder === "HEIGHT_ASC"
@@ -78,10 +79,6 @@ export function generateTransactionQuery(
     .where("partition_id = %1")
     .where("bucket_id = %2")
     .where("bucket_number = %3");
-
-  if (configuration && configuration.isFilteringByTags) {
-    cql.filtering();
-  }
 
   if (parameters.id) {
     cql.where(`tx_id = ?`, parameters.id);
@@ -286,28 +283,4 @@ export function generateDeferedTxBlockQuery(
     .where("partition_id = ?", CONST.getGqlBlockHeightAscPartitionName(height))
     .where("bucket_id = ?", CONST.getGqlBlockHeightAscBucketName(height))
     .build();
-}
-
-export function generateTagQuery(tags: TagFilter[]): CqlQuery {
-  const cql = Select()
-    .table(tableId.TABLE_TAG, KEYSPACE)
-    .field("tx_id")
-    .filtering();
-  for (const tag of tags) {
-    cql.where("name = ?", tag.name.toString());
-    if (Array.isArray(tag.values)) {
-      cql.where.apply(
-        cql,
-        R.concat(
-          [
-            `value IN ( ${R.range(0, tag.values.length)
-              .map(() => "?")
-              .join(", ")} )`,
-          ],
-          tag.values
-        )
-      );
-    }
-  }
-  return cql.build();
 }

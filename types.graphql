@@ -146,7 +146,7 @@ type BlockEdge {
 
   Pass this to the \`after\` parameter in \`blocks(after: $cursor)\`, the next page will start from the next item after this.
   """
-  cursor: String!
+  cursor: String
   """
   A block object.
   """
@@ -169,7 +169,7 @@ type TransactionEdge {
 
   Pass this to the \`after\` parameter in \`transactions(after: $cursor)\`, the next page will start from the next item after this.
   """
-  cursor: String!
+  cursor: String
   """
   A transaction object.
   """

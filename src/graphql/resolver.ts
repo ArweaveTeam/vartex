@@ -4,6 +4,7 @@ import { Request } from "express";
 import moment from "moment";
 import { types as CassandraTypes } from "cassandra-driver";
 import { cassandraClient, toLong } from "../database/cassandra";
+import { transactionMapper } from "../database/mapper";
 import * as CONST from "../database/constants";
 import { gatewayHeight } from "../database/sync";
 import { GraphQLResolveInfo } from "graphql";
@@ -103,6 +104,7 @@ const edgeFieldMapTx = {
   "edges.node.content_type": "data_type",
   "edges.node.parent": "parent",
   "edges.node.owner": "owner",
+  "edges.node.data_root": "data_root",
   // 'edges.node.owner_address': 'owner_address',
 };
 
@@ -120,18 +122,10 @@ const blockFieldMap = {
   // extended: 'blocks.extended',
 };
 
-const resolveGqlTxSelect = (
-  userFields: unknown,
-  singleTx = false
-): string[] => {
+const resolveGqlTxSelect = (userFields: unknown): string[] => {
   const select = [];
   for (const keyPath of R.keys(edgeFieldMapTx)) {
-    if (
-      R.hasPath(
-        singleTx ? keyPath.replace("edges.node.", "") : keyPath,
-        userFields as Record<string, unknown>
-      )
-    ) {
+    if (R.hasPath(keyPath, userFields as Record<string, unknown>)) {
       select.push(edgeFieldMapTx[keyPath]);
     }
   }
@@ -165,7 +159,7 @@ export const resolvers = {
         select: string[];
       } = {
         id: queryParameters.id || undefined,
-        select: resolveGqlTxSelect(fieldsWithSubFields, true),
+        select: resolveGqlTxSelect(fieldsWithSubFields),
       };
 
       // No selection = no search
@@ -409,10 +403,12 @@ export const resolvers = {
           tagFilterVals,
           minHeight,
           maxHeight,
+          offset,
           limit,
           sortOrder: queryParameters.sort || "HEIGHT_DESC",
         });
-        console.error({ tagsResult });
+        // console.error({ tagsResult });
+
         if (R.isEmpty(tagsResult)) {
           return {
             pageInfo: {
@@ -421,8 +417,26 @@ export const resolvers = {
             edges: [],
           };
         } else {
-          isQueryingByIds = true;
-          queryParameters.ids = tagsResult.map((x) => x.tx_id);
+          const txs = await Promise.all(
+            tagsResult.map(({ tx_id }) => transactionMapper.get({ tx_id }))
+          );
+          console.log("RES?");
+          return {
+            pageInfo: {
+              hasNextPage: false,
+            },
+            edges: txs.map((tx_) =>
+              R.mergeAll([
+                { node: R.pick(resolveGqlTxSelect(fieldsWithSubFields), tx_) },
+                {
+                  cursor: "TODO",
+                },
+              ])
+            ) as any,
+          };
+          // console.log("TXS", txs);
+          // isQueryingByIds = true;
+          // queryParameters.ids = tagsResult.map((x) => x.tx_id);
         }
       }
 
@@ -444,7 +458,7 @@ export const resolvers = {
         tags: queryParameters.tags || undefined,
         blocks: true,
         before: timestamp,
-        select: resolveGqlTxSelect(fieldsWithSubFields, false),
+        select: resolveGqlTxSelect(fieldsWithSubFields),
         minHeight,
         maxHeight,
         sortOrder: queryParameters.sort || undefined,
@@ -465,7 +479,6 @@ export const resolvers = {
       });
 
       if (isQueryingByIds) {
-        console.log({ txQuery });
         const { rows: txRowsResult }: { rows: unknown[] } =
           await cassandraClient.execute(txQuery.query, txQuery.params, {
             prepare: true,

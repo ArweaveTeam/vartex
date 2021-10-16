@@ -2,6 +2,7 @@ import { propOr } from "rambda";
 import { cassandraClient } from "../database/cassandra";
 import { toB64url } from "../query/transaction";
 import { KEYSPACE } from "../constants";
+import { ownerToAddress } from "../utility/encoding";
 
 const filtersToTable = {
   HEIGHT_ASC: {
@@ -119,6 +120,7 @@ export const findTxIDsFromTagFilters = async ({
   minHeight,
   maxHeight,
   limit,
+  offset,
   sortOrder,
 }) => {
   console.log({
@@ -129,6 +131,14 @@ export const findTxIDsFromTagFilters = async ({
     limit,
     sortOrder,
   });
+  const txsMinHeight =
+    sortOrder === "HEIGHT_ASC"
+      ? minHeight.add(offset).toString()
+      : minHeight.toString();
+  const txsMaxHeight =
+    sortOrder === "HEIGHT_DESC"
+      ? maxHeight.sub(offset).toString()
+      : maxHeight.toString();
   const tableKey = tagFilterKeys.sort().join("_");
   const table = filtersToTable[sortOrder][tableKey];
   const tagPairsIn = tagFilterVals.tags.reduce((acc, tagPairs) => {
@@ -154,6 +164,10 @@ export const findTxIDsFromTagFilters = async ({
         dataRoots: "data_root",
         bundledIn: "bundled_in",
       });
+      // if (cqlKey === "owner") {
+      //   console.log({ whereVals });
+      //   console.log("OWNER", whereVals.map(ownerToAddress));
+      // }
       const whereValsStr =
         whereVals.length === 1
           ? ` = '${whereVals[0]}'`
@@ -167,9 +181,9 @@ export const findTxIDsFromTagFilters = async ({
     )}) ${whereClause}`
   );
   const tagQ = await cassandraClient.execute(
-    `SELECT tx_id FROM ${KEYSPACE}.${table} WHERE tag_pair IN (${tagPairsIn.join(
+    `SELECT tx_id FROM ${KEYSPACE}.${table} WHERE tx_index <= ${txsMaxHeight} AND tx_index >= ${txsMinHeight} AND tag_pair IN (${tagPairsIn.join(
       ","
-    )}) ${whereClause}`
+    )}) ${whereClause} LIMIT ${limit || 100}`
   );
 
   return (tagQ as any).rows;

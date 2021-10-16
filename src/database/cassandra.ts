@@ -7,6 +7,7 @@ import { Poa, Transaction, TxOffset } from "../types/cassandra";
 import { KEYSPACE } from "../constants";
 import { config } from "dotenv";
 import { makeTagsMapper, tagModels } from "./tags-mapper";
+import { ownerToAddress } from "../utility/encoding";
 import * as CONST from "./constants";
 
 process.env.NODE_ENV !== "test" && config();
@@ -397,6 +398,10 @@ export const insertGqlTag = async (tx: Transaction): Promise<void> => {
       if (!object["data_item_index"]) {
         object["data_item_index"] = toLong(0);
       }
+      if (typeof object.owner === "string" && object.owner.length > 43) {
+        object.owner = ownerToAddress(object.owner);
+      }
+
       let index = 0;
       for (const tuple of tx.tags) {
         const [tag_name, tag_value] = tuple.values();

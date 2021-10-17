@@ -877,8 +877,9 @@ export const resolvers = {
           size: `${parent.data.size || 0}`,
           type:
             parent.data_type ||
-            (maybeContentType &&
-              fromB64Url(maybeContentType.get(1)).toString("utf8")),
+            (maybeContentType
+              ? fromB64Url(maybeContentType.get(1)).toString("utf8")
+              : ""),
         };
       } else {
         return { size: "", type: "" };

@@ -67,6 +67,11 @@ interface ArFee {
   ar: string;
 }
 
+interface FieldData {
+  size: MetaData["size"];
+  type: MetaData["type"];
+}
+
 interface FieldMap {
   indep_hash: string;
   id: string;
@@ -79,6 +84,7 @@ interface FieldMap {
   fee: ArFee;
   height: CassandraTypes.Long;
   quantity: string;
+  data: FieldData;
   data_size: MetaData["size"];
   data_type: MetaData["type"];
   parent: Parent;
@@ -237,11 +243,16 @@ export const resolvers = {
       }
 
       const selectedDeferedKeysUser = [];
+
       for (const k of R.keys(fieldsWithSubFields) as string[]) {
         ["anchor", "fee", "signature", "quantity"].includes(k) &&
-          selectedDeferedKeysUser.push(
-            R.find(R.equals(k))(["anchor", "fee", "signature", "quantity"])
-          );
+          selectedDeferedKeysUser.push(k);
+        if (k === "data" && R.hasPath("data.size")) {
+          selectedDeferedKeysUser.push("data_size");
+        }
+        if (k === "data" && R.hasPath("data.type")) {
+          selectedDeferedKeysUser.push("tags");
+        }
       }
 
       if (!R.isEmpty(selectedDeferedKeysUser)) {
@@ -260,7 +271,14 @@ export const resolvers = {
               selectedDeferedKeysDatabase.push("quantity");
               break;
             }
-
+            case "data_type": {
+              selectedDeferedKeysDatabase.push("tags");
+              break;
+            }
+            case "data_size": {
+              selectedDeferedKeysDatabase.push("data_size");
+              break;
+            }
             default: {
               selectedDeferedKeysDatabase.push(k);
             }
@@ -304,6 +322,24 @@ export const resolvers = {
           deferedTxResult[0].signature
         ) {
           result.signature = deferedTxResult[0].signature || "";
+        }
+        if (
+          deferedTxResult &&
+          deferedTxResult.length > 0 &&
+          deferedTxResult[0].tags
+        ) {
+          result.tags = deferedTxResult[0].tags;
+        }
+        if (
+          deferedTxResult &&
+          deferedTxResult.length > 0 &&
+          deferedTxResult[0].data_size
+        ) {
+          if (result.data) {
+            result.data.size = deferedTxResult[0].data_size;
+          } else {
+            result.data = { size: deferedTxResult[0].data_size };
+          }
         }
       }
 
@@ -455,7 +491,7 @@ export const resolvers = {
       const resultArray = [];
 
       const txQuery = generateTransactionQuery(parameters);
-      console.log({ txQuery });
+
       if (isQueryingByIds) {
         const { rows: txRowsResult }: { rows: unknown[] } =
           await cassandraClient.execute(txQuery.query, txQuery.params, {
@@ -571,9 +607,13 @@ export const resolvers = {
 
       for (const k of R.keys(fieldsWithSubFields.edges.node) as string[]) {
         ["anchor", "fee", "signature", "quantity"].includes(k) &&
-          selectedDeferedKeysUser.push(
-            R.find(R.equals(k))(["anchor", "fee", "signature", "quantity"])
-          );
+          selectedDeferedKeysUser.push(k);
+        if (k === "data" && R.hasPath("data.size")) {
+          selectedDeferedKeysUser.push("data_size");
+        }
+        if (k === "data" && R.hasPath("data.type")) {
+          selectedDeferedKeysUser.push("data_type");
+        }
       }
 
       if (!R.isEmpty(selectedDeferedKeysUser)) {
@@ -590,6 +630,14 @@ export const resolvers = {
             }
             case "quantity": {
               selectedDeferedKeysDatabase.push("quantity");
+              break;
+            }
+            case "data_type": {
+              selectedDeferedKeysDatabase.push("tags");
+              break;
+            }
+            case "data_size": {
+              selectedDeferedKeysDatabase.push("data_size");
               break;
             }
             default: {
@@ -614,6 +662,8 @@ export const resolvers = {
             last_tx?: string;
             reward?: string;
             signature?: string;
+            data_size?: string;
+            tags?: Tag[];
           };
 
           if (deferedTxResult?.last_tx) {
@@ -627,6 +677,16 @@ export const resolvers = {
           }
           if (deferedTxResult?.signature) {
             tx.signature = deferedTxResult.signature || "";
+          }
+          if (deferedTxResult?.tags) {
+            tx.tags = deferedTxResult.tags;
+          }
+          if (deferedTxResult?.data_size) {
+            if (tx.data) {
+              tx.data.size = deferedTxResult.data_size;
+            } else {
+              tx.data = { size: deferedTxResult.data_size };
+            }
           }
         }
       }
@@ -804,21 +864,25 @@ export const resolvers = {
       return parent.target || "";
     },
     data: (parent: FieldMap): MetaData => {
-      // Q29udGVudC1UeXBl = "Content-Type"
-      // Y29udGVudC10eXBl = "content-type"
-      const maybeContentType =
-        Array.isArray(parent.tags) &&
-        parent.tags.find((tag) =>
-          ["Q29udGVudC1UeXBl", "Y29udGVudC10eXBl"].includes(tag.get(0))
-        );
+      if (parent.data) {
+        // Q29udGVudC1UeXBl = "Content-Type"
+        // Y29udGVudC10eXBl = "content-type"
+        const maybeContentType =
+          Array.isArray(parent.tags) &&
+          parent.tags.find((tag) =>
+            ["Q29udGVudC1UeXBl", "Y29udGVudC10eXBl"].includes(tag.get(0))
+          );
 
-      return {
-        size: `${parent.data_size || 0}`,
-        type:
-          parent.data_type ||
-          (maybeContentType &&
-            fromB64Url(maybeContentType.get(1)).toString("utf8")),
-      };
+        return {
+          size: `${parent.data.size || 0}`,
+          type:
+            parent.data_type ||
+            (maybeContentType &&
+              fromB64Url(maybeContentType.get(1)).toString("utf8")),
+        };
+      } else {
+        return { size: "", type: "" };
+      }
     },
     quantity: (parent: FieldMap): Amount => {
       return {

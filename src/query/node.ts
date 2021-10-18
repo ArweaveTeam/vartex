@@ -216,10 +216,7 @@ export async function getDataFromChunks({
     return chunks;
   } catch (error) {
     if (retry) {
-      console.error(
-        `error retrieving data from ${id}, please note that this may be a cancelled transaction`
-          .red.bold
-      );
+      console.error(`error retrieving data from chunks of ${id}`.red.bold);
       return await getDataFromChunks({
         id,
         retry: false,

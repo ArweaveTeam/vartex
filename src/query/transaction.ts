@@ -78,8 +78,7 @@ export async function getTxOffset({
       responseType: "json",
       resolveBodyOnly: true,
     });
-  } catch {
-    // console.error(error);
+  } catch (error) {
     coolNode(tryNode);
 
     if (retry > 100) {
@@ -94,10 +93,9 @@ export async function getTxOffset({
     });
 
     return await getTxOffset({ txId, retry: retry + 1 });
-
-    warmNode(tryNode);
-    return jsonPayload;
   }
+  warmNode(tryNode);
+  return jsonPayload;
 }
 
 export function toB64url(input: string): Base64UrlEncodedString {

@@ -39,9 +39,17 @@ const mapper = new Mapper(cassandraClient, {
         withDefault({ name: "txs", fallback: [] }),
       ]),
     },
+    Manifest: {
+      keyspace: KEYSPACE,
+      tables: ["manifest"],
+    },
     Poa: {
       keyspace: KEYSPACE,
       tables: ["poa"],
+    },
+    PermawebPath: {
+      keyspace: KEYSPACE,
+      tables: ["permaweb_path"],
     },
     Status: {
       keyspace: KEYSPACE,

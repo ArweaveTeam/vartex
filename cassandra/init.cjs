@@ -193,11 +193,11 @@ async function connect() {
         )`,
 
         `CREATE TABLE IF NOT EXISTS tx_offset (
-         tx_id text,
-         size bigint,
-         offset bigint,
-         PRIMARY KEY(tx_id)
-       )`,
+           tx_id text,
+           size bigint,
+           offset bigint,
+           PRIMARY KEY(tx_id)
+         )`,
 
         `CREATE TABLE IF NOT EXISTS manifest (
           tx_id text,

@@ -115,9 +115,11 @@ async function getTxOffset({ txId, retry = 0 }) {
       let offset;
       let size;
       try {
-        { offset, size } = cassandra.types.Long.fromString(
+         const res_  = cassandra.types.Long.fromString(
           await getTxOffset({ txId: tx.tx_id })
         );
+        offset = res_.offset;
+        size = res_.size; 
       } catch (error) {
         console.error(error);
         process.exit(1);
@@ -125,7 +127,7 @@ async function getTxOffset({ txId, retry = 0 }) {
 process.exit(1);
       if (offset) {
         mappr
-          .insert({ tx_id: tx.tx_id, size: tx.data_size, offset })
+          .insert({ tx_id: tx.tx_id, size, offset })
           .then(() => {
             concurrent -= 1;
           });

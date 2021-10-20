@@ -115,11 +115,9 @@ async function getTxOffset({ txId, retry = 0 }) {
       let offset;
       let size;
       try {
-         const res_  = cassandra.types.Long.fromString(
-          await getTxOffset({ txId: tx.tx_id })
-        );
-        offset = res_.offset;
-        size = res_.size; 
+         const res_  = await getTxOffset({ txId: tx.tx_id });
+        offset = cassandra.types.Long.fromString(res_.offset);
+        size = cassandra.types.Long.fromString(res_.size);
       } catch (error) {
         console.error(error);
         process.exit(1);

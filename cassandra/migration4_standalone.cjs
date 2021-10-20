@@ -122,7 +122,7 @@ async function getTxOffset({ txId, retry = 0 }) {
         console.error(error);
         process.exit(1);
       }
-process.exit(1);
+
       if (offset) {
         mappr
           .insert({ tx_id: tx.tx_id, size, offset })

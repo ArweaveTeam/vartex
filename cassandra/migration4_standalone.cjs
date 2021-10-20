@@ -1,6 +1,8 @@
 // for a good while tx_offset was being passed incorrectly
 // this will have affected vartex databases in beta
 const R = require("rambda");
+const path = require("path");
+const fs = require("fs");
 const got = require("got");
 const cassandra = require("cassandra-driver");
 
@@ -87,7 +89,7 @@ async function getTxOffset({ txId, retry = 0 }) {
 
   await client.connect();
 
-  const mapper = new cassandra.Mapper(client, {
+  const mapper = new cassandra.mapping.Mapper(client, {
     models: {
       TxOffset: {
         keyspace: KEYSPACE,
@@ -112,7 +114,7 @@ async function getTxOffset({ txId, retry = 0 }) {
       migrationProgress += 1;
       let offset;
       try {
-        offset = cassandra.types.fromString(
+        offset = cassandra.types.Long.fromString(
           await getTxOffset({ txId: tx.tx_id })
         );
       } catch (error) {

@@ -38,6 +38,72 @@ function ownerToAddress(owner_) {
   return toB64url(sha256(b64UrlToStringBuffer(owner_)));
 }
 
+const tagModels = {
+  Tag: [],
+  TagAndTxId: ["tx_id"],
+  TagAndOwner: ["owner"],
+  TagAndTarget: ["target"],
+  TagAndBundledIn: ["bundled_in"],
+  TagAndDataRoot: ["data_root"],
+  TagAndTxIdAndOwner: ["tx_id", "owner"],
+  TagAndTxIdAndTarget: ["tx_id", "target"],
+  TagAndTxIdAndBundledIn: ["tx_id", "bundled_in"],
+  TagAndTxIdAndDataRoot: ["tx_id", "data_root"],
+  TagAndOwnerAndTarget: ["owner", "target"],
+  TagAndOwnerAndBundledIn: ["owner", "bundled_in"],
+  TagAndOwnerAndDataRoot: ["owner", "data_root"],
+  TagAndTargetAndBundledIn: ["target", "bundled_in"],
+  TagAndTargetAndDataRoot: ["target", "data_root"],
+  TagAndBundledInAndDataRoot: ["bundled_in", "data_root"],
+  TagAndTxIdAndOwnerAndTarget: ["tx_id", "owner", "target"],
+  TagAndTxIdAndOwnerAndBundledIn: ["tx_id", "owner", "bundled_in"],
+  TagAndTxIdAndOwnerAndDataRoot: ["tx_id", "owner", "data_root"],
+  TagAndTxIdAndTargetAndBundledIn: ["tx_id", "target", "bundled_in"],
+  TagAndTxIdAndTargetAndDataRoot: ["tx_id", "target", "data_root"],
+  TagAndTxIdAndBundledInAndDataRoot: ["tx_id", "bundled_in", "data_root"],
+  TagAndOwnerAndTargetAndBundledIn: ["owner", "target", "bundled_in"],
+  TagAndOwnerAndTargetAndDataRoot: ["owner", "target", "data_root"],
+  TagAndOwnerAndBundledInAndDataRoot: ["owner", "bundled_in", "data_root"],
+  TagAndTargetAndBundledInAndDataRoot: ["target", "bundled_in", "data_root"],
+  TagAndTxIdAndOwnerAndTargetAndBundledIn: [
+    "tx_id",
+    "owner",
+    "target",
+    "bundled_in",
+  ],
+  TagAndTxIdAndOwnerAndTargetAndDataRoot: [
+    "tx_id",
+    "owner",
+    "target",
+    "data_root",
+  ],
+  TagAndTxIdAndOwnerAndBundledInAndDataRoot: [
+    "tx_id",
+    "owner",
+    "bundled_in",
+    "data_root",
+  ],
+  TagAndTxIdAndTargetAndBundledInAndDataRoot: [
+    "tx_id",
+    "target",
+    "bundled_in",
+    "data_root",
+  ],
+  TagAndOwnerAndTargetAndBundledInAndDataRoot: [
+    "owner",
+    "target",
+    "bundled_in",
+    "data_root",
+  ],
+  TagAndTxIdAndOwnerAndTargetAndBundledInAndDataRoot: [
+    "tx_id",
+    "owner",
+    "target",
+    "bundled_in",
+    "data_root",
+  ],
+};
+
 const badTables = {
   tx_tag_gql_by_owner_asc_migration_1: "TagAndOwner",
   tx_tag_gql_by_tx_id_and_owner_asc_migration_1: "TagAndTxIdAndOwner",
@@ -193,6 +259,8 @@ let warned = false;
 let tableCnt = 0;
 let concurrent = 0;
 
+const commonFields = ["tx_index", "data_item_index", "tx_id"];
+
 module.exports = async (client) => {
   const migrationNeededQuery = await client.execute(
     "SELECT owner FROM gateway.tx_id_gql_desc_migration_1 WHERE owner > '' LIMIT 1 ALLOW FILTERING",
@@ -226,34 +294,36 @@ module.exports = async (client) => {
       }
 
       const result = await client.execute(
-        `SELECT * FROM ${KEYSPACE}.${row.name}`,
+        `SELECT * FROM ${KEYSPACE}.transaction`,
         [],
         { prepare: true }
       );
 
-      for await (const rowRes of result) {
-        if (
-          rowRes &&
-          typeof rowRes.owner === "string" &&
-          rowRes.owner.length > 43
-        ) {
-          rowRes.owner = ownerToAddress(rowRes.owner);
+      for await (const tx of result) {
+        if (tx.tags && !R.isEmpty(tx.tags)) {
+          const ownerAddress = ownerToAddress(tx.owner);
+
+          for (const tuple of tx.tags) {
+            const [tag_name, tag_value] = tuple.values();
+            for (const tableName of Object.keys(badTables)) {
+              const tagModelName = badTables[tableName];
+              const allFields = R.concat(commonFields, tagModels[tagModelName]);
+              const obj = R.pickAll(allFields, tx);
+              obj["owner"] = ownerAddress;
+
+              // until ans104 comes
+              if (!obj["data_item_index"]) {
+                obj["data_item_index"] = types.Long.fromNumber(0);
+              }
+              await pWaitFor(() => concurrent < 200);
+              concurrent += 1;
+              const mappr = tagsMapper.forModel(tagModelName);
+              mappr.update(obj).then(() => {
+                concurrent -= 1;
+              });
+            }
+          }
         }
-        await pWaitFor(() => concurrent < 100);
-        concurrent += 1;
-        const mappr = tagsMapper.forModel(badTables[row.name]);
-        mappr.update(rowRes).then(() => {
-          concurrent -= 1;
-        });
-        // client
-        //   .execute(
-        //     `INSERT INTO ${KEYSPACE}.${tableRenames[row.name]}`,
-        //     rowRes,
-        //     { prepare: true }
-        //   )
-        //   .then(() => {
-        //     concurrent -= 1;
-        //   });
       }
     }
   }

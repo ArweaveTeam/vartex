@@ -28,10 +28,8 @@ async function getTxOffset({ txId, retry = 0 }) {
       resolveBodyOnly: true,
     });
   } catch (error) {
-    if (retry > 100) {
-      throw new Error(
-        "getTransaction: Failed to establish connection to any specified node after 100 retries\n"
-      );
+    if (retry > 10) {
+      throw new Error(`txid ${txId} wasn't found!`);
     }
 
     await new Promise(function (resolve) {
@@ -110,25 +108,22 @@ async function getTxOffset({ txId, retry = 0 }) {
   for await (const tx of result) {
     console.log("progress:", migrationProgress);
     if (tx.data_size && tx.data_size.gt(0)) {
-      await pWaitFor(() => concurrent < 200);
+      await pWaitFor(() => concurrent < 50);
       migrationProgress += 1;
       let offset;
       let size;
       try {
-         const res_  = await getTxOffset({ txId: tx.tx_id });
+        const res_ = await getTxOffset({ txId: tx.tx_id });
         offset = cassandra.types.Long.fromString(res_.offset);
         size = cassandra.types.Long.fromString(res_.size);
       } catch (error) {
         console.error(error);
-        process.exit(1);
       }
 
       if (offset) {
-        mappr
-          .insert({ tx_id: tx.tx_id, size, offset })
-          .then(() => {
-            concurrent -= 1;
-          });
+        mappr.insert({ tx_id: tx.tx_id, size, offset }).then(() => {
+          concurrent -= 1;
+        });
       } else {
         concurrent -= 1;
       }

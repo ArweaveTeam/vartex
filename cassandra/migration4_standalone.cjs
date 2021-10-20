@@ -113,15 +113,16 @@ async function getTxOffset({ txId, retry = 0 }) {
       await pWaitFor(() => concurrent < 200);
       migrationProgress += 1;
       let offset;
+      let size;
       try {
-        offset = cassandra.types.Long.fromString(
+        { offset, size } = cassandra.types.Long.fromString(
           await getTxOffset({ txId: tx.tx_id })
         );
       } catch (error) {
         console.error(error);
         process.exit(1);
       }
-
+process.exit(1);
       if (offset) {
         mappr
           .insert({ tx_id: tx.tx_id, size: tx.data_size, offset })

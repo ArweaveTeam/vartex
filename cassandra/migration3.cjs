@@ -556,20 +556,19 @@ module.exports = async (client) => {
               tag_index: index,
             });
             const mappr = tagsMapper.forModel(tagModelName);
-            const mapprDel1 = tagsMapper.forModel(tagModelName + "Del1");
-            const mapprDel2 = tagsMapper.forModel(tagModelName + "Del2");
-            Promise.all([
-              mapprDel1.remove(R.assoc("owner", tx.owner, insertObject), {
-                ifExists: true,
-              }),
-              mapprDel2.remove(R.assoc("owner", tx.owner, insertObject), {
-                ifExists: true,
-              }),
-            ]).then(() => {
-              mappr.insert(insertObject).then(() => {
-                concurrent -= 1;
-              });
+            mappr.insert(insertObject).then(() => {
+              concurrent -= 1;
             });
+            // const mapprDel1 = tagsMapper.forModel(tagModelName + "Del1");
+            // const mapprDel2 = tagsMapper.forModel(tagModelName + "Del2");
+            // Promise.all([
+            //   mapprDel1.remove(R.assoc("owner", tx.owner, insertObject), {
+            //     ifExists: true,
+            //   }),
+            //   mapprDel2.remove(R.assoc("owner", tx.owner, insertObject), {
+            //     ifExists: true,
+            //   }),
+            // ]).then(() => {});
 
             index += 1;
           }

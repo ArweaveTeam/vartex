@@ -87,7 +87,7 @@ function unlockIncomingQueue() {
 }
 
 const handleTxImportError = (reason: Error | string | undefined): void => {
-  log("Fatal", reason || "");
+  log("Fatal error while importing block: " + JSON.stringify(reason || ""));
   process.exit(1);
 };
 
@@ -168,7 +168,7 @@ function processTxQueue(): void {
         }
       })
       .catch((error) => {
-        log("FATAL error calling txQueueCallback", error);
+        log("FATAL error calling txQueueCallback:" + JSON.stringify(error));
         rmCache(`incoming:${peek.txIndex.toString()}`).then(() =>
           process.exit(1)
         );
@@ -292,7 +292,6 @@ export async function storeTransaction(
       height,
       callback: txImportCallback(txCacheId),
       fresolve,
-      txId,
       txIndex,
       type: "tx",
     });
@@ -374,7 +373,9 @@ export async function importBlock(height: number): Promise<boolean> {
     process.exit(1);
   }
 
-  await pWaitFor(() => isTxQueueEmpty() && isIncomingTxQueueEmpty());
+  await pWaitFor(() => isTxQueueEmpty() && isIncomingTxQueueEmpty(), {
+    interval: 1000,
+  });
 
   try {
     const data = JSON.parse(await getCache(blockCacheKey));

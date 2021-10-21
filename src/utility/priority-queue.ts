@@ -6,7 +6,7 @@ import * as R from "rambda";
 export interface ITxIncoming {
   type: "tx-incoming";
   txIndex: CassandraTypes.Long;
-  txId: string;
+  txId?: string;
   next: (fresolve: unknown) => void;
   fresolve?: () => void;
   callback?: () => Promise<void>;
@@ -16,7 +16,7 @@ export interface ITxIncoming {
 export interface ITxImport {
   type: "tx";
   txIndex: CassandraTypes.Long;
-  txId: string;
+  txId?: string;
   height: CassandraTypes.Long;
   fresolve?: () => void;
   callback: () => Promise<void>;

@@ -113,53 +113,53 @@ const numberOr0 = (n: number | undefined): number => (Number.isNaN(n) ? 0 : n);
 export const getTxsInFlight = (): number =>
   Object.values(txInFlight).reduce((a, b) => numberOr0(a) + numberOr0(b));
 
-/* eslint-disable-next-line @typescript-eslint/no-explicit-any */
-(workerPool.onMessage as any)(
-  (message: MessagesFromWorker, workerId: number): void => {
-    switch (message.type) {
-      case "worker:ready": {
-        workerReadyPromises[workerId].resolve();
-        break;
+function onWorkerMessage(message: MessagesFromWorker, workerId: number): void {
+  switch (message.type) {
+    case "worker:ready": {
+      workerReadyPromises[workerId].resolve();
+      break;
+    }
+    case "log:info": {
+      log.info(`${message.message}`);
+      break;
+    }
+    case "log:warn": {
+      log.info(`${message.message}`);
+      break;
+    }
+    case "log:error": {
+      log.info(`${message.message}`);
+      break;
+    }
+    case "block:new": {
+      if (typeof messagePromiseReceivers[workerId] === "function") {
+        messagePromiseReceivers[workerId](message.payload);
+        delete messagePromiseReceivers[workerId];
+        delete txInFlight[`${workerId}`];
       }
-      case "log:info": {
-        log.info(`${message.message}`);
-        break;
-      }
-      case "log:warn": {
-        log.info(`${message.message}`);
-        break;
-      }
-      case "log:error": {
-        log.info(`${message.message}`);
-        break;
-      }
-      case "block:new": {
-        if (typeof messagePromiseReceivers[workerId] === "function") {
-          messagePromiseReceivers[workerId](message.payload);
-          delete messagePromiseReceivers[workerId];
-          delete txInFlight[`${workerId}`];
-        }
-        break;
-      }
-      case "stats:tx:flight": {
-        txInFlight[`${workerId}`] =
-          typeof message.payload === "number"
-            ? message.payload
-            : Number.parseInt(message.payload);
-        gauge_ &&
-          gauge_.show(
-            `blocks: ${currentHeight}/${topHeight}\t tx: ${getTxsInFlight()}`
-          );
-        break;
-      }
-      default: {
-        console.error("unknown worker message arrived", message);
-      }
+      break;
+    }
+    case "stats:tx:flight": {
+      txInFlight[`${workerId}`] =
+        typeof message.payload === "number"
+          ? message.payload
+          : Number.parseInt(message.payload);
+      gauge_ &&
+        gauge_.show(
+          `blocks: ${currentHeight}/${topHeight}\t tx: ${getTxsInFlight()}`
+        );
+      break;
+    }
+    default: {
+      console.error("unknown worker message arrived", message);
     }
   }
-);
+}
 
-importManifestWorkerPool.onMessage = workerPool.onMessage;
+/* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+(workerPool.onMessage as any) = onWorkerMessage;
+/* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+(importManifestWorkerPool.onMessage as any) = onWorkerMessage;
 
 const trackerTheme = GaugeThemes.newTheme(
   GaugeThemes({

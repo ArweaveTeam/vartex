@@ -22,6 +22,7 @@ import { statusMapper } from "./mapper";
 import * as Dr from "./doctor";
 
 let gauge_: any;
+let session_: any;
 
 const PARALLEL_WORKERS = Number.isNaN(process.env["PARALLEL_WORKERS"])
   ? 1
@@ -253,7 +254,15 @@ async function startPolling(): Promise<void> {
     return startPolling();
   }
 
+  topHeight = nodeInfo.height;
+
   [topHash, gatewayHeight] = await getMaxHeightBlock();
+
+  statusMapper.update({
+    session: session_.uuid,
+    gateway_height: `${gatewayHeight}`,
+    arweave_height: `${topHeight}`,
+  });
 
   if (nodeInfo.current === topHash) {
     // wait before polling again
@@ -354,7 +363,7 @@ async function startManifestImportWorker(): Promise<void> {
   }
   // at least every 2 minutes
   await pWaitFor(() => Math.floor(Date.now() / 1000) - startSeconds > 120, {
-    timeout: 30 * 1000,
+    interval: 30 * 1000,
   });
   return await startManifestImportWorker();
 }
@@ -366,6 +375,7 @@ export async function startSync({
   session: { uuid: CassandraTypes.TimeUuid };
   isTesting?: boolean;
 }): Promise<void> {
+  session_ = session;
   if (isGatewayNodeModeEnabled) {
     log.info(
       "[sync] vartex gateway-node mode is enabled so no syncing will be performed (aka read-only mode)"

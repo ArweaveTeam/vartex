@@ -14,6 +14,8 @@ try {
   gitRevision = gitRev.long([process.cwd()]);
 } catch {}
 
+let ready = false;
+
 let lastKnownSessionUuid: CassandraTypes.TimeUuid;
 
 interface StatusSchema {
@@ -26,6 +28,14 @@ interface StatusSchema {
   current_migrations: Record<string, string>;
 }
 
+function signalReady(): void {
+  setTimeout(() => {
+    if (!ready) {
+      ready = true;
+    }
+  }, 2000);
+}
+
 export const initializeStatusSession = async (
   cassandraClient: CassandraClient,
   sessionUuid: CassandraTypes.TimeUuid
@@ -35,10 +45,12 @@ export const initializeStatusSession = async (
   );
 
   if (isGatewayNodeModeEnabled && !R.isEmpty(maybeLastSession.rows)) {
+    signalReady();
     lastKnownSessionUuid = maybeLastSession.rows[0].session;
     return maybeLastSession.rows[0].session;
   } else if (isGatewayNodeModeEnabled) {
     lastKnownSessionUuid = sessionUuid;
+    signalReady();
     return sessionUuid;
   }
 
@@ -63,6 +75,7 @@ export const initializeStatusSession = async (
   await statusMapper.insert(
     R.mergeAll([lastSession, { session: sessionUuid, status: "BOOTING" }])
   );
+  signalReady();
   lastKnownSessionUuid = sessionUuid;
   return sessionUuid;
 };
@@ -72,8 +85,8 @@ export async function statusRoute(
   response: Response,
   next: (error?: string) => void
 ): Promise<void> {
-  if (!lastKnownSessionUuid) {
-    return next("not ready");
+  if (!ready) {
+    return next("booting - not ready");
   }
   try {
     const currentStatus = await statusMapper.get({

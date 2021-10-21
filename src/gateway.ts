@@ -24,7 +24,6 @@ import {
 } from "./route/transaction";
 import { proxyGetRoute, proxyPostRoute } from "./route/proxy";
 import { hashListRoute } from "./route/hash-list";
-import { koiLogger, koiLogsRoute, koiLogsRawRoute } from "./route/koi";
 import { types as CassandraTypes } from "cassandra-driver";
 import { cassandraClient } from "./database/cassandra";
 import { startSync } from "./database/sync";
@@ -53,7 +52,6 @@ export function start(): void {
 
   app.use(cors());
   // app.use(jsonMiddleware);
-  app.use(koiLogger.logger);
 
   app.get("/", statusRoute);
   app.get("/status", statusRoute);
@@ -65,8 +63,6 @@ export function start(): void {
   app.get("/tx/:id", txGetByIdRoute);
 
   app.get("/peers", proxyGetRoute);
-  app.get("/logs", koiLogsRoute);
-  app.get("/logs/raw", koiLogsRawRoute);
   app.get("/tx_anchor", proxyGetRoute);
 
   // db endpoints

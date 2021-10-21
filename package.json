@@ -71,7 +71,6 @@
     "graphql-playground-middleware-express": "^1.7.22",
     "js-sha256": "^0.9.0",
     "kill-port": "^1.6.1",
-    "koi-logs": "https://github.com/koii-network/logs.git",
     "lodash": "^4.17.21",
     "mime-types": "^2.1.32",
     "mkdirp": "^1.0.4",

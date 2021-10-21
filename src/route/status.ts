@@ -86,7 +86,7 @@ export async function statusRoute(
   next: (error?: string) => void
 ): Promise<void> {
   if (!ready) {
-    response.sendStatus(503);
+    response.send("not ready");
   } else {
     try {
       const currentStatus = await statusMapper.get({
@@ -101,7 +101,7 @@ export async function statusRoute(
         vartex_git_revision: gitRevision,
       });
     } catch (error) {
-      response.sendStatus(503);
+      response.send(`${error}`);
     }
   }
 }

@@ -496,6 +496,9 @@ export async function startSync({
   // txQueueState.nextTxIndex = initialLastBlock.mul(MAX_TX_PER_BLOCK);
   // isImportCacheGcRunning = false;
 
+  // wait a minute until starting to poll for unimported manifest
+  setTimeout(startManifestImportWorker, 60 * 1000);
+
   if (firstRun) {
     log.info(
       "[sync] database seems to be empty, starting preperations for import..."
@@ -516,9 +519,6 @@ export async function startSync({
 
   gauge.enable();
   gauge_ = gauge;
-
-  // wait a minute until starting to poll for unimported manifest
-  setTimeout(startManifestImportWorker, 60 * 1000);
 
   const currentImports = new Set();
 

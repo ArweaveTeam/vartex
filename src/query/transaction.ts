@@ -12,6 +12,11 @@ export interface Tag {
   value: Base64UrlEncodedString;
 }
 
+export interface TxOffset {
+  size: string;
+  offset: string;
+}
+
 export interface TransactionType {
   format: number;
   id: string;
@@ -37,7 +42,7 @@ export async function getTransaction({
   retry?: number;
 }): Promise<TransactionType | undefined> {
   const tryNode = grabNode();
-  let jsonPayload;
+  let jsonPayload: TransactionType | undefined;
   try {
     jsonPayload = await got.get(`${tryNode}/tx/${txId}`, {
       responseType: "json",
@@ -61,6 +66,7 @@ export async function getTransaction({
     return await getTransaction({ txId, retry: retry + 1 });
   }
   warmNode(tryNode);
+
   return jsonPayload;
 }
 
@@ -70,9 +76,9 @@ export async function getTxOffset({
 }: {
   txId: string;
   retry?: number;
-}): Promise<TransactionType | undefined> {
+}): Promise<TxOffset | undefined> {
   const tryNode = grabNode();
-  let jsonPayload;
+  let jsonPayload: TxOffset | undefined;
   try {
     jsonPayload = await got.get(`${tryNode}/tx/${txId}/offset`, {
       responseType: "json",

@@ -3,8 +3,8 @@ import * as cassandra from "cassandra-driver";
 import * as R from "rambda";
 import { BlockType } from "../query/block";
 import { getDataFromChunks } from "../query/node";
-import { types as CassandraTypes } from "cassandra-driver";
-import { Poa, Transaction, TxOffset } from "../types/cassandra";
+import { mapping, types as CassandraTypes } from "cassandra-driver";
+import { Poa, Transaction, TxOffset, UpstreamTag } from "../types/cassandra";
 import { KEYSPACE } from "../constants";
 import { config } from "dotenv";
 import { makeTagsMapper, tagModels } from "./tags-mapper";
@@ -154,16 +154,20 @@ const blockKeys = [
   "weave_size",
 ];
 
-const transformPoaKeys = (object: unknown): Poa => {
-  const poa = object["poa"] ? object["poa"] : {};
-  const poaObject = {} as Poa;
-  poaObject["option"] = poa["option"] || "";
-  poaObject["tx_path"] = poa["tx_path"] || "";
-  poaObject["data_path"] = poa["data_path"] || "";
-  poaObject["chunk"] = poa["chunk"] || "";
-  poaObject["block_hash"] = object["indep_hash"] || "";
-  poaObject["block_height"] = toLong(object["height"]);
-  return poaObject;
+const transformPoaKeys = (object: Partial<BlockType>): Poa | undefined => {
+  const poa = object.poa;
+  if (poa) {
+    const poaObject = {
+      block_height: toLong(object["height"]),
+      block_hash: object.indep_hash || "",
+      chunk: poa.chunk || "",
+      data_path: poa.data_path || "",
+      tx_path: poa.tx_path || "",
+      option: poa.option || "",
+    } as Poa;
+
+    return poaObject;
+  }
 };
 
 // note for optimization reasons
@@ -183,7 +187,8 @@ const transformBlockKey = (key: string, object: any) => {
     case "tags": {
       return (
         !R.isEmpty(object.tags) &&
-        (object.tags || []).map(({ name, value }) =>
+        Array.isArray(object.tags) &&
+        object.tags.map(({ name, value }: UpstreamTag) =>
           CassandraTypes.Tuple.fromArray([name, value])
         )
       );
@@ -251,8 +256,12 @@ const transformTxKey = (
       return txs;
     }
     case "tags": {
-      return (txData.tags || []).map(({ name, value }) =>
-        CassandraTypes.Tuple.fromArray([name, value])
+      return (
+        !R.isEmpty(txData.tags) &&
+        Array.isArray(txData.tags) &&
+        txData.tags.map(({ name, value }: UpstreamTag) =>
+          CassandraTypes.Tuple.fromArray([name, value])
+        )
       );
     }
     case "tag_count": {
@@ -292,26 +301,32 @@ const transformTxKey = (
   }
 };
 
-const transformTxOffsetKeys = (txObject: unknown): TxOffset => {
-  const txOffset = txObject["tx_offset"] ? txObject["tx_offset"] : {};
-  const txOffsetObject = {} as TxOffset;
-  txOffsetObject["tx_id"] = txObject["id"] || "";
-  txOffsetObject["size"] = toLong(txOffset["size"] || 0);
-  txOffsetObject["offset"] = toLong(txOffset["offset"] || -1);
-  return txOffsetObject;
+const transformTxOffsetKeys = (
+  txObject: Partial<
+    Transaction & { tx_offset?: { size: string; offset: string } }
+  >
+): TxOffset | undefined => {
+  if (txObject["tx_offset"]) {
+    const txOffset = txObject["tx_offset"];
+    const txOffsetObject = {} as TxOffset;
+    txOffsetObject["tx_id"] = txObject["tx_id"] || "";
+    txOffsetObject["size"] = toLong(txOffset["size"] || 0);
+    txOffsetObject["offset"] = toLong(txOffset["offset"] || -1);
+    return txOffsetObject;
+  }
 };
 
 interface Tag {
   partition_id: string;
   bucket_id: string;
+  bucket_number: number;
   tag_index: number;
-  tx_index: CassandraTypes.Long;
+  tx_index: CassandraTypes.Long | number;
+  next_tag_index?: CassandraTypes.Long | number;
   tx_id: string;
   name: string;
   value: string;
 }
-
-type UpstreamTag = { name: string; value: string };
 
 const transformTag = (
   tag: UpstreamTag,
@@ -392,7 +407,8 @@ export const insertGqlTag = async (tx: Transaction): Promise<void> => {
   if (tx.tags && !R.isEmpty(tx.tags)) {
     for (const tagModelName of Object.keys(tagModels)) {
       const tagMapper = tagsMapper.forModel(tagModelName);
-      const allFields = R.concat(commonFields, tagModels[tagModelName]);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const allFields: any = R.concat(commonFields, tagModels[tagModelName]);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const object: any = R.pickAll(allFields, tx);
 
@@ -420,33 +436,23 @@ export const insertGqlTag = async (tx: Transaction): Promise<void> => {
   }
 };
 
-export const insertManifest = async (tx: Transaction): Promise<void> => {
-  // getDataFromChunks();
-  // if (tx.tags && !R.isEmpty(tx.tags)) {
-  //   for (const tagModelName of Object.keys(tagModels)) {
-  //     const tagMapper = tagsMapper.forModel(tagModelName);
-  //     const allFields = R.concat(commonFields, tagModels[tagModelName]);
-  //     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  //     const object: any = R.pickAll(allFields, tx);
-  //     // until ans104 comes
-  //     if (!object["data_item_index"]) {
-  //       object["data_item_index"] = toLong(0);
-  //     }
-  //     if (typeof object.owner === "string" && object.owner.length > 43) {
-  //       object.owner = ownerToAddress(object.owner);
-  //     }
-  //     let index = 0;
-  //     for (const tuple of tx.tags) {
-  //       const [tag_name, tag_value] = tuple.values();
-  //       const insertObject = R.merge(object, {
-  //         tag_pair: `${tag_name}-${tag_value}`,
-  //         tag_index: index,
-  //       });
-  //       await tagMapper.insert(insertObject);
-  //       index += 1;
-  //     }
-  //   }
-  // }
+const manifestMapper = new mapping.Mapper(cassandraClient, {
+  models: {
+    ManifestUnimported: {
+      keyspace: KEYSPACE,
+      tables: ["manifest_unimported"],
+    },
+  },
+});
+
+const manifestUnimportedMapper = manifestMapper.forModel("ManifestUnimported");
+
+export const enqueueManifestImport = async (tx: Transaction): Promise<void> => {
+  manifestUnimportedMapper &&
+    (await manifestUnimportedMapper.insert({
+      tx_id: tx.tx_id,
+      import_attempt_cnt: 0,
+    }));
 };
 
 function hasManifestContentType(
@@ -477,7 +483,8 @@ export const makeTxImportQuery =
   (): Promise<any> => {
     let dataSize: CassandraTypes.Long | undefined;
     const nonNilTxKeys: string[] = [];
-    const txPrepared: unknown = {};
+    /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+    const txPrepared: any = {};
 
     /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
     const txInsertParameters: any = transactionKeys.reduce(
@@ -504,14 +511,12 @@ export const makeTxImportQuery =
     // FIXME ans104
     txPrepared["bundled_in"] = "";
 
-    // prevent invalid manifests from stopping healthy tx import
-    try {
-      if (Array.isArray(tx.tags) && hasManifestContentType(tx.tags)) {
-        insertManifest(txPrepared as Transaction);
-      }
-    } catch (error) {
-      console.error(error);
-    }
+    const txOffsetData = transformTxOffsetKeys(txPrepared);
+
+    // if (!manifestMapper) {
+    //   manifestUnimportedMapper =
+    //     makeManifestMapper(cassandraClient).forModel("ManifestUnimported");
+    // }
 
     return insertGqlTag(txPrepared as Transaction).then(() =>
       Promise.all(
@@ -529,11 +534,11 @@ export const makeTxImportQuery =
               CONST.getGqlTxIdAscBucketName(height),
               CONST.getGqlTxIdAscBucketNumber(height),
               txIndex,
-              (tx.tags || []).map(({ name, value }) =>
+              (tx.tags || []).map(({ name, value }: UpstreamTag) =>
                 CassandraTypes.Tuple.fromArray([name, value])
               ),
               tx.id,
-              tx.owner,
+              ownerToAddress(tx.owner),
               tx.target,
               "", // FIXME ANS-102/ANS-104
             ],
@@ -548,7 +553,7 @@ export const makeTxImportQuery =
               txIndex,
               tx.tags,
               tx.id,
-              tx.owner,
+              ownerToAddress(tx.owner),
               tx.target,
               "", // FIXME ANS-102/ANS-104
             ],
@@ -575,7 +580,7 @@ export const makeTxImportQuery =
             )
           )
           .concat(
-            dataSize && dataSize.gt(0)
+            dataSize && dataSize.gt(0) && txOffsetData
               ? [
                   cassandraClient.execute(
                     txOffsetInsertQuery,
@@ -588,6 +593,11 @@ export const makeTxImportQuery =
                 ]
               : []
           )
+      ).then(
+        () =>
+          Array.isArray(tx.tags) &&
+          hasManifestContentType(tx.tags) &&
+          enqueueManifestImport(txPrepared as Transaction)
       )
     );
   };
@@ -610,12 +620,14 @@ export const makeBlockImportQuery =
     );
 
     const height = toLong(input.height);
+    const poa = transformPoaKeys(input);
 
     return Promise.all([
-      cassandraClient.execute(poaInsertQuery, transformPoaKeys(input), {
-        prepare: true,
-        executionProfile: "full",
-      }),
+      poa &&
+        cassandraClient.execute(poaInsertQuery, transformPoaKeys(input), {
+          prepare: true,
+          executionProfile: "full",
+        }),
       cassandraClient.execute(
         blockGqlInsertAscQuery,
         [

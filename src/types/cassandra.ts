@@ -38,6 +38,11 @@ export interface DeleteRowData extends UnsyncedBlock {
   timestamp: CassandraTypes.Long;
 }
 
+export interface UpstreamTag {
+  name: string;
+  value: string;
+}
+
 export interface Transaction {
   tx_index: CassandraTypes.Long;
   block_height: CassandraTypes.Long;

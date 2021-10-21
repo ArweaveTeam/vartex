@@ -1,5 +1,18 @@
 interface WorkerReady {
   type: `worker:ready`;
+  payload?: unknown;
+}
+
+interface WorkerErrorLog {
+  type: `log:error`;
+  message: string;
+  payload?: unknown;
+}
+
+interface WorkerWarningLog {
+  type: `log:warn`;
+  message: string;
+  payload?: unknown;
 }
 
 interface WorkerInfoLog {
@@ -10,23 +23,25 @@ interface WorkerInfoLog {
 
 interface WorkerProgressLog {
   type: `log:progress`;
-  payload: unknown;
+  payload?: unknown;
 }
 
 interface WorkerNewBlockResponse {
   type: "block:new";
-  payload: unknown;
+  payload?: unknown;
 }
 
 interface WorkerStatTxFlight {
   type: "stats:tx:flight";
-  payload: number;
+  payload?: number;
 }
 
 export type MessagesFromWorker =
   | WorkerStatTxFlight
   | WorkerNewBlockResponse
   | WorkerProgressLog
+  | WorkerErrorLog
+  | WorkerWarningLog
   | WorkerInfoLog
   | WorkerReady;
 

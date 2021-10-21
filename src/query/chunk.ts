@@ -42,30 +42,43 @@ export async function getChunk({
   offset: string;
   retry?: boolean;
   retryCount?: number;
-}): Promise<ChunkType> {
+}): Promise<ChunkType | undefined> {
   try {
-    const body: ChunkType = await got.get(`${grabNode()}/chunk/${offset}`, {
-      responseType: "json",
-      resolveBodyOnly: true,
-      timeout: HTTP_TIMEOUT_SECONDS * 1000,
-      followRedirect: true,
-    });
+    const body: ChunkType | undefined = (await got
+      .get(`${grabNode()}/chunk/${offset}`, {
+        responseType: "json",
+        resolveBodyOnly: true,
+        timeout: HTTP_TIMEOUT_SECONDS * 1000,
+        followRedirect: true,
+      })
+      .catch((error) => {
+        console.error(error);
+        return undefined;
+      })) as ChunkType | undefined;
 
-    const parsed_chunk = b64UrlToBuffer(body.chunk);
-    const response_chunk = Buffer.from(parsed_chunk);
+    if (body) {
+      const parsed_chunk = b64UrlToBuffer(body.chunk);
+      const response_chunk = Buffer.from(parsed_chunk);
 
-    return {
-      tx_path: body.tx_path,
-      data_path: body.data_path,
-      chunk: body.chunk,
-      parsed_chunk,
-      response_chunk,
-    };
+      return {
+        tx_path: body.tx_path,
+        data_path: body.data_path,
+        chunk: body.chunk,
+        parsed_chunk,
+        response_chunk,
+      };
+    } else {
+      if (retry && retryCount > 0) {
+        return getChunk({ offset, retry: true, retryCount: retryCount - 1 });
+      } else {
+        return undefined;
+      }
+    }
   } catch (error) {
     if (retry && retryCount > 0) {
       return getChunk({ offset, retry: true, retryCount: retryCount - 1 });
     } else {
-      throw error;
+      return undefined;
     }
   }
 }

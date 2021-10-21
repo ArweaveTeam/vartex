@@ -468,11 +468,12 @@ module.exports = async (client) => {
     {}
   );
   if (
-    migrationNeededQuery.rows === 0 ||
-    migrationNeededQuery.rows[0].owner.length === 43
+    migrationNeededQuery.rows.length === 0 ||
+    migrationNeededQuery.rows[0].owner.length < 44
   ) {
     return;
   }
+  console.error(migrationNeededQuery.rows);
   const pWaitFor = (await import("p-wait-for")).default;
   const KEYSPACE = process.env["KEYSPACE"]
     ? process.env["KEYSPACE"]

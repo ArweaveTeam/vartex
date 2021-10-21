@@ -3,7 +3,7 @@ import { KEYSPACE } from "../constants";
 
 const { Mapper } = mapping;
 
-export const tagModels = {
+export const tagModels: Record<string, string[]> = {
   Tag: [],
   TagAndTxId: ["tx_id"],
   TagAndOwner: ["owner"],

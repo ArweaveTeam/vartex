@@ -29,9 +29,9 @@ const PARALLEL_WORKERS = Number.isNaN(process.env["PARALLEL_WORKERS"])
 process.env.NODE_ENV !== "test" && config();
 mkdirp.sync("cache");
 
-function filterNpmFlags(object) {
+function filterNpmFlags(object: Record<string, string>) {
   const keyz: string[] = Object.keys(object);
-  const out = {};
+  const out: Record<string, string> = {};
   for (const key of keyz) {
     if (!key.startsWith("npm")) {
       out[key] = object[key];
@@ -40,17 +40,24 @@ function filterNpmFlags(object) {
   return out;
 }
 
-const workerReadyPromises = R.range(1, PARALLEL_WORKERS + 1).reduce(
-  (accumulator, index) => {
-    let resolve: () => void;
-    const promise = new Promise((resolve_: unknown) => {
-      resolve = resolve_ as () => void;
-    });
-    accumulator[index] = { promise, resolve };
-    return accumulator;
-  },
-  {}
-);
+interface WorkerReadyWait {
+  [index: string]: {
+    promise: Promise<void>;
+    resolve: () => void;
+  };
+}
+
+const workerReadyPromises: WorkerReadyWait = R.range(
+  1,
+  PARALLEL_WORKERS + 1
+).reduce((accumulator, index) => {
+  let resolve: (_: unknown) => void;
+  const promise = new Promise<void>((resolve_: () => void) => {
+    resolve = resolve_;
+  });
+  accumulator[index] = { promise, resolve };
+  return accumulator;
+}, {} as Record<string, { promise: Promise<unknown>; resolve: (_: unknown) => unknown }>) as WorkerReadyWait;
 
 const workerPool = new WorkerPool<typeof import("../workers/import-block")>(
   process.cwd() + "/src/workers/import-block",
@@ -72,49 +79,83 @@ const workerPool = new WorkerPool<typeof import("../workers/import-block")>(
   }
 );
 
-const messagePromiseReceivers = {};
+const importManifestWorkerPool = new WorkerPool<
+  typeof import("../workers/import-manifest")
+>(process.cwd() + "/src/workers/import-manifest", {
+  numWorkers: PARALLEL_WORKERS,
+  logFilter: (data) =>
+    !/ExperimentalWarning:/.test(data) && !/node --trace-warnings/.test(data),
+  env: R.mergeAll([
+    {
+      PWD: process.cwd(),
+      TS_NODE_FILES: true,
+      NODE_PATH: process.cwd() + "/node_modules",
+      NODE_OPTIONS: `--require ${
+        process.cwd() + "/node_modules/ts-node/register"
+      }`,
+    },
+    filterNpmFlags(process.env),
+  ]),
+});
+
+/* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+const messagePromiseReceivers: Record<string, any> = {};
 
 export const txInFlight: Record<string, number> = {};
 
-const numberOr0 = (n): number => (Number.isNaN(n) ? 0 : n);
+const numberOr0 = (n: typeof NaN | number | undefined): number =>
+  Number.isNaN(n) ? 0 : n;
 
 export const getTxsInFlight = (): number =>
   Object.values(txInFlight).reduce((a, b) => numberOr0(a) + numberOr0(b));
 
-workerPool.onMessage((message: MessagesFromWorker, workerId: number): void => {
-  switch (message.type) {
-    case "worker:ready": {
-      workerReadyPromises[workerId].resolve();
-      break;
-    }
-    case "log:info": {
-      log.info(`${message.message}`);
-      break;
-    }
-    case "block:new": {
-      if (typeof messagePromiseReceivers[workerId] === "function") {
-        messagePromiseReceivers[workerId](message.payload);
-        delete messagePromiseReceivers[workerId];
-        delete txInFlight[`${workerId}`];
+/* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+(workerPool.onMessage as any)(
+  (message: MessagesFromWorker, workerId: number): void => {
+    switch (message.type) {
+      case "worker:ready": {
+        workerReadyPromises[workerId].resolve();
+        break;
       }
-      break;
-    }
-    case "stats:tx:flight": {
-      txInFlight[`${workerId}`] =
-        typeof message.payload === "number"
-          ? message.payload
-          : Number.parseInt(message.payload);
-      gauge_ &&
-        gauge_.show(
-          `blocks: ${currentHeight}/${topHeight}\t tx: ${getTxsInFlight()}`
-        );
-      break;
-    }
-    default: {
-      console.error("unknown worker message arrived", message);
+      case "log:info": {
+        log.info(`${message.message}`);
+        break;
+      }
+      case "log:warn": {
+        log.info(`${message.message}`);
+        break;
+      }
+      case "log:error": {
+        log.info(`${message.message}`);
+        break;
+      }
+      case "block:new": {
+        if (typeof messagePromiseReceivers[workerId] === "function") {
+          messagePromiseReceivers[workerId](message.payload);
+          delete messagePromiseReceivers[workerId];
+          delete txInFlight[`${workerId}`];
+        }
+        break;
+      }
+      case "stats:tx:flight": {
+        txInFlight[`${workerId}`] =
+          typeof message.payload === "number"
+            ? message.payload
+            : Number.parseInt(message.payload);
+        gauge_ &&
+          gauge_.show(
+            `blocks: ${currentHeight}/${topHeight}\t tx: ${getTxsInFlight()}`
+          );
+        break;
+      }
+      default: {
+        console.error("unknown worker message arrived", message);
+      }
     }
   }
-});
+);
+
+importManifestWorkerPool.onMessage = workerPool.onMessage;
 
 const trackerTheme = GaugeThemes.newTheme(
   GaugeThemes({
@@ -205,7 +246,7 @@ async function startPolling(): Promise<void> {
   const nodeInfo = await getNodeInfo({});
 
   if (!nodeInfo) {
-    await new Promise(function (resolve) {
+    await new Promise<void>(function (resolve) {
       setTimeout(resolve, POLLTIME_DELAY_SECONDS * 1000);
     });
     return startPolling();
@@ -216,7 +257,7 @@ async function startPolling(): Promise<void> {
   if (nodeInfo.current === topHash) {
     // wait before polling again
 
-    await new Promise(function (resolve) {
+    await new Promise<void>(function (resolve) {
       setTimeout(resolve, POLLTIME_DELAY_SECONDS * 1000);
     });
     return startPolling();
@@ -235,34 +276,13 @@ async function startPolling(): Promise<void> {
           topHash
       );
       await resolveFork(currentRemoteBlock);
+      isPaused = false;
       log.info("blocks are back in sync!");
     } else {
       await workerPool.single.importBlock(nodeInfo.height);
-      await new Promise(function (resolve) {
+      await new Promise<void>(function (resolve) {
         setTimeout(resolve, POLLTIME_DELAY_SECONDS * 1000);
       });
-
-      // const newBlock = await queryGetBlock({
-      //   height: nodeInfo.height,
-      //   hash: nodeInfo.current,
-      // });
-      // if (newBlock !== undefined) {
-      //   const newBlockHeight =
-      //     newBlock.height !== null && !Number.isNaN(newBlock.height)
-      //       ? toLong(newBlock.height)
-      //       : toLong(0);
-      //   log.info("new block arrived at height " + newBlockHeight.toString());
-      //   const blockQueryCallback = makeBlockImportQuery(newBlock);
-      // enqueueBlockQueue({
-      //   nextHeight: toLong(-1),
-      //   callback: blockQueryCallback.bind(blockQueue),
-      //   height: newBlockHeight,
-      //   type: "block",
-      //   txCount: newBlock.txs ? newBlock.txs.length : 0,
-      // });
-      // } else {
-      //   console.error("Querying for new tx failed");
-      // }
     }
   }
   return startPolling();
@@ -280,7 +300,7 @@ async function findMissingBlocks(hashList: string[]): Promise<UnsyncedBlock[]> {
   const hashListObject = hashList.reduce((accumulator, hash, height) => {
     accumulator[height] = { height, hash };
     return accumulator;
-  }, {});
+  }, {} as Record<string, UnsyncedBlock>);
 
   log.info("[database] Looking for missing blocks...");
   const result = await cassandraClient.execute(
@@ -323,6 +343,20 @@ async function startGatewayNodeMode(): Promise<void> {
   [topHash, gatewayHeight] = await getMaxHeightBlock();
 }
 
+async function startManifestImportWorker() {
+  const startTime = Date.now();
+  const startSeconds = Math.floor(startTime / 1000);
+  try {
+    importManifestWorkerPool.single.importBlock(height);
+  } catch (error) {
+    console.error(error);
+  }
+  // at least every 2 minutes
+  await pWaitFor(() => Math.floor(Date.now() / 1000) - startSeconds > 120, {
+    timeout: 30 * 1000,
+  });
+}
+
 export async function startSync({
   isTesting = false, // eslint-disable-line @typescript-eslint/no-unused-vars
   session,
@@ -363,18 +397,21 @@ export async function startSync({
       if (!R.isEmpty(blockGap)) {
         console.error("Repairing missing block(s):", blockGap);
 
-        let doneSignalResolve;
-        const doneSignal = new Promise(function (resolve) {
+        let doneSignalResolve: () => void;
+        const doneSignal = new Promise<void>(function (resolve) {
           doneSignalResolve = resolve;
         });
 
-        fork((error) => console.error(error))(() => {
+        fork((error: unknown) => console.error(JSON.stringify(error)))(() => {
           doneSignalResolve();
           console.log("Block repair done!");
         })(
           parallel(PARALLEL_WORKERS)(
             blockGap.map((height) =>
-              Fluture(function (reject, fresolve) {
+              Fluture(function (
+                reject: (msg?: string) => void,
+                fresolve: () => void
+              ) {
                 workerPool.single
                   .importBlock(height)
                   .then(fresolve)
@@ -479,7 +516,10 @@ export async function startSync({
   })(
     parallel(PARALLEL_WORKERS)(
       unsyncedBlocks.map(({ height }: { height: number }) => {
-        return Fluture(function (reject, fresolve) {
+        return Fluture(function (
+          reject: (msg?: string) => void,
+          fresolve: () => void
+        ) {
           const singleJob = workerPool.single; // you have 1 job!
           const blockPromise = singleJob.importBlock(height);
           currentImports.add(height);
@@ -494,7 +534,7 @@ export async function startSync({
           });
           blockPromise
             .then(() => {
-              fresolve({});
+              fresolve();
               currentImports.delete(height);
               statusMapper.update({
                 session: session.uuid,

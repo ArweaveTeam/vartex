@@ -24,6 +24,7 @@ export interface BlockType {
   cumulative_diff: string;
   hash_list_merkle: string;
   poa: {
+    data_path?: string;
     option: string;
     tx_path: string;
     chunk: string;
@@ -113,7 +114,7 @@ export async function fetchBlockByHash(
 
 export async function currentBlock(): Promise<BlockType | undefined> {
   const tryNode = grabNode();
-  let jsonPayload;
+  let jsonPayload: BlockType | undefined;
   try {
     jsonPayload = await got.get(`${tryNode}/block/current`, {
       responseType: "json",

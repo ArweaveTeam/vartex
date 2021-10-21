@@ -1,4 +1,8 @@
 import { IGatsbyWorkerMessenger } from "../gatsby-worker/child";
+import {
+  MessagesFromParent,
+  MessagesFromWorker,
+} from "../workers/message-types";
 import winston from "winston";
 const { createLogger, transports, format } = winston;
 
@@ -10,9 +14,10 @@ export const log = createLogger({
 });
 
 export const mkWorkerLog = (
-  messenger: IGatsbyWorkerMessenger<unknown>
-): ((message: string, context?: unknown) => void) => {
+  messenger: IGatsbyWorkerMessenger<MessagesFromParent, MessagesFromWorker>
+): any => {
   return function (message: string, context?: unknown) {
+    context ? console.log(message, context) : console.log(message);
     if (messenger) {
       messenger.sendMessage({
         type: "log:info",

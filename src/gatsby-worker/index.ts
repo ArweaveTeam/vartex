@@ -235,7 +235,7 @@ export class WorkerPool<
             if (error !== null && typeof error === `object`) {
               const extra = error;
 
-              const NativeCtor = global[message[1]];
+              const NativeCtor = (global as any)[message[1]];
               const Ctor =
                 typeof NativeCtor === `function` ? NativeCtor : Error;
 
@@ -246,7 +246,7 @@ export class WorkerPool<
 
               for (const key in extra) {
                 if (Object.prototype.hasOwnProperty.call(extra, key)) {
-                  error[key] = extra[key];
+                  (error as any)[key] = (extra as any)[key];
                 }
               }
             }

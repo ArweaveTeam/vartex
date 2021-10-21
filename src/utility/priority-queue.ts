@@ -8,6 +8,9 @@ export interface ITxIncoming {
   txIndex: CassandraTypes.Long;
   txId: string;
   next: (fresolve: unknown) => void;
+  fresolve?: () => void;
+  callback?: () => Promise<void>;
+  nextTxIndex?: CassandraTypes.Long;
 }
 
 export interface ITxImport {
@@ -15,8 +18,9 @@ export interface ITxImport {
   txIndex: CassandraTypes.Long;
   txId: string;
   height: CassandraTypes.Long;
-  fresolve: () => void;
-  callback: () => void;
+  fresolve?: () => void;
+  callback: () => Promise<void>;
+  nextTxIndex?: CassandraTypes.Long;
 }
 
 type QueueItem = ITxIncoming | ITxImport;

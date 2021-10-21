@@ -204,7 +204,7 @@ export const resolvers = {
       }
 
       if (fieldsWithSubFields.block !== undefined) {
-        let selectParameters = [];
+        let selectParameters: string[] = [];
         const userSelectKeys = R.keys(fieldsWithSubFields.block);
         for (const selectKey of ["id", "timestamp", "height", "previous"]) {
           if (userSelectKeys.includes(selectKey)) {
@@ -399,8 +399,8 @@ export const resolvers = {
       let tagQueryResult = [];
 
       if (tagSearchMode) {
-        const tagFilterKeys = [];
-        const tagFilterVals = {};
+        const tagFilterKeys: any = [];
+        const tagFilterVals: any = {};
 
         for (const param of Object.keys(queryParameters)) {
           if (
@@ -412,11 +412,11 @@ export const resolvers = {
               "dataRoots",
               "bundledIn",
             ].includes(param) &&
-            !R.isEmpty(queryParameters[param])
+            !R.isEmpty((queryParameters as any)[param])
           ) {
-            tagFilterVals[param] = queryParameters[param];
+            tagFilterVals[param] = (queryParameters as any)[param];
             tagFilterKeys.push(param);
-            delete queryParameters[param];
+            delete (queryParameters as any)[param];
           }
         }
         tagQueryResult = await findTxIDsFromTagFilters({
@@ -438,7 +438,9 @@ export const resolvers = {
           };
         } else {
           const txs = await Promise.all(
-            tagQueryResult.map(({ tx_id }) => transactionMapper.get({ tx_id }))
+            tagQueryResult.map(({ tx_id }: { tx_id: string }) =>
+              transactionMapper.get({ tx_id })
+            )
           );
           return {
             pageInfo: {
@@ -560,7 +562,7 @@ export const resolvers = {
       }
 
       if (selectsBlock) {
-        let selectParameters = [];
+        let selectParameters: string[] = [];
         // let resultWithBlock = [];
         const userSelectKeys = Object.keys(
           R.path("edges.node.block", fieldsWithSubFields)
@@ -701,7 +703,7 @@ export const resolvers = {
             ? sortByTxIndexAsc
             : sortByTxIndexDesc,
           result
-        ).map((tx, index) => ({
+        ).map((tx: any, index: number) => ({
           ...(hasNextPage && {
             cursor: encodeCursor({ timestamp, offset: offset + index + 1 }),
           }),
@@ -714,14 +716,14 @@ export const resolvers = {
       queryParameters: QueryBlockArguments,
       request: Request // eslint-disable-line @typescript-eslint/no-unused-vars
     ): Promise<Maybe<Query["block"]>> => {
-      return queryParameters.id
+      return (queryParameters as any).id
         ? (
-            await generateBlockQuery({
+            (await generateBlockQuery({
               select: blockFieldMap,
               id: queryParameters.id,
               offset: 0,
               fetchSize: 1,
-            })
+            })) as any
           )[0]
         : null;
     },

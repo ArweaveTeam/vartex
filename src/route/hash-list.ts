@@ -3,7 +3,11 @@ import { EventEmitter } from "node:events";
 import { KEYSPACE } from "../constants.js";
 import { cassandraClient } from "../database/cassandra.js";
 
-type CassandraStream = Partial<EventEmitter & { read: () => number }>;
+interface PartialBlock {
+  indep_hash: string;
+}
+
+type CassandraStream = Partial<EventEmitter & { read: () => PartialBlock }>;
 
 export async function hashListRoute(
   request: Request,
@@ -23,7 +27,7 @@ export async function hashListRoute(
     response.end();
   });
   stream.on("readable", function streamReadable() {
-    let item;
+    let item: { indep_hash: string };
     let head = true;
     while ((item = stream.read())) {
       response.write((!head ? "," : "") + JSON.stringify(item.indep_hash));

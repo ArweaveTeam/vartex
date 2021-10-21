@@ -1,5 +1,5 @@
 import * as R from "rambda";
-import { getMessenger } from "../gatsby-worker/child";
+import { IGatsbyWorkerMessenger, getMessenger } from "../gatsby-worker/child";
 import { MessagesFromParent, MessagesFromWorker } from "./message-types";
 import Fluture, { forkCatch, parallel } from "fluture/index.js";
 import PriorityQueue, { ITxIncoming } from "../utility/priority-queue";
@@ -30,6 +30,7 @@ if (messenger) {
 }
 
 const log = mkWorkerLog(messenger);
+
 let topTxIndex: CassandraTypes.Long = toLong(0);
 let txInFlight = 0;
 
@@ -77,10 +78,10 @@ const txQueueState: TxQueueState = {
   nextTxIndex: toLong(-1),
 };
 
-let txIncomingIsConsuming;
+let txIncomingIsConsuming = false;
 
 function unlockIncomingQueue() {
-  txIncomingIsConsuming = undefined;
+  txIncomingIsConsuming = false;
 }
 
 const handleTxImportError = (reason: Error | string | undefined): void => {
@@ -95,7 +96,7 @@ const txIncomingParallelConsume = () => {
     txIncomingIsConsuming = true;
   }
   sortIncomingTxQueue();
-  const entries: ITxIncoming[] = [...getEntriesTxIncoming()];
+  const entries: ITxIncoming[] = [...(getEntriesTxIncoming() as any)];
 
   if (entries.length === 0) {
     return;
@@ -116,13 +117,15 @@ const txIncomingParallelConsume = () => {
   }
 
   const batch = entries.map((incTx) => {
-    return new (Fluture as (any) => void)((reject, fresolve) => {
-      incTx.next.call(this, fresolve);
-      return () => {
-        log("enqueueing of txId " + incTx.txId + " failed!");
-        process.exit(1);
-      };
-    });
+    return new Fluture(
+      (reject: (msg?: string) => void, fresolve: () => void) => {
+        incTx.next.call(this, fresolve);
+        return () => {
+          log("enqueueing of txId " + incTx.txId + " failed!");
+          process.exit(1);
+        };
+      }
+    );
   });
 
   forkCatch(handleTxImportError)(handleTxImportError)(unlockIncomingQueue)(
@@ -287,6 +290,7 @@ export async function storeTransaction(
       height,
       callback: txImportCallback(txCacheId),
       fresolve,
+      txId,
       txIndex,
       type: "tx",
     });
@@ -332,7 +336,7 @@ async function getNewBlock(height: number) {
           height: newBlockHeight,
           txIndex,
           next: incomingTxCallback(fileCacheKeyTx, txIndex),
-        });
+        } as any);
       })
     );
 

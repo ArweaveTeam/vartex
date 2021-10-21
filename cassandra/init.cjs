@@ -207,7 +207,13 @@ async function connect() {
           manifest_paths text,
           PRIMARY KEY(tx_id)
         )`,
-
+        // manifests rely on data which may not be available
+        // at the same time as the tx headers attached to it are.
+        `CREATE TABLE IF NOT EXISTS manifest_unimported (
+          tx_id text,
+          import_attempt_cnt int,
+          PRIMARY KEY(tx_id)
+        )`,
         `CREATE TABLE IF NOT EXISTS permaweb_path (
           domain_id text,
           uri_path text,

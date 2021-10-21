@@ -78,36 +78,36 @@ if (process.send && process.env.GATSBY_WORKER_MODULE_PATH) {
   import(process.env.GATSBY_WORKER_MODULE_PATH).then((child) => {
     function messageHandler(message: ParentMessageUnion): void {
       switch (message[0]) {
-      case EXECUTE: {
-        let result;
-        try {
-          result = child[message[1]].call(child, ...message[2]);
-        } catch (error) {
-          onError(error);
-          return;
-        }
+        case EXECUTE: {
+          let result;
+          try {
+            result = child[message[1]].call(child, ...message[2]);
+          } catch (error: any) {
+            onError(error);
+            return;
+          }
 
-        if (isPromise(result)) {
-          result.then(onResult, onError);
-        } else {
-          onResult(result);
+          if (isPromise(result)) {
+            result.then(onResult, onError);
+          } else {
+            onResult(result);
+          }
+
+          break;
         }
-      
-      break;
-      }
-      case END: {
-        process.off(`message`, messageHandler);
-      
-      break;
-      }
-      case CUSTOM_MESSAGE: {
-        for (const listener of listeners) {
-          listener(message[1]);
+        case END: {
+          process.off(`message`, messageHandler);
+
+          break;
         }
-      
-      break;
-      }
-      // No default
+        case CUSTOM_MESSAGE: {
+          for (const listener of listeners) {
+            listener(message[1]);
+          }
+
+          break;
+        }
+        // No default
       }
     }
 

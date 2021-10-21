@@ -1,10 +1,12 @@
 import { propOr } from "rambda";
 import { cassandraClient } from "../database/cassandra";
+import { UpstreamTag } from "../types/cassandra";
+import { types as CassandraTypes } from "cassandra-driver";
 import { toB64url } from "../query/transaction";
 import { KEYSPACE } from "../constants";
 import { ownerToAddress } from "../utility/encoding";
 
-const filtersToTable = {
+const filtersToTable: { [direction: string]: Record<string, string> } = {
   HEIGHT_ASC: {
     bundledId_dataRoots_ids_owners_recipients_tags:
       "tx_tag_gql_by_tx_id_and_owner_and_target_and_bundled_in_and_data_root_asc_migration_1",
@@ -114,6 +116,11 @@ const filtersToTable = {
   },
 };
 
+interface TagQueryFilter {
+  name: string;
+  values: string[];
+}
+
 export const findTxIDsFromTagFilters = async ({
   tagFilterKeys,
   tagFilterVals,
@@ -122,6 +129,14 @@ export const findTxIDsFromTagFilters = async ({
   limit,
   offset,
   sortOrder,
+}: {
+  tagFilterKeys: string[];
+  tagFilterVals: { [any_: string]: any; tags: TagQueryFilter[] };
+  minHeight?: CassandraTypes.Long;
+  maxHeight?: CassandraTypes.Long;
+  limit?: number;
+  offset?: number;
+  sortOrder?: string;
 }) => {
   console.log({
     tagFilterKeys,
@@ -171,7 +186,7 @@ export const findTxIDsFromTagFilters = async ({
       const whereValsStr =
         whereVals.length === 1
           ? ` = '${whereVals[0]}'`
-          : `IN (${whereVals.map((wv) => `'${wv}'`).join(",")})`;
+          : `IN (${whereVals.map((wv: string) => `'${wv}'`).join(",")})`;
       return `${acc} AND ${cqlKey} ${whereValsStr}`;
     }
   }, "");

@@ -41,7 +41,7 @@ export async function blockByHeightRoute(
       )(blockResult);
     } catch (error) {
       // Passes errors into the error handler
-      next(error);
+      next(JSON.stringify(error));
     }
   }
 }
@@ -83,7 +83,7 @@ export async function blockByHashRoute(
       )(blockResult);
     } catch (error) {
       // Passes errors into the error handler
-      next(error);
+      next(JSON.stringify(error));
     }
   }
 }
@@ -121,6 +121,6 @@ export async function blockCurrentRoute(
       (returnValue) => response.json(returnValue)
     )(blockResult);
   } catch (error) {
-    next(error);
+    next(JSON.stringify(error));
   }
 }

@@ -1,6 +1,7 @@
 import * as R from "rambda";
 import { mapping, types as CassandraTypes } from "cassandra-driver";
 import { cassandraClient } from "./cassandra";
+import { UpstreamTag } from "../types/cassandra";
 import { KEYSPACE } from "../constants";
 
 const { Mapper } = mapping;
@@ -42,6 +43,10 @@ const mapper = new Mapper(cassandraClient, {
     Manifest: {
       keyspace: KEYSPACE,
       tables: ["manifest"],
+    },
+    ManifestUnimported: {
+      keyspace: KEYSPACE,
+      tables: ["manifest_unimported"],
     },
     Poa: {
       keyspace: KEYSPACE,
@@ -90,6 +95,12 @@ export const blockMapper = mapper.forModel("Block");
 
 export const poaMapper = mapper.forModel("Poa");
 
+export const manifestMapper = mapper.forModel("Manifest");
+
+export const manifestUnimportedMapper = mapper.forModel("ManifestUnimported");
+
+export const permawebPathMapper = mapper.forModel("PermawebPath");
+
 export const statusMapper = mapper.forModel("Status");
 
 export const transactionMapper = mapper.forModel("Transaction");
@@ -98,11 +109,9 @@ export const txTagMapper = mapper.forModel("TxTag");
 
 export const txOffsetMapper = mapper.forModel("TxOffset");
 
-export const tagsByTxId = async (
-  txId: string
-): Promise<CassandraTypes.Tuple[]> => {
+export const tagsByTxId = async (txId: string): Promise<UpstreamTag[]> => {
   let lastTagResponse = await txTagMapper.get({ tx_id: txId, tag_index: 0 });
-  const tags = [];
+  const tags: UpstreamTag[] = [];
 
   if (!lastTagResponse) {
     return tags;
@@ -118,3 +127,5 @@ export const tagsByTxId = async (
   }
   return tags;
 };
+
+export { cassandraClient };

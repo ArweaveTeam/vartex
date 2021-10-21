@@ -4,7 +4,7 @@ import * as R from "rambda";
 import rwc from "random-weighted-choice";
 import got from "got";
 import { log } from "../utility/log";
-import { getChunk } from "./chunk";
+import { ChunkType, getChunk } from "./chunk";
 import { HTTP_TIMEOUT_SECONDS } from "../constants";
 
 let temporaryNodes = [];
@@ -200,23 +200,39 @@ export async function getDataFromChunks({
   retry?: boolean;
   startOffset: CassandraTypes.Long;
   endOffset: CassandraTypes.Long;
-}): Promise<Buffer> {
+}): Promise<Buffer | undefined> {
   try {
     let byte = 0;
     let chunks = Buffer.from("");
 
     while (startOffset.add(byte).lt(endOffset)) {
-      const chunk = await getChunk({
+      const chunk: ChunkType | undefined = await getChunk({
         offset: startOffset.add(byte).toString(),
+      }).catch((error) => {
+        console.error(error);
+        return undefined;
       });
-      byte += chunk.parsed_chunk.length;
-      chunks = Buffer.concat([chunks, chunk.response_chunk]);
+      console.error(chunk);
+      if (chunk) {
+        byte += chunk.parsed_chunk.length;
+        chunks = Buffer.concat([chunks, chunk.response_chunk]);
+      } else {
+        return retry
+          ? await getDataFromChunks({
+              id,
+              retry: false,
+              startOffset,
+              endOffset,
+            })
+          : undefined;
+      }
     }
 
     return chunks;
   } catch (error) {
+    console.error(error);
     if (retry) {
-      console.error(`error retrieving data from chunks of ${id}`.red.bold);
+      console.error(`error retrieving data from chunks of ${id}`);
       return await getDataFromChunks({
         id,
         retry: false,
@@ -224,7 +240,7 @@ export async function getDataFromChunks({
         endOffset,
       });
     } else {
-      throw error;
+      return undefined;
     }
   }
 }

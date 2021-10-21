@@ -103,26 +103,27 @@ export function start(): void {
       });
     });
 
-    initializeStatusSession(cassandraClient, session.uuid).then(
-      (sessionUuid: CassandraTypes.TimeUuid) => {
-        session.uuid = sessionUuid;
+    new Promise<void>((resolve) => setTimeout(resolve, 1000)).then(() => {
+      initializeStatusSession(cassandraClient, session.uuid).then(
+        (sessionUuid: CassandraTypes.TimeUuid) => {
+          session.uuid = sessionUuid;
 
-        startSync({ session, isTesting: process.env.NODE_ENV === "test" });
+          startSync({ session, isTesting: process.env.NODE_ENV === "test" });
 
-        if (isGatewayNodeModeEnabled) {
-          // recheck every minute if session changes
-          setInterval(() => {
-            initializeStatusSession(cassandraClient, session.uuid).then(
-              (newSessionUuid: CassandraTypes.TimeUuid) => {
-                session.uuid = newSessionUuid;
-              }
-            );
-          }, 60 * 1000);
+          if (isGatewayNodeModeEnabled) {
+            // recheck every minute if session changes
+            setInterval(() => {
+              initializeStatusSession(cassandraClient, session.uuid).then(
+                (newSessionUuid: CassandraTypes.TimeUuid) => {
+                  session.uuid = newSessionUuid;
+                }
+              );
+            }, 60 * 1000);
+          }
         }
-      }
-    );
+      );
+    });
   });
-
   app.get(
     "/graphql",
     expressPlayground({

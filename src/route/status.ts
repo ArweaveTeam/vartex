@@ -10,10 +10,6 @@ import gitRev from "git-rev-sync";
 
 let gitRevision = "unknown";
 
-try {
-  gitRevision = gitRev.long([process.cwd()]);
-} catch {}
-
 let ready = false;
 
 let lastKnownSessionUuid: CassandraTypes.TimeUuid;
@@ -31,6 +27,10 @@ interface StatusSchema {
 function signalReady(): void {
   setTimeout(() => {
     if (!ready) {
+      try {
+        gitRevision = gitRev.long([process.cwd()]);
+      } catch {}
+
       ready = true;
     }
   }, 2000);
@@ -86,21 +86,22 @@ export async function statusRoute(
   next: (error?: string) => void
 ): Promise<void> {
   if (!ready) {
-    return next("booting - not ready");
-  }
-  try {
-    const currentStatus = await statusMapper.get({
-      session: lastKnownSessionUuid,
-    });
-    const delta =
-      Number.parseInt(currentStatus.arweave_height) -
-      Number.parseInt(currentStatus.gateway_height);
-    response.status(200).send({
-      delta,
-      ...currentStatus,
-      vartex_git_revision: gitRevision,
-    });
-  } catch (error) {
-    response.status(503).send(error);
+    response.sendStatus(503);
+  } else {
+    try {
+      const currentStatus = await statusMapper.get({
+        session: lastKnownSessionUuid,
+      });
+      const delta =
+        Number.parseInt(currentStatus.arweave_height) -
+        Number.parseInt(currentStatus.gateway_height);
+      response.status(200).send({
+        delta,
+        ...currentStatus,
+        vartex_git_revision: gitRevision,
+      });
+    } catch (error) {
+      response.sendStatus(503);
+    }
   }
 }

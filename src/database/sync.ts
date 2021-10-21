@@ -344,7 +344,7 @@ async function startGatewayNodeMode(): Promise<void> {
   [topHash, gatewayHeight] = await getMaxHeightBlock();
 }
 
-async function startManifestImportWorker() {
+async function startManifestImportWorker(): Promise<void> {
   const startTime = Date.now();
   const startSeconds = Math.floor(startTime / 1000);
   try {
@@ -356,6 +356,7 @@ async function startManifestImportWorker() {
   await pWaitFor(() => Math.floor(Date.now() / 1000) - startSeconds > 120, {
     timeout: 30 * 1000,
   });
+  return await startManifestImportWorker();
 }
 
 export async function startSync({
@@ -505,6 +506,9 @@ export async function startSync({
 
   gauge.enable();
   gauge_ = gauge;
+
+  // wait a minute until starting to poll for unimported manifest
+  setTimeout(startManifestImportWorker, 60 * 1000);
 
   const currentImports = new Set();
 

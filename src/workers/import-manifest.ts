@@ -163,7 +163,8 @@ export async function importManifests(): Promise<void> {
         }
       }
     } else {
-      if (unimportedManifest.import_attempt_cnt || 0 < 10) {
+      // 500 times, will be minimum 1k minutes of attempting import
+      if (unimportedManifest.import_attempt_cnt || 0 < 500) {
         await manifestUnimportedMapper.update({
           tx_id: unimportedManifest.tx_id,
           import_attempt_cnt: (unimportedManifest.import_attempt_cnt || 0) + 1,

@@ -21,15 +21,17 @@ const PARALLEL_IMPORTS = Number.isNaN(process.env["PARALLEL_IMPORTS"])
   ? 1
   : Number.parseInt(process.env["PARALLEL_IMPORTS"] || "1");
 
-const messenger = getMessenger<MessagesFromParent, MessagesFromWorker>();
+let messenger = getMessenger<MessagesFromParent, MessagesFromWorker>();
+
+const log = mkWorkerLog(messenger);
 
 if (messenger) {
   messenger.sendMessage({
     type: "worker:ready",
   });
+} else {
+  (messenger as any) = { sendMessage: console.log };
 }
-
-const log = mkWorkerLog(messenger);
 
 let topTxIndex: CassandraTypes.Long = toLong(0);
 let txInFlight = 0;

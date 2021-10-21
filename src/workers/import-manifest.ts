@@ -28,7 +28,8 @@ if (messenger) {
 const log = mkWorkerLog(messenger);
 
 export async function importManifests(): Promise<void> {
-  console.error("starts");
+  log("starting manifest import");
+
   const unimportedManifests = await cassandraClient.execute(
     `SELECT * FROM ${KEYSPACE}.manifest_unimported`,
     [],
@@ -102,13 +103,11 @@ export async function importManifests(): Promise<void> {
 
             if (!contentType && Array.isArray(tx.tags) && tx.tags.length > 0) {
               const tags = tx.tags.map(utf8DecodeTupleTag);
-              tags.forEach(
-                ({ name, value }: { name: string; value: string }) => {
-                  if (name.toLowerCase() === "content-type") {
-                    contentType = value;
-                  }
+              for (const tag of tags as { name: string; value: string }[]) {
+                if (tag.name.toLowerCase() === "content-type") {
+                  contentType = tag.value;
                 }
-              );
+              }
             }
 
             if (!contentType) {
@@ -164,16 +163,15 @@ export async function importManifests(): Promise<void> {
       }
     } else {
       // 500 times, will be minimum 1k minutes of attempting import
-      if (unimportedManifest.import_attempt_cnt || 0 < 500) {
-        await manifestUnimportedMapper.update({
-          tx_id: unimportedManifest.tx_id,
-          import_attempt_cnt: (unimportedManifest.import_attempt_cnt || 0) + 1,
-        });
-      } else {
-        await manifestUnimportedMapper.remove({
-          tx_id: unimportedManifest.tx_id,
-        });
-      }
+      await (unimportedManifest.import_attempt_cnt || 0 < 500
+        ? manifestUnimportedMapper.update({
+            tx_id: unimportedManifest.tx_id,
+            import_attempt_cnt:
+              (unimportedManifest.import_attempt_cnt || 0) + 1,
+          })
+        : manifestUnimportedMapper.remove({
+            tx_id: unimportedManifest.tx_id,
+          }));
     }
   }
   return;

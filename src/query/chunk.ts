@@ -1,5 +1,5 @@
 import got from "got";
-import { TextDecoder } from "util";
+import { TextDecoder } from "node:util";
 import { b64UrlToBuffer } from "../utility/encoding";
 import { grabNode } from "./node";
 import { HTTP_TIMEOUT_SECONDS } from "../constants";
@@ -54,7 +54,7 @@ export async function getChunk({
       })
       .catch((error) => {
         console.error(error);
-        return undefined;
+        return;
       })) as ChunkType | undefined;
 
     if (body) {
@@ -69,17 +69,9 @@ export async function getChunk({
         response_chunk,
       };
     } else {
-      if (retry && retryCount > 0) {
-        return getChunk({ offset, retry: true, retryCount: retryCount - 1 });
-      } else {
-        return undefined;
-      }
+      return retry && retryCount > 0 ? getChunk({ offset, retry: true, retryCount: retryCount - 1 }) : undefined;
     }
-  } catch (error) {
-    if (retry && retryCount > 0) {
-      return getChunk({ offset, retry: true, retryCount: retryCount - 1 });
-    } else {
-      return undefined;
-    }
+  } catch {
+    return retry && retryCount > 0 ? getChunk({ offset, retry: true, retryCount: retryCount - 1 }) : undefined;
   }
 }

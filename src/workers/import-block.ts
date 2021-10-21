@@ -1,5 +1,5 @@
 import * as R from "rambda";
-import { IGatsbyWorkerMessenger, getMessenger } from "../gatsby-worker/child";
+import { getMessenger } from "../gatsby-worker/child";
 import { MessagesFromParent, MessagesFromWorker } from "./message-types";
 import Fluture, { forkCatch, parallel } from "fluture/index.js";
 import PriorityQueue, { ITxIncoming } from "../utility/priority-queue";
@@ -120,7 +120,7 @@ const txIncomingParallelConsume = () => {
 
   const batch = entries.map((incTx) => {
     return new Fluture(
-      (reject: (msg?: string) => void, fresolve: () => void) => {
+      (reject: (message?: string) => void, fresolve: () => void) => {
         incTx.next.call(this, fresolve);
         return () => {
           log("enqueueing of txId " + incTx.txId + " failed!");

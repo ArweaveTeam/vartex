@@ -402,7 +402,7 @@ export const resolvers = {
         const tagFilterKeys: any = [];
         const tagFilterVals: any = {};
 
-        for (const param of Object.keys(queryParameters)) {
+        for (const parameter of Object.keys(queryParameters)) {
           if (
             [
               "tags",
@@ -411,12 +411,12 @@ export const resolvers = {
               "owners",
               "dataRoots",
               "bundledIn",
-            ].includes(param) &&
-            !R.isEmpty((queryParameters as any)[param])
+            ].includes(parameter) &&
+            !R.isEmpty((queryParameters as any)[parameter])
           ) {
-            tagFilterVals[param] = (queryParameters as any)[param];
-            tagFilterKeys.push(param);
-            delete (queryParameters as any)[param];
+            tagFilterVals[parameter] = (queryParameters as any)[parameter];
+            tagFilterKeys.push(parameter);
+            delete (queryParameters as any)[parameter];
           }
         }
         tagQueryResult = await findTxIDsFromTagFilters({
@@ -876,6 +876,7 @@ export const resolvers = {
           );
 
         return {
+          // eslint-ignore-next-line unicorn/explicit-length-check
           size: `${parent.data.size || 0}`,
           type:
             parent.data_type ||

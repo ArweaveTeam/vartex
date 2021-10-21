@@ -1,10 +1,8 @@
 import { propOr } from "rambda";
 import { cassandraClient } from "../database/cassandra";
-import { UpstreamTag } from "../types/cassandra";
 import { types as CassandraTypes } from "cassandra-driver";
 import { toB64url } from "../query/transaction";
 import { KEYSPACE } from "../constants";
-import { ownerToAddress } from "../utility/encoding";
 
 const filtersToTable: { [direction: string]: Record<string, string> } = {
   HEIGHT_ASC: {
@@ -156,17 +154,17 @@ export const findTxIDsFromTagFilters = async ({
       : maxHeight.toString();
   const tableKey = tagFilterKeys.sort().join("_");
   const table = filtersToTable[sortOrder][tableKey];
-  const tagPairsIn = tagFilterVals.tags.reduce((acc, tagPairs) => {
+  const tagPairsIn = tagFilterVals.tags.reduce((accumulator, tagPairs) => {
     // acc[0].push(`'${}'`);
     const tagName = toB64url(tagPairs.name || "");
-    tagPairs.values.forEach((tagVal) => {
-      acc.push(`'${tagName}-${toB64url(tagVal)}'`);
-    });
-    return acc;
+    for (const tagValue of tagPairs.values) {
+      accumulator.push(`'${tagName}-${toB64url(tagValue)}'`);
+    }
+    return accumulator;
   }, []);
-  const whereClause = tagFilterKeys.reduce((acc, key) => {
+  const whereClause = tagFilterKeys.reduce((accumulator, key) => {
     if (key === "tags") {
-      return acc;
+      return accumulator;
     } else {
       const whereVals = tagFilterVals[key];
       const cqlKey = propOr(
@@ -183,11 +181,11 @@ export const findTxIDsFromTagFilters = async ({
       //   console.log({ whereVals });
       //   console.log("OWNER", whereVals.map(ownerToAddress));
       // }
-      const whereValsStr =
+      const whereValsString =
         whereVals.length === 1
           ? ` = '${whereVals[0]}'`
           : `IN (${whereVals.map((wv: string) => `'${wv}'`).join(",")})`;
-      return `${acc} AND ${cqlKey} ${whereValsStr}`;
+      return `${accumulator} AND ${cqlKey} ${whereValsString}`;
     }
   }, "");
   console.log(

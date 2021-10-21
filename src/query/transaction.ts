@@ -84,7 +84,7 @@ export async function getTxOffset({
       responseType: "json",
       resolveBodyOnly: true,
     });
-  } catch (error) {
+  } catch {
     coolNode(tryNode);
 
     if (retry > 100) {

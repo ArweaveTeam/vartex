@@ -460,14 +460,14 @@ function hasManifestContentType(
 ): boolean {
   let correctContentType = false;
 
-  tags.forEach(({ name, value }) => {
+  for (const { name, value } of tags) {
     if (
       ["Y29udGVudC10eXBl", "Q29udGVudC1UeXBl"].includes(name) &&
       value.startsWith("YXBwbGljYXRpb24veC5hcndlYXZlLW1hbmlmZXN0")
     ) {
       correctContentType = true;
     }
-  });
+  }
 
   return correctContentType;
 }

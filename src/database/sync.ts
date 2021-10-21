@@ -108,8 +108,7 @@ const messagePromiseReceivers: Record<string, any> = {};
 
 export const txInFlight: Record<string, number> = {};
 
-const numberOr0 = (n: typeof NaN | number | undefined): number =>
-  Number.isNaN(n) ? 0 : n;
+const numberOr0 = (n: number | undefined): number => (Number.isNaN(n) ? 0 : n);
 
 export const getTxsInFlight = (): number =>
   Object.values(txInFlight).reduce((a, b) => numberOr0(a) + numberOr0(b));
@@ -250,7 +249,10 @@ const pollNewBlocks = async (): Promise<void> => {
   if (isPaused) return;
   if (!isPollingStarted && !poller) {
     isPollingStarted = true;
-    poller = pWhilst(() => !exited, (pMinDelay as any)(pollNewBlocks, 1000));
+    poller = pWhilst(
+      () => !exited,
+      () => (pMinDelay as any)(pollNewBlocks, 1000)
+    );
     // poller = setInterval(pollNewBlocks, POLLTIME_DELAY_SECONDS * 1000);
     log.info(
       "polling for new blocks every " + POLLTIME_DELAY_SECONDS + " seconds"
@@ -419,7 +421,7 @@ export async function startSync({
           parallel(PARALLEL_WORKERS)(
             blockGap.map((height) =>
               Fluture(function (
-                reject: (msg?: string) => void,
+                reject: (message?: string) => void,
                 fresolve: () => void
               ) {
                 workerPool.single
@@ -530,7 +532,7 @@ export async function startSync({
     parallel(PARALLEL_WORKERS)(
       unsyncedBlocks.map(({ height }: { height: number }) => {
         return Fluture(function (
-          reject: (msg?: string) => void,
+          reject: (message?: string) => void,
           fresolve: () => void
         ) {
           const singleJob = workerPool.single; // you have 1 job!

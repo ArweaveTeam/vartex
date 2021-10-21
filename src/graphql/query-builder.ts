@@ -68,7 +68,7 @@ export function generateTransactionQuery(
       );
     }
   }
-  let table =
+  const table =
     parameters.sortOrder === "HEIGHT_ASC"
       ? tableId.TABLE_GQL_TX_ASC
       : tableId.TABLE_GQL_TX_DESC;

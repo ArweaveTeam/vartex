@@ -10,3 +10,5 @@ declare module "random-weighted-choice";
 declare module "fluture";
 declare module "fluture/index.js";
 declare module "cjs";
+declare module "p-whilst";
+declare module "exit-hook";

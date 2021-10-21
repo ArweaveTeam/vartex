@@ -1,4 +1,5 @@
 import got from "got";
+import { TextDecoder } from "util";
 import { b64UrlToBuffer } from "../utility/encoding";
 import { grabNode } from "./node";
 import { HTTP_TIMEOUT_SECONDS } from "../constants";

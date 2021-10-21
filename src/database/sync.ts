@@ -1,5 +1,8 @@
 import * as R from "rambda";
 import pWaitFor from "p-wait-for";
+import pMinDelay from "p-min-delay";
+import pWhilst from "p-whilst";
+import exitHook from "exit-hook";
 import Fluture, { fork, parallel } from "fluture/index.js";
 import Gauge from "gauge";
 import GaugeThemes from "gauge/themes";
@@ -236,10 +239,19 @@ async function resolveFork(previousBlock: BlockType): Promise<void> {
   }
 }
 
-async function startPolling(): Promise<void> {
+let poller: Promise<void>;
+let exited = false;
+
+exitHook(() => {
+  exited = true;
+});
+
+const pollNewBlocks = async (): Promise<void> => {
   if (isPaused) return;
-  if (!isPollingStarted) {
+  if (!isPollingStarted && !poller) {
     isPollingStarted = true;
+    poller = pWhilst(() => !exited, (pMinDelay as any)(pollNewBlocks, 1000));
+    // poller = setInterval(pollNewBlocks, POLLTIME_DELAY_SECONDS * 1000);
     log.info(
       "polling for new blocks every " + POLLTIME_DELAY_SECONDS + " seconds"
     );
@@ -248,10 +260,7 @@ async function startPolling(): Promise<void> {
   const nodeInfo = await getNodeInfo({});
 
   if (!nodeInfo) {
-    await new Promise<void>(function (resolve) {
-      setTimeout(resolve, POLLTIME_DELAY_SECONDS * 1000);
-    });
-    return startPolling();
+    return;
   }
 
   topHeight = nodeInfo.height;
@@ -264,14 +273,7 @@ async function startPolling(): Promise<void> {
     arweave_height: `${topHeight}`,
   });
 
-  if (nodeInfo.current === topHash) {
-    // wait before polling again
-
-    await new Promise<void>(function (resolve) {
-      setTimeout(resolve, POLLTIME_DELAY_SECONDS * 1000);
-    });
-    return startPolling();
-  } else {
+  if (nodeInfo.current !== topHash) {
     const currentRemoteBlock = await fetchBlockByHash(nodeInfo.current);
     const previousBlock = await fetchBlockByHash(
       currentRemoteBlock.previous_block
@@ -290,13 +292,9 @@ async function startPolling(): Promise<void> {
       log.info("blocks are back in sync!");
     } else {
       await workerPool.single.importBlock(nodeInfo.height);
-      await new Promise<void>(function (resolve) {
-        setTimeout(resolve, POLLTIME_DELAY_SECONDS * 1000);
-      });
     }
   }
-  return startPolling();
-}
+};
 
 async function detectFirstRun(): Promise<boolean> {
   const queryResponse = await cassandraClient.execute(
@@ -505,7 +503,7 @@ export async function startSync({
     );
   } else if (R.isEmpty(unsyncedBlocks)) {
     log.info("[sync] fully synced db");
-    startPolling();
+    pollNewBlocks();
     return;
   } else {
     log.info(
@@ -527,7 +525,7 @@ export async function startSync({
     process.exit(1);
   })(function () {
     log.info("Database fully in sync with block_list");
-    !isPollingStarted && startPolling();
+    !isPollingStarted && pollNewBlocks();
   })(
     parallel(PARALLEL_WORKERS)(
       unsyncedBlocks.map(({ height }: { height: number }) => {

@@ -1,4 +1,5 @@
 import * as R from "rambda";
+import pWaitFor from "p-wait-for";
 import Fluture, { fork, parallel } from "fluture/index.js";
 import Gauge from "gauge";
 import GaugeThemes from "gauge/themes";
@@ -347,7 +348,7 @@ async function startManifestImportWorker() {
   const startTime = Date.now();
   const startSeconds = Math.floor(startTime / 1000);
   try {
-    importManifestWorkerPool.single.importBlock(height);
+    importManifestWorkerPool.single.importManifests();
   } catch (error) {
     console.error(error);
   }

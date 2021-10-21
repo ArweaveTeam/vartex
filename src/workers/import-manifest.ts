@@ -178,4 +178,4 @@ export async function importManifests(): Promise<void> {
   return;
 }
 
-importManifests().then(() => process.exit(0));
+// importManifests().then(() => process.exit(0));

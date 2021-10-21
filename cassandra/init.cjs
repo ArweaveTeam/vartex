@@ -214,6 +214,7 @@ async function connect() {
           import_attempt_cnt int,
           PRIMARY KEY(tx_id)
         )`,
+
         `CREATE TABLE IF NOT EXISTS permaweb_path (
           domain_id text,
           uri_path text,

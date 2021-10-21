@@ -34,16 +34,16 @@ const PARALLEL_WORKERS = Number.isNaN(process.env["PARALLEL_WORKERS"])
 process.env.NODE_ENV !== "test" && config();
 mkdirp.sync("cache");
 
-function filterNpmFlags(object: Record<string, string>) {
-  const keyz: string[] = Object.keys(object);
-  const out: Record<string, string> = {};
-  for (const key of keyz) {
-    if (!key.startsWith("npm")) {
-      out[key] = object[key];
-    }
-  }
-  return out;
-}
+// function filterNpmFlags(object: Record<string, string>) {
+//   const keyz: string[] = Object.keys(object);
+//   const out: Record<string, string> = {};
+//   for (const key of keyz) {
+//     if (!key.startsWith("npm")) {
+//       out[key] = object[key];
+//     }
+//   }
+//   return out;
+// }
 
 interface WorkerReadyWait {
   [index: string]: {
@@ -64,8 +64,8 @@ const workerReadyPromises: WorkerReadyWait = R.range(
   return accumulator;
 }, {} as Record<string, { promise: Promise<unknown>; resolve: (_: unknown) => unknown }>) as WorkerReadyWait;
 
-const workerPool = new WorkerPool<typeof import("../workers/import-block")>(
-  process.cwd() + "/src/workers/import-block",
+const workerPool = new WorkerPool<typeof import("../workers/main")>(
+  process.cwd() + "/src/workers/main",
   {
     numWorkers: PARALLEL_WORKERS,
     logFilter: (data) =>
@@ -79,29 +79,10 @@ const workerPool = new WorkerPool<typeof import("../workers/import-block")>(
           process.cwd() + "/node_modules/ts-node/register"
         }`,
       },
-      filterNpmFlags(process.env),
+      {},
     ]),
   }
 );
-
-const importManifestWorkerPool = new WorkerPool<
-  typeof import("../workers/import-manifest")
->(process.cwd() + "/src/workers/import-manifest", {
-  numWorkers: PARALLEL_WORKERS,
-  logFilter: (data) =>
-    !/ExperimentalWarning:/.test(data) && !/node --trace-warnings/.test(data),
-  env: R.mergeAll([
-    {
-      PWD: process.cwd(),
-      TS_NODE_FILES: true,
-      NODE_PATH: process.cwd() + "/node_modules",
-      NODE_OPTIONS: `--require ${
-        process.cwd() + "/node_modules/ts-node/register"
-      }`,
-    },
-    filterNpmFlags(process.env),
-  ]),
-});
 
 /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
 const messagePromiseReceivers: Record<string, any> = {};
@@ -157,9 +138,7 @@ function onWorkerMessage(message: MessagesFromWorker, workerId: number): void {
 }
 
 /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
-(workerPool.onMessage as any) = onWorkerMessage;
-/* eslint-disable-next-line @typescript-eslint/no-explicit-any */
-(importManifestWorkerPool.onMessage as any) = onWorkerMessage;
+(workerPool.onMessage as any)(onWorkerMessage);
 
 const trackerTheme = GaugeThemes.newTheme(
   GaugeThemes({
@@ -354,17 +333,12 @@ async function startGatewayNodeMode(): Promise<void> {
 }
 
 async function startManifestImportWorker(): Promise<void> {
-  const startTime = Date.now();
-  const startSeconds = Math.floor(startTime / 1000);
   try {
-    importManifestWorkerPool.single.importManifests();
+    await (pMinDelay as any)(workerPool.single.importManifests, 120 * 1000);
   } catch (error) {
     console.error(error);
   }
-  // at least every 2 minutes
-  await pWaitFor(() => Math.floor(Date.now() / 1000) - startSeconds > 120, {
-    interval: 30 * 1000,
-  });
+
   return await startManifestImportWorker();
 }
 
@@ -376,6 +350,7 @@ export async function startSync({
   isTesting?: boolean;
 }): Promise<void> {
   session_ = session;
+
   if (isGatewayNodeModeEnabled) {
     log.info(
       "[sync] vartex gateway-node mode is enabled so no syncing will be performed (aka read-only mode)"

@@ -11,6 +11,7 @@ import { config } from "dotenv";
 import cors from "cors";
 import { log } from "./utility/log";
 import { graphServer } from "./graphql/server";
+import { dataRoute } from "./route/data";
 import {
   blockCurrentRoute,
   blockByHashRoute,
@@ -77,7 +78,7 @@ export function start(): void {
   app.post("/api", proxyPostRoute);
   app.get(/\/price.*/, proxyGetRoute);
   app.get(/\/wallet.*/, proxyGetRoute);
-  app.get(/\/[\w-]{43}/i, proxyGetRoute);
+  app.get(/\/[\w-]{43}/i, dataRoute);
 
   // graphql endpoints
   const graphqlServer = graphServer({ introspection: true });

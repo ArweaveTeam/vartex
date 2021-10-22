@@ -12,3 +12,7 @@ declare module "fluture/index.js";
 declare module "cjs";
 declare module "p-whilst";
 declare module "exit-hook";
+declare module "stream-json";
+declare module "stream-chain";
+declare module "stream-json/filters/Pick";
+declare module "stream-json/streamers/StreamValues";

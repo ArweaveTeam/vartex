@@ -51,7 +51,6 @@ export async function importManifests(): Promise<void> {
             .add(1),
           endOffset: offset,
           id: unimportedManifest.tx_id,
-          retry: true,
         });
       }
       if (buffer) {

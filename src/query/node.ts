@@ -33,6 +33,15 @@ const syncNodeTemperatures = () => {
   });
 };
 
+// iterates the nodes, high temperatures first
+export function forEachNode(index: number): string {
+  return (R.pipe as any)(
+    R.sortBy(R.prop("weight")),
+    R.nth(index % nodeTemperatures.length),
+    R.prop("id")
+  )(R.values(NODES) as WeightedNode[]);
+}
+
 export function grabNode(): string {
   R.isEmpty(nodeTemperatures) && syncNodeTemperatures();
   let randomWeightedNode = rwc(nodeTemperatures);
@@ -198,10 +207,10 @@ export async function getDataFromChunks({
   id,
   startOffset,
   endOffset,
-  retry,
+  retry = 2,
 }: {
   id: string;
-  retry?: boolean;
+  retry?: number;
   startOffset: CassandraTypes.Long;
   endOffset: CassandraTypes.Long;
 }): Promise<Buffer | undefined> {
@@ -210,41 +219,29 @@ export async function getDataFromChunks({
     let chunks = Buffer.from("");
 
     while (startOffset.add(byte).lt(endOffset)) {
-      const chunk: ChunkType | undefined = await getChunk({
-        offset: startOffset.add(byte).toString(),
-      }).catch((error) => {
-        console.error(error);
-        return undefined;
-      });
+      let chunk: ChunkType | undefined;
+      let retryCnt = 0;
+      while (!chunk && retryCnt < retry) {
+        try {
+          chunk = await getChunk({
+            offset: startOffset.add(byte).toString(),
+          });
+        } catch {
+          retryCnt += 1;
+        }
+      }
 
       if (chunk) {
         byte += chunk.parsed_chunk.length;
         chunks = Buffer.concat([chunks, chunk.response_chunk]);
       } else {
-        return retry
-          ? await getDataFromChunks({
-              id,
-              retry: false,
-              startOffset,
-              endOffset,
-            })
-          : undefined;
+        return undefined;
       }
     }
 
     return chunks;
   } catch (error) {
     console.error(error);
-    if (retry) {
-      console.error(`error retrieving data from chunks of ${id}`);
-      return await getDataFromChunks({
-        id,
-        retry: false,
-        startOffset,
-        endOffset,
-      });
-    } else {
-      return undefined;
-    }
+    return undefined;
   }
 }

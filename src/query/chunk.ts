@@ -1,7 +1,7 @@
 import got from "got";
 import { TextDecoder } from "node:util";
 import { b64UrlToBuffer } from "../utility/encoding";
-import { grabNode } from "./node";
+import { forEachNode, grabNode } from "./node";
 import { HTTP_TIMEOUT_SECONDS } from "../constants";
 
 // export interface TransactionOffsetType {
@@ -37,41 +37,52 @@ export const decoder = new TextDecoder();
 
 export async function getChunk({
   offset,
-  retry = true,
   retryCount = 5,
 }: {
   offset: string;
-  retry?: boolean;
   retryCount?: number;
 }): Promise<ChunkType | undefined> {
+  const nodeGrab = forEachNode(retryCount);
+  const mayebeMissingProtocol = nodeGrab.startsWith("http") ? "http://" : "";
+  let body: any;
+
   try {
-    const body: ChunkType | undefined = (await got
-      .get(`${grabNode()}/chunk/${offset}`, {
+    body = await got
+      .get(`${mayebeMissingProtocol}${nodeGrab}/chunk/${offset}`, {
         responseType: "json",
       })
-      .catch((error) => {
-        return undefined;
-      })) as ChunkType | undefined;
-
-    if (body) {
-      const parsed_chunk = b64UrlToBuffer(body.chunk);
-      const response_chunk = Buffer.from(parsed_chunk);
-
-      return {
-        tx_path: body.tx_path,
-        data_path: body.data_path,
-        chunk: body.chunk,
-        parsed_chunk,
-        response_chunk,
-      };
-    } else {
-      return retry && retryCount > 0
-        ? getChunk({ offset, retry: true, retryCount: retryCount - 1 })
-        : undefined;
-    }
+      .catch(() => {
+        body = undefined;
+      });
   } catch {
-    return retry && retryCount > 0
-      ? getChunk({ offset, retry: true, retryCount: retryCount - 1 })
-      : undefined;
+    body = undefined;
+  }
+
+  if (body) {
+    const parsed_chunk = b64UrlToBuffer(body.chunk);
+    const response_chunk = Buffer.from(parsed_chunk);
+
+    return {
+      tx_path: body.tx_path,
+      data_path: body.data_path,
+      chunk: body.chunk,
+      parsed_chunk,
+      response_chunk,
+    };
+  } else {
+    if (retryCount > 0) {
+      return await getChunk({
+        offset,
+        retryCount: retryCount - 1,
+      });
+    } else {
+      return undefined;
+    }
   }
 }
+
+// catch {
+//    return retry && retryCount > 0
+//      ? getChunk({ offset, retry: true, retryCount: retryCount - 1 })
+//      : undefined;
+//  }

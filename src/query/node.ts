@@ -39,7 +39,7 @@ export function forEachNode(index: number): string {
     R.sortBy(R.prop("weight")),
     R.nth(index % nodeTemperatures.length),
     R.prop("id")
-  )(R.values(NODES) as WeightedNode[]);
+  )(nodeTemperatures as WeightedNode[]);
 }
 
 export function grabNode(): string {
@@ -214,34 +214,29 @@ export async function getDataFromChunks({
   startOffset: CassandraTypes.Long;
   endOffset: CassandraTypes.Long;
 }): Promise<Buffer | undefined> {
-  try {
-    let byte = 0;
-    let chunks = Buffer.from("");
+  let byte = 0;
+  let chunks = Buffer.from("");
 
-    while (startOffset.add(byte).lt(endOffset)) {
-      let chunk: ChunkType | undefined;
-      let retryCnt = 0;
-      while (!chunk && retryCnt < retry) {
-        try {
-          chunk = await getChunk({
-            offset: startOffset.add(byte).toString(),
-          });
-        } catch {
-          retryCnt += 1;
-        }
-      }
-
-      if (chunk) {
-        byte += chunk.parsed_chunk.length;
-        chunks = Buffer.concat([chunks, chunk.response_chunk]);
-      } else {
-        return undefined;
+  while (startOffset.add(byte).lt(endOffset)) {
+    let chunk: ChunkType | undefined;
+    let retryCnt = 0;
+    while (!chunk && retryCnt < retry) {
+      try {
+        chunk = await getChunk({
+          offset: startOffset.add(byte).toString(),
+        });
+      } catch {
+        retryCnt += 1;
       }
     }
 
-    return chunks;
-  } catch (error) {
-    console.error(error);
-    return undefined;
+    if (chunk) {
+      byte += chunk.parsed_chunk.length;
+      chunks = Buffer.concat([chunks, chunk.response_chunk]);
+    } else {
+      return undefined;
+    }
   }
+
+  return chunks;
 }

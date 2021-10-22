@@ -53,7 +53,6 @@ export async function importManifests(): Promise<void> {
           endOffset: offset,
           id: unimportedManifest.tx_id,
         });
-        console.log("buffer", buffer);
       }
       if (buffer) {
         const unparsed = buffer.toString("utf8");
@@ -79,14 +78,6 @@ export async function importManifests(): Promise<void> {
           "index.path",
           validResult.data
         );
-
-        await manifestMapper.insert({
-          tx_id: unimportedManifest.tx_id,
-          manifest_type: validResult.data.manifest,
-          manifest_version: validResult.data.version,
-          manifest_index: manifestIndex,
-          manifest_paths: JSON.stringify(validResult.data.paths),
-        });
 
         let manifestIndexMatched = false;
 
@@ -143,10 +134,20 @@ export async function importManifests(): Promise<void> {
             });
           }
         }
+
+        await manifestMapper.insert({
+          tx_id: unimportedManifest.tx_id,
+          manifest_type: validResult.data.manifest,
+          manifest_version: validResult.data.version,
+          manifest_index: manifestIndex,
+          manifest_paths: JSON.stringify(validResult.data.paths),
+        });
+
         try {
           await manifestUnimportedMapper.remove({
             tx_id: unimportedManifest.tx_id,
           });
+          log(`successfully imported manifest ${unimportedManifest.tx_id}`);
         } catch (error) {
           messenger.sendMessage({
             type: "log:warn",

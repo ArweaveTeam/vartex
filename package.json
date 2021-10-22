@@ -48,7 +48,6 @@
     "cassandra-driver": "^4.6.3",
     "colors": "^1.4.0",
     "commander": "^8.2.0",
-    "concat-stream": "^2.0.0",
     "cors": "^2.8.5",
     "crypto-random-string": "^4.0.0",
     "detect-mocha": "^0.1.0",

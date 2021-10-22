@@ -133,6 +133,11 @@ export const txTagMapper = mapper.forModel("TxTag");
 
 export const txOffsetMapper = mapper.forModel("TxOffset");
 
+// export const tagsByTxId = async (
+//   txId: string
+// ): Promise<CassandraTypes.Tuple[]> => {};
+
+/*
 export const tagsByTxId = async (txId: string): Promise<UpstreamTag[]> => {
   let lastTagResponse = await txTagMapper.get({ tx_id: txId, tag_index: 0 });
   const tags: UpstreamTag[] = [];
@@ -151,5 +156,6 @@ export const tagsByTxId = async (txId: string): Promise<UpstreamTag[]> => {
   }
   return tags;
 };
+*/
 
 export { cassandraClient };

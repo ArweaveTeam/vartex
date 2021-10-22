@@ -48,6 +48,18 @@ export const session: { uuid: CassandraTypes.TimeUuid } = {
 
 export const app: Express = express();
 
+function poweredBy(_: Request, response: Response, next: () => void) {
+  response.setHeader("X-Powered-By", "Vartex");
+  if (next) {
+    next();
+  }
+}
+
+app.use(poweredBy);
+
+const dataPathRegex =
+  /^\/?([a-zA-Z0-9-_]{43})\/?$|^\/?([a-zA-Z0-9-_]{43})\/(.*)$/i;
+
 export function start(): void {
   app.set("trust proxy", 1);
 
@@ -78,8 +90,7 @@ export function start(): void {
   app.post("/api", proxyPostRoute);
   app.get(/\/price.*/, proxyGetRoute);
   app.get(/\/wallet.*/, proxyGetRoute);
-  app.get(/\/[\w-]{43}/i, dataRoute);
-
+  app.use(dataPathRegex, dataRoute);
   // graphql endpoints
   const graphqlServer = graphServer({ introspection: true });
   graphqlServer.start().then(() => {

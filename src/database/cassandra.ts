@@ -455,7 +455,7 @@ export const enqueueManifestImport = async (tx: Transaction): Promise<void> => {
     }));
 };
 
-function hasManifestContentType(
+export function hasManifestContentType(
   tags: { name: string; value: string }[]
 ): boolean {
   let correctContentType = false;

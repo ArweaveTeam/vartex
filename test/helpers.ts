@@ -41,12 +41,11 @@ export function waitForCassandra(): Promise<void> {
   });
 }
 
-const retryPort = async (port, retry = 0): Promise<void> => {
+const retryPort = async (port: number, retry = 0): Promise<void> => {
   const maxRetry = 100;
   return await new Promise((resolve) => {
     const client = net
-      .createConnection(port, "127.0.0.1")
-      .on("connect", function (error: string) {
+      .createConnection(port, "127.0.0.1", () => {
         if (retry < maxRetry) {
           new Promise((resolveRetry) => setTimeout(resolveRetry, 1)).then(
             () => {
@@ -130,7 +129,7 @@ export function nuke(): Promise<string> {
   });
 }
 
-function randomString(length) {
+function randomString(length: number) {
   let result = "";
   const characters =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
@@ -150,7 +149,7 @@ export function generateRandomMockTxs() {
     quantity: 0,
     reward: 0,
     signature: "",
-    tags: [],
+    tags: [] as string[],
     target: "",
   };
 
@@ -185,6 +184,10 @@ export function generateMockBlocks({
   totalBlocks,
   offset = 0,
   hashPrefix = "x",
+}: {
+  totalBlocks: number;
+  offset?: number;
+  hashPrefix?: string;
 }): { blocks: any[]; txs: any[] } {
   const template = {
     nonce: "n1",
@@ -195,11 +198,11 @@ export function generateMockBlocks({
     height: 0,
     hash: "_____x",
     indep_hash: hashPrefix,
-    txs: [],
+    txs: [] as any[],
     tx_root: "root1",
     wallet_list: "wl1",
     reward_addr: "xyz1",
-    tags: [],
+    tags: [] as string[],
     reward_pool: "123",
     weave_size: "123",
     block_size: "123",
@@ -214,7 +217,7 @@ export function generateMockBlocks({
   };
 
   const blockHeights = R.range(offset, offset + totalBlocks);
-  let txs = [];
+  let txs: any[] = [];
   const blocks = blockHeights.map((height) => {
     const thisTxs = generateRandomMockTxs();
     txs = R.concat(txs, thisTxs);
@@ -254,9 +257,9 @@ export async function runGatewayOnce({
   onLog?: (log: string) => boolean;
   stopCondition?: (log: string) => boolean;
 }): Promise<string> {
-  const logs = [];
+  const logs: string[] = [];
   let fullySyncPromiseResolve: any;
-  const shouldStop = (log) =>
+  const shouldStop = (log: string) =>
     stopCondition
       ? stopCondition(log.toString())
       : /fully synced db/g.test(log.toString()) ||
@@ -303,7 +306,7 @@ export async function runGatewayOnce({
   });
 }
 
-export async function setupTestNode(appState) {
+export async function setupTestNode(appState: any) {
   const app = express();
 
   app.get("/hash_list", function (req, res) {

@@ -28,7 +28,7 @@ const mapper = new Mapper(cassandraClient, {
       tables: ["block_height_by_block_hash"],
     },
     Block: {
-      keyspace: "gateway",
+      keyspace: KEYSPACE,
       tables: ["block"],
       columns: R.mergeAll([
         withDefault({ name: "cumulative_diff", fallback: "" }),
@@ -39,6 +39,14 @@ const mapper = new Mapper(cassandraClient, {
         withDefault({ name: "tx_tree", fallback: "" }),
         withDefault({ name: "txs", fallback: [] }),
       ]),
+    },
+    BlockGqlAsc: {
+      keyspace: KEYSPACE,
+      tables: ["block_gql_asc_migration_1"],
+    },
+    BlockGqlDesc: {
+      keyspace: KEYSPACE,
+      tables: ["block_gql_desc_migration_1"],
     },
     Manifest: {
       keyspace: KEYSPACE,
@@ -65,7 +73,7 @@ const mapper = new Mapper(cassandraClient, {
       ]),
     },
     Transaction: {
-      keyspace: "gateway",
+      keyspace: KEYSPACE,
       tables: ["transaction"],
       columns: R.mergeAll([
         withDefault({ name: "target", fallback: "" }),
@@ -75,6 +83,14 @@ const mapper = new Mapper(cassandraClient, {
         withDefault({ name: "format", fallback: 0 }),
         withDefault({ name: "tx_uuid", fallback: "" }),
       ]),
+    },
+    TxGqlAsc: {
+      keyspace: KEYSPACE,
+      tables: ["tx_id_gql_asc_migration_1"],
+    },
+    TxGqlDesc: {
+      keyspace: KEYSPACE,
+      tables: ["tx_id_gql_desc_migration_1"],
     },
     TxTag: {
       keyspace: KEYSPACE,
@@ -93,6 +109,10 @@ export const blockHeightToHashMapper = mapper.forModel(
 
 export const blockMapper = mapper.forModel("Block");
 
+export const blockGqlAscMapper = mapper.forModel("BlockGqlAsc");
+
+export const blockGqlDescMapper = mapper.forModel("BlockGqlDesc");
+
 export const poaMapper = mapper.forModel("Poa");
 
 export const manifestMapper = mapper.forModel("Manifest");
@@ -104,6 +124,10 @@ export const permawebPathMapper = mapper.forModel("PermawebPath");
 export const statusMapper = mapper.forModel("Status");
 
 export const transactionMapper = mapper.forModel("Transaction");
+
+export const txGqlAscMapper = mapper.forModel("TxGqlAsc");
+
+export const txGqlDescMapper = mapper.forModel("TxGqlDesc");
 
 export const txTagMapper = mapper.forModel("TxTag");
 

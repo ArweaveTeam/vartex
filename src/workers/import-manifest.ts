@@ -38,7 +38,7 @@ export async function importManifests(): Promise<void> {
 
   for await (const unimportedManifest of unimportedManifests) {
     let manifest;
-    console.error("unimportedM", unimportedManifest);
+    console.error("unimported", unimportedManifest);
     try {
       let buffer;
       console.log("offs");
@@ -79,13 +79,21 @@ export async function importManifests(): Promise<void> {
         validResult.data.manifest === "arweave/paths" &&
         ["0.0.0", "0.1.0"].includes(validResult.data.version)
       ) {
+        const manifestIndex: string = R.pathOr(
+          "",
+          "index.path",
+          validResult.data
+        );
+
         await manifestMapper.insert({
           tx_id: unimportedManifest.tx_id,
           manifest_type: validResult.data.manifest,
           manifest_version: validResult.data.version,
-          manifest_index: R.pathOr("", "index.path", validResult.data),
+          manifest_index: manifestIndex,
           manifest_paths: JSON.stringify(validResult.data.paths),
         });
+
+        let manifestIndexMatched = false;
 
         for (const pathUnescaped of Object.keys(validResult.data.paths)) {
           const { id: pathId, ext } = validResult.data.paths[pathUnescaped];
@@ -97,6 +105,7 @@ export async function importManifests(): Promise<void> {
             let contentType: string | undefined;
 
             const safePath = escape(pathUnescaped.toLowerCase());
+
             if (ext) {
               contentType = mimeLookup(ext) || undefined;
             }
@@ -113,6 +122,19 @@ export async function importManifests(): Promise<void> {
             if (!contentType) {
               contentType =
                 mimeLookup(pathUnescaped) || "application/octet-stream";
+            }
+
+            if (!manifestIndexMatched && manifestIndex === pathUnescaped) {
+              manifestIndexMatched = true;
+              permawebPathMapper.insert({
+                domain_id: unimportedManifest.tx_id,
+                target_id: tx.tx_id,
+                uri_path: "",
+                content_length: tx.data_size.toString(),
+                content_type: contentType,
+                blacklisted: false,
+                customElements: [], // maybe later?
+              });
             }
 
             permawebPathMapper.insert({

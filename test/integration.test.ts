@@ -1,3 +1,5 @@
+declare module "kill-port";
+
 import * as R from "rambda";
 import got from "got";
 import cassandra, { types as CassandraTypes } from "cassandra-driver";
@@ -270,8 +272,8 @@ describe("graphql test suite", function () {
     await helpers.initDb();
 
     let shouldStop = false;
-    let resolveReady;
-    const ready = new Promise((resolve) => {
+    let resolveReady: () => void;
+    const ready = new Promise<void>((resolve) => {
       resolveReady = resolve;
     });
 
@@ -286,7 +288,7 @@ describe("graphql test suite", function () {
     });
     await ready;
 
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    await new Promise<void>((resolve) => setTimeout(resolve, 1000));
 
     const gqlResponse = await got
       .post(`http://localhost:${PORT}/graphql`, {

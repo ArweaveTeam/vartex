@@ -295,3 +295,164 @@ export const makeTagsMapper = (cassandraClient: CassandraClient): any =>
       },
     },
   });
+
+export interface DropTagQueryParameters {
+  bundledIn: string;
+  dataItemIndex: string;
+  dataRoot: string;
+  owner: string;
+  tagName: string;
+  tagValue: string;
+  tagIndex: string;
+  target: string;
+  txId: string;
+  txIndex: string;
+}
+
+export function dropTagQuery({
+  bundledIn,
+  dataItemIndex,
+  dataRoot,
+  tagIndex,
+  tagName,
+  tagValue,
+  target,
+  txId,
+  txIndex,
+  owner,
+}: DropTagQueryParameters) {
+  const tagPair = `${tagName}-${tagValue}`;
+  const commonWhere = `WHERE tag_pair='${tagPair}' AND tx_index=${txIndex}
+                       AND data_item_index=${dataItemIndex} AND tag_index=${tagIndex}`;
+
+  return `
+    DELETE FROM ${KEYSPACE}.tx_tag_gql_asc_migration_1
+    ${commonWhere};
+    tx_tag_gql_desc_migration_1
+    ${commonWhere};
+    DELETE FROM ${KEYSPACE}.tx_tag_gql_by_tx_id_asc_migration_1
+    ${commonWhere} '${txId}';
+    DELETE FROM ${KEYSPACE}.tx_tag_gql_by_tx_id_desc_migration_1
+    ${commonWhere} '${txId}';
+    DELETE FROM ${KEYSPACE}.tx_tag_gql_by_owner_asc_migration_1
+    ${commonWhere} '${owner}';
+    DELETE FROM ${KEYSPACE}.tx_tag_gql_by_owner_desc_migration_1
+    ${commonWhere} '${owner}';
+    DELETE FROM ${KEYSPACE}.tx_tag_gql_by_target_asc_migration_1
+    ${commonWhere} '${target}';
+    DELETE FROM ${KEYSPACE}.tx_tag_gql_by_target_desc_migration_1
+    ${commonWhere} '${target}';
+    DELETE FROM ${KEYSPACE}.tx_tag_gql_by_bundled_in_asc_migration_1
+    ${commonWhere} '${bundledIn}';
+    DELETE FROM ${KEYSPACE}.tx_tag_gql_by_bundled_in_desc_migration_1
+    ${commonWhere} '${bundledIn}';
+    DELETE FROM ${KEYSPACE}.tx_tag_gql_by_data_root_asc_migration_1
+    ${commonWhere} '${dataRoot}';
+    DELETE FROM ${KEYSPACE}.tx_tag_gql_by_data_root_desc_migration_1
+    ${commonWhere} '${dataRoot}';
+    DELETE FROM ${KEYSPACE}.tx_tag_gql_by_tx_id_and_owner_asc_migration_1
+    ${commonWhere} '${txId}' '${owner}';
+    DELETE FROM ${KEYSPACE}.tx_tag_gql_by_tx_id_and_owner_desc_migration_1
+    ${commonWhere} '${txId}' '${owner}';
+    DELETE FROM ${KEYSPACE}.tx_tag_gql_by_tx_id_and_target_asc_migration_1
+    ${commonWhere} '${txId}' '${target}';
+    DELETE FROM ${KEYSPACE}.tx_tag_gql_by_tx_id_and_target_desc_migration_1
+    ${commonWhere} '${txId}' '${target}';
+    DELETE FROM ${KEYSPACE}.tx_tag_gql_by_tx_id_and_bundled_in_asc_migration_1
+    ${commonWhere} '${txId}' '${bundledIn}';
+    DELETE FROM ${KEYSPACE}.tx_tag_gql_by_tx_id_and_bundled_in_desc_migration_1
+    ${commonWhere} '${txId}' '${bundledIn}';
+    DELETE FROM ${KEYSPACE}.tx_tag_gql_by_tx_id_and_data_root_asc_migration_1
+    ${commonWhere} '${txId}' '${dataRoot}';
+    DELETE FROM ${KEYSPACE}.tx_tag_gql_by_tx_id_and_data_root_desc_migration_1
+    ${commonWhere} '${txId}' '${dataRoot}';
+    DELETE FROM ${KEYSPACE}.tx_tag_gql_by_owner_and_target_asc_migration_1
+    ${commonWhere} '${owner}' '${target}';
+    DELETE FROM ${KEYSPACE}.tx_tag_gql_by_owner_and_target_desc_migration_1
+    ${commonWhere} '${owner}' '${target}';
+    DELETE FROM ${KEYSPACE}.tx_tag_gql_by_owner_and_bundled_in_asc_migration_1
+    ${commonWhere} '${owner}' '${bundledIn}';
+    DELETE FROM ${KEYSPACE}.tx_tag_gql_by_owner_and_bundled_in_desc_migration_1
+    ${commonWhere} '${owner}' '${bundledIn}';
+    DELETE FROM ${KEYSPACE}.tx_tag_gql_by_owner_and_data_root_asc_migration_1
+    ${commonWhere} '${owner}' '${dataRoot}';
+    DELETE FROM ${KEYSPACE}.tx_tag_gql_by_owner_and_data_root_desc_migration_1
+    ${commonWhere} '${owner}' '${dataRoot}';
+    DELETE FROM ${KEYSPACE}.tx_tag_gql_by_target_and_bundled_in_asc_migration_1
+    ${commonWhere} '${target}' '${bundledIn}';
+    DELETE FROM ${KEYSPACE}.tx_tag_gql_by_target_and_bundled_in_desc_migration_1
+    ${commonWhere} '${target}' '${bundledIn}';
+    DELETE FROM ${KEYSPACE}.tx_tag_gql_by_target_and_data_root_asc_migration_1
+    ${commonWhere} '${target}' '${dataRoot}';
+    DELETE FROM ${KEYSPACE}.tx_tag_gql_by_target_and_data_root_desc_migration_1
+    ${commonWhere} '${target}' '${dataRoot}';
+    DELETE FROM ${KEYSPACE}.tx_tag_gql_by_bundled_in_and_data_root_asc_migration_1
+    ${commonWhere} '${bundledIn}' '${dataRoot}';
+    DELETE FROM ${KEYSPACE}.tx_tag_gql_by_bundled_in_and_data_root_desc_migration_1
+    ${commonWhere} '${bundledIn}' '${dataRoot}';
+    DELETE FROM ${KEYSPACE}.tx_tag_gql_by_tx_id_and_owner_and_target_asc_migration_1
+    ${commonWhere} '${txId}' '${owner}' '${target}';
+    DELETE FROM ${KEYSPACE}.tx_tag_gql_by_tx_id_and_owner_and_target_desc_migration_1
+    ${commonWhere} '${txId}' '${owner}' '${target}';
+    DELETE FROM ${KEYSPACE}.tx_tag_gql_by_tx_id_and_owner_and_bundled_in_asc_migration_1
+    ${commonWhere} '${txId}' '${owner}' '${bundledIn}';
+    DELETE FROM ${KEYSPACE}.tx_tag_gql_by_tx_id_and_owner_and_bundled_in_desc_migration_1
+    ${commonWhere} '${txId}' '${owner}' '${bundledIn}';
+    DELETE FROM ${KEYSPACE}.tx_tag_gql_by_tx_id_and_owner_and_data_root_asc_migration_1
+    ${commonWhere} '${txId}' '${owner}' '${dataRoot}';
+    DELETE FROM ${KEYSPACE}.tx_tag_gql_by_tx_id_and_owner_and_data_root_desc_migration_1
+    ${commonWhere} '${txId}' '${owner}' '${dataRoot}';
+    DELETE FROM ${KEYSPACE}.tx_tag_gql_by_tx_id_and_target_and_bundled_in_asc_migration_1
+    ${commonWhere} '${txId}' '${target}' '${bundledIn}';
+    DELETE FROM ${KEYSPACE}.tx_tag_gql_by_tx_id_and_target_and_bundled_in_desc_migration_1
+    ${commonWhere} '${txId}' '${target}' '${bundledIn}';
+    DELETE FROM ${KEYSPACE}.tx_tag_gql_by_tx_id_and_target_and_data_root_asc_migration_1
+    ${commonWhere} '${txId}' '${target}' '${dataRoot}';
+    DELETE FROM ${KEYSPACE}.tx_tag_gql_by_tx_id_and_target_and_data_root_desc_migration_1
+    ${commonWhere} '${txId}' '${target}' '${dataRoot}';
+    DELETE FROM ${KEYSPACE}.tx_tag_gql_by_tx_id_and_bundled_in_and_data_root_asc_migration_1
+    ${commonWhere} '${txId}' '${bundledIn}' '${dataRoot}';
+    DELETE FROM ${KEYSPACE}.tx_tag_gql_by_tx_id_and_bundled_in_and_data_root_desc_migration_1
+    ${commonWhere} '${txId}' '${bundledIn}' '${dataRoot}';
+    DELETE FROM ${KEYSPACE}.tx_tag_gql_by_owner_and_target_and_bundled_in_asc_migration_1
+    ${commonWhere} '${owner}' '${target}' '${bundledIn}';
+    DELETE FROM ${KEYSPACE}.tx_tag_gql_by_owner_and_target_and_bundled_in_desc_migration_1
+    ${commonWhere} '${owner}' '${target}' '${bundledIn}';
+    DELETE FROM ${KEYSPACE}.tx_tag_gql_by_owner_and_target_and_data_root_asc_migration_1
+    ${commonWhere} '${owner}' '${target}' '${dataRoot}';
+    DELETE FROM ${KEYSPACE}.tx_tag_gql_by_owner_and_target_and_data_root_desc_migration_1
+    ${commonWhere} '${owner}' '${target}' '${dataRoot}';
+    DELETE FROM ${KEYSPACE}.tx_tag_gql_by_owner_and_bundled_in_and_data_root_asc_migration_1
+    ${commonWhere} '${owner}' '${bundledIn}' '${dataRoot}';
+    DELETE FROM ${KEYSPACE}.tx_tag_gql_by_owner_and_bundled_in_and_data_root_desc_migration_1
+    ${commonWhere} '${owner}' '${bundledIn}' '${dataRoot}';
+    DELETE FROM ${KEYSPACE}.tx_tag_gql_by_target_and_bundled_in_and_data_root_asc_migration_1
+    ${commonWhere} '${target}' '${bundledIn}' '${dataRoot}';
+    DELETE FROM ${KEYSPACE}.tx_tag_gql_by_target_and_bundled_in_and_data_root_desc_migration_1
+    ${commonWhere} '${target}' '${bundledIn}' '${dataRoot}';
+    DELETE FROM ${KEYSPACE}.tx_tag_gql_by_tx_id_and_owner_and_target_and_bundled_in_asc_migration_1
+    ${commonWhere} '${txId}' '${owner}' '${target}' '${bundledIn}';
+    DELETE FROM ${KEYSPACE}.tx_tag_gql_by_tx_id_and_owner_and_target_and_bundled_in_desc_migration_1
+    ${commonWhere} '${txId}' '${owner}' '${target}' '${bundledIn}';
+    DELETE FROM ${KEYSPACE}.tx_tag_gql_by_tx_id_and_owner_and_target_and_data_root_asc_migration_1
+    ${commonWhere} '${txId}' '${owner}' '${target}' '${dataRoot}';
+    DELETE FROM ${KEYSPACE}.tx_tag_gql_by_tx_id_and_owner_and_target_and_data_root_desc_migration_1
+    ${commonWhere} '${txId}' '${owner}' '${target}' '${dataRoot}';
+    DELETE FROM ${KEYSPACE}.tx_tag_gql_by_tx_id_and_owner_and_bundled_in_and_data_root_asc_migration_1
+    ${commonWhere} '${txId}' '${owner}' '${bundledIn}' '${dataRoot}';
+    DELETE FROM ${KEYSPACE}.tx_tag_gql_by_tx_id_and_owner_and_bundled_in_and_data_root_desc_migration_1
+    ${commonWhere} '${txId}' '${owner}' '${bundledIn}' '${dataRoot}';
+    DELETE FROM ${KEYSPACE}.tx_tag_gql_by_tx_id_and_target_and_bundled_in_and_data_root_asc_migration_1
+    ${commonWhere} '${txId}' '${target}' '${bundledIn}' '${dataRoot}';
+    DELETE FROM ${KEYSPACE}.tx_tag_gql_by_tx_id_and_target_and_bundled_in_and_data_root_desc_migration_1
+    ${commonWhere} '${txId}' '${target}' '${bundledIn}' '${dataRoot}';
+    DELETE FROM ${KEYSPACE}.tx_tag_gql_by_owner_and_target_and_bundled_in_and_data_root_asc_migration_1
+    ${commonWhere} '${owner}' '${target}' '${bundledIn}' '${dataRoot}';
+    DELETE FROM ${KEYSPACE}.tx_tag_gql_by_owner_and_target_and_bundled_in_and_data_root_desc_migration_1
+    ${commonWhere} '${owner}' '${target}' '${bundledIn}' '${dataRoot}';
+    DELETE FROM ${KEYSPACE}.tx_tag_gql_by_tx_id_and_owner_and_target_and_bundled_in_and_data_root_asc_migration_1
+    ${commonWhere} '${txId}' '${owner}' '${target}' '${bundledIn}' '${dataRoot}';
+    DELETE FROM ${KEYSPACE}.tx_tag_gql_by_tx_id_and_owner_and_target_and_bundled_in_and_data_root_desc_migration_1
+    ${commonWhere} '${txId}' '${owner}' '${target}' '${bundledIn}' '${dataRoot}';
+`;
+}

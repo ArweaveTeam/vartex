@@ -13,6 +13,8 @@ import {
   POLLTIME_DELAY_SECONDS,
   isGatewayNodeModeEnabled,
 } from "../constants";
+import * as CONST from "./constants";
+import { fromB64Url, isValidUTF8, ownerToAddress } from "../utility/encoding";
 import { log } from "../utility/log";
 import mkdirp from "mkdirp";
 import { WorkerPool } from "../gatsby-worker";
@@ -20,8 +22,29 @@ import { MessagesFromWorker } from "../workers/message-types";
 import { getHashList, getNodeInfo } from "../query/node";
 import { BlockType, fetchBlockByHash } from "../query/block";
 import { UnsyncedBlock } from "../types/cassandra";
-import { cassandraClient, getMaxHeightBlock, toLong } from "./cassandra";
-import { statusMapper } from "./mapper";
+import {
+  cassandraClient,
+  getMaxHeightBlock,
+  hasManifestContentType,
+  toLong,
+} from "./cassandra";
+import {
+  blockMapper,
+  blockHeightToHashMapper,
+  blockGqlAscMapper,
+  blockGqlDescMapper,
+  manifestMapper,
+  manifestUnimportedMapper,
+  permawebPathMapper,
+  poaMapper,
+  statusMapper,
+  transactionMapper,
+  txGqlAscMapper,
+  txGqlDescMapper,
+  txTagMapper,
+  txOffsetMapper,
+} from "./mapper";
+import { DropTagQueryParameters, dropTagQuery } from "./tags-mapper";
 import * as Dr from "./doctor";
 
 let gauge_: any;
@@ -184,35 +207,194 @@ async function resolveFork(previousBlock: BlockType): Promise<void> {
   );
 
   if (blockQueryResult.rowLength > 0) {
-    cassandraClient.eachRow(
-      `SELECT height, indep_hash
-       FROM ${KEYSPACE}.block
-       WHERE height > ${blockQueryResult.rows[0].height.toString()} ALLOW FILTERING`,
+    log.info("fork diverges at " + blockQueryResult.rows[0].height.toString());
+    const result = await cassandraClient.execute(
+      `SELECT block_height,block_hash
+       FROM ${KEYSPACE}.block_height_by_block_hash
+       WHERE block_height > ${blockQueryResult.rows[0].height.toString()}
+       ALLOW FILTERING`,
       [],
-      {
-        autoPage: true,
-        prepare: false,
-        executionProfile: "fast",
-      },
-      async function (n, row) {
-        await cassandraClient.execute(
-          `DELETE
-           FROM ${KEYSPACE}.block
-           WHERE indep_hash = '${row.indep_hash}'`
-        );
-      },
-
-      function () {
-        isPaused = false;
-        log.info(
-          "fork diverges at " +
-            blockQueryResult.rows[0].height.toString() +
-            " waiting for missing blocks to be imported..."
-        );
-      }
+      { prepare: true }
     );
+
+    for await (const block of result) {
+      log.info(
+        `[fork recovery] removing data from abandoned block: ${block.block_hash} at height ${block.block_height}`
+      );
+      const abandonedBlock = await blockMapper.get({
+        indep_hash: block.block_hash,
+      });
+      await poaMapper.remove(block);
+      await blockMapper.remove({ indep_hash: block.block_hash });
+      await blockHeightToHashMapper.remove({
+        block_height: block.block_height,
+      });
+
+      // BlockGqlAsc
+      const txGqlBlockAscPartitionId = CONST.getGqlBlockHeightAscPartitionName(
+        block.block_height
+      );
+      const txGqlBlockAscBucketName = CONST.getGqlBlockHeightAscBucketName(
+        block.block_height
+      );
+      const txGqlBlockAscBucketNumber = CONST.getGqlBlockHeightAscBucketNumber(
+        block.block_height
+      );
+
+      await blockGqlAscMapper.remove({
+        partition_id: txGqlBlockAscPartitionId,
+        bucket_id: txGqlBlockAscBucketName,
+        bucket_number: txGqlBlockAscBucketNumber,
+        height: block.block_height,
+      });
+
+      // BlockGqlDesc
+      const txGqlBlockDescPartitionId =
+        CONST.getGqlBlockHeightDescPartitionName(block.block_height);
+      const txGqlBlockDescBucketName = CONST.getGqlBlockHeightDescBucketName(
+        block.block_height
+      );
+      const txGqlBlockDescBucketNumber =
+        CONST.getGqlBlockHeightDescBucketNumber(block.block_height);
+
+      await blockGqlDescMapper.remove({
+        partition_id: txGqlBlockDescPartitionId,
+        bucket_id: txGqlBlockDescBucketName,
+        bucket_number: txGqlBlockDescBucketNumber,
+        height: block.block_height,
+      });
+
+      if (!R.isEmpty(abandonedBlock.txs)) {
+        for (const abandonedTx of abandonedBlock.txs) {
+          const txGqlAscPart = CONST.getGqlTxIdAscPartitionName(
+            block.block_height
+          );
+          const txGqlAscBucketId = CONST.getGqlTxIdAscBucketName(
+            block.block_height
+          );
+          const txGqlAscBucketNumber = CONST.getGqlTxIdAscBucketNumber(
+            block.block_height
+          );
+          await txGqlAscMapper.remove({
+            tx_index: abandonedTx.tx_index,
+            partition_id: txGqlAscPart,
+            bucket_id: txGqlAscBucketId,
+            bucket_number: txGqlAscBucketNumber,
+          });
+
+          const txGqlDescPart = CONST.getGqlTxIdDescPartitionName(
+            block.block_height
+          );
+          const txGqlDescBucketId = CONST.getGqlTxIdDescBucketName(
+            block.block_height
+          );
+          const txGqlDescBucketNumber = CONST.getGqlTxIdDescBucketNumber(
+            block.block_height
+          );
+          await txGqlDescMapper.remove({
+            tx_index: abandonedTx.tx_index,
+            partition_id: txGqlDescPart,
+            bucket_id: txGqlDescBucketId,
+            bucket_number: txGqlDescBucketNumber,
+          });
+
+          await txOffsetMapper.remove({ tx_id: abandonedTx.tx_id });
+
+          if (
+            abandonedTx.tags &&
+            Array.isArray(abandonedTx.tags) &&
+            !R.isEmpty(abandonedTx.tags)
+          ) {
+            const abandonedTxTags = abandonedTx.tag.map(
+              (t: CassandraTypes.Tuple) => t.values
+            );
+            const isManifest = hasManifestContentType(abandonedTxTags);
+            let index = 0;
+
+            for (const abandonedTag of abandonedTxTags) {
+              const [tagName, tagValue] = abandonedTag;
+
+              const txGqlTagPart = CONST.getTxTagPartitionName(
+                block.block_height
+              );
+              const txGqlTagBucketId = CONST.getTxTagBucketName(
+                block.block_height
+              );
+              const txGqlTagBucketNumber = CONST.getTxTagBucketNumber(
+                block.block_height
+              );
+
+              await txTagMapper.remove({
+                partition_id: txGqlTagPart,
+                bucket_id: txGqlTagBucketId,
+                bucket_number: txGqlTagBucketNumber,
+                tx_index: abandonedTx.tx_index,
+                tag_index: index,
+              });
+              const owner = ownerToAddress(abandonedTx.owner);
+              const tagDropParams: DropTagQueryParameters = {
+                tagName,
+                tagValue,
+                owner,
+                bundledIn: abandonedTx.bundled_in,
+                dataItemIndex: "0",
+                dataRoot: abandonedTx.data_root,
+                tagIndex: `${index}`,
+                target: abandonedTx.target,
+                txId: abandonedTx.tx_id,
+                txIndex: abandonedTx.tx_id,
+              };
+              await dropTagQuery(tagDropParams);
+              index += 1;
+            }
+            if (isManifest) {
+              const maybeManifest = await manifestMapper.get({
+                tx_id: abandonedTx.tx_id,
+              });
+
+              if (maybeManifest) {
+                const manifestPaths = JSON.parse(maybeManifest.manifest_paths);
+                const manifestFiles = Object.keys(manifestPaths);
+
+                if (manifestFiles.includes(maybeManifest.manifest_index)) {
+                  await permawebPathMapper.remove({
+                    domain_id: abandonedTx.tx_id,
+                    uri_path: "",
+                  });
+                }
+                for (const manifestFile of manifestFiles) {
+                  await permawebPathMapper.remove({
+                    domain_id: abandonedTx.tx_id,
+                    uri_path: escape(manifestFile),
+                  });
+                }
+              }
+              await manifestUnimportedMapper.remove(
+                { tx_id: abandonedTx.tx_id },
+                { ifExists: true }
+              );
+            }
+          }
+        }
+      }
+    }
+
+    log.info(
+      `[fork recovery] abandoned blocks removal done, re-importing missing blocks...`
+    );
+
+    const nodeInfo = await getNodeInfo({});
+    for (const newForkHeight of R.range(
+      blockQueryResult.rows[0].height.toInt() + 1,
+      typeof nodeInfo.height === "number"
+        ? nodeInfo.height
+        : parseInt(nodeInfo.height)
+    )) {
+      await workerPool.single.importBlock(newForkHeight);
+    }
+
+    log.info(`[fork recovery] all done!`);
   } else {
-    workerPool.single.importBlock(pprevBlock.height);
     return await resolveFork(pprevBlock);
   }
 }
@@ -334,7 +516,7 @@ async function startGatewayNodeMode(): Promise<void> {
 
 async function startManifestImportWorker(): Promise<void> {
   try {
-    await (pMinDelay as any)(workerPool.single.importManifests, 120 * 1000);
+    await (pMinDelay as any)(workerPool.single.importManifests(), 120 * 1000);
   } catch (error) {
     console.error(error);
   }

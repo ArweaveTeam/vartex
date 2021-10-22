@@ -50,7 +50,6 @@ export async function getChunk({
         responseType: "json",
       })
       .catch((error) => {
-        console.error(error);
         return undefined;
       })) as ChunkType | undefined;
 

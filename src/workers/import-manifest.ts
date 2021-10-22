@@ -28,7 +28,7 @@ if (messenger) {
 const log = mkWorkerLog(messenger);
 
 export async function importManifests(): Promise<void> {
-  log("starting manifest import");
+  log("doing manifest import");
 
   const unimportedManifests = await cassandraClient.execute(
     `SELECT * FROM ${KEYSPACE}.manifest_unimported`,
@@ -38,23 +38,13 @@ export async function importManifests(): Promise<void> {
 
   for await (const unimportedManifest of unimportedManifests) {
     let manifest;
-    console.error("unimported", unimportedManifest);
+
     try {
       let buffer;
-      console.log("offs");
       const offsetData = await getTxOffset({ txId: unimportedManifest.tx_id });
-      console.log("offsdone", offsetData);
+
       if (offsetData) {
         const offset = CassandraTypes.Long.fromString(offsetData.offset);
-        console.log("prefetch", {
-          startOffset: offset
-            .subtract(CassandraTypes.Long.fromString(offsetData.size))
-            .add(1)
-            .toString(),
-          endOffset: offset.toString(),
-          id: unimportedManifest.tx_id,
-          retry: true,
-        });
         buffer = await getDataFromChunks({
           startOffset: offset
             .subtract(CassandraTypes.Long.fromString(offsetData.size))
@@ -63,22 +53,18 @@ export async function importManifests(): Promise<void> {
           id: unimportedManifest.tx_id,
           retry: true,
         });
-        console.log("postfetch", buffer);
       }
       if (buffer) {
         const unparsed = buffer.toString("utf8");
-        console.error(unparsed);
         manifest = JSON.parse(unparsed);
       }
     } catch (error) {
-      console.error(error);
       messenger.sendMessage({
         type: "log:warn",
         message: "error while downloading manifest from chunks",
         payload: error,
       });
     }
-    console.log("postfetch man o good", manifest);
     if (manifest) {
       // validate
       const validResult = ManifestV010.safeParse(manifest);
@@ -192,8 +178,8 @@ export async function importManifests(): Promise<void> {
         }
       }
     } else {
-      // 500 times, will be minimum 1k minutes of attempting import
-      await (unimportedManifest.import_attempt_cnt || 0 < 500
+      // 10000 retries, that should settle the deal
+      await (unimportedManifest.import_attempt_cnt || 0 < 10000
         ? manifestUnimportedMapper.update({
             tx_id: unimportedManifest.tx_id,
             import_attempt_cnt:

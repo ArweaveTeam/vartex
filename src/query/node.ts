@@ -152,7 +152,11 @@ export async function getHashList({
 }): Promise<string[] | undefined> {
   const tryNode = grabNode();
   const url = `${tryNode}/hash_list`;
-  log.info("[database] fetching the hash_list, this may take a while...");
+
+  if (retry < 1) {
+    // looks very wrong when this is repeatedly printed
+    log.info("[database] fetching the hash_list, this may take a while...");
+  }
 
   try {
     const body: string[] = await got.get(url, {

@@ -57,17 +57,6 @@ const PARALLEL_WORKERS = Number.isNaN(process.env["PARALLEL_WORKERS"])
 process.env.NODE_ENV !== "test" && config();
 mkdirp.sync("cache");
 
-// function filterNpmFlags(object: Record<string, string>) {
-//   const keyz: string[] = Object.keys(object);
-//   const out: Record<string, string> = {};
-//   for (const key of keyz) {
-//     if (!key.startsWith("npm")) {
-//       out[key] = object[key];
-//     }
-//   }
-//   return out;
-// }
-
 interface WorkerReadyWait {
   [index: string]: {
     promise: Promise<void>;
@@ -654,7 +643,8 @@ export async function startSync({
   // isImportCacheGcRunning = false;
 
   // wait a minute until starting to poll for unimported manifest
-  setTimeout(startManifestImportWorker, 60 * 1000);
+  !process.env.OFFLOAD_MANIFEST_IMPORT &&
+    setTimeout(startManifestImportWorker, 60 * 1000);
 
   if (firstRun) {
     log.info(

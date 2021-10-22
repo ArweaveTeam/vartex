@@ -37,6 +37,7 @@ export async function importManifests(): Promise<void> {
   );
 
   for await (const unimportedManifest of unimportedManifests) {
+    log(`importing manifest ${unimportedManifest.tx_id}`);
     let manifest;
 
     try {
@@ -52,6 +53,7 @@ export async function importManifests(): Promise<void> {
           endOffset: offset,
           id: unimportedManifest.tx_id,
         });
+        console.log("buffer", buffer);
       }
       if (buffer) {
         const unparsed = buffer.toString("utf8");
@@ -177,16 +179,23 @@ export async function importManifests(): Promise<void> {
         }
       }
     } else {
-      // 10000 retries, that should settle the deal
-      await (unimportedManifest.import_attempt_cnt || 0 < 10000
-        ? manifestUnimportedMapper.update({
-            tx_id: unimportedManifest.tx_id,
-            import_attempt_cnt:
-              (unimportedManifest.import_attempt_cnt || 0) + 1,
-          })
-        : manifestUnimportedMapper.remove({
-            tx_id: unimportedManifest.tx_id,
-          }));
+      const numRetries = 10000;
+      if ((unimportedManifest.import_attempt_cnt || 0) < numRetries) {
+        log(
+          `failed to fetch chunked data for ${unimportedManifest.tx_id} will try again later...`
+        );
+        await manifestUnimportedMapper.update({
+          tx_id: unimportedManifest.tx_id,
+          import_attempt_cnt: (unimportedManifest.import_attempt_cnt || 0) + 1,
+        });
+      } else {
+        log(
+          `failed to fetch chunked data for ${unimportedManifest.tx_id} and I will not attempt to do so again now that this failed ${numRetries} times!`
+        );
+        await manifestUnimportedMapper.remove({
+          tx_id: unimportedManifest.tx_id,
+        });
+      }
     }
   }
   return;

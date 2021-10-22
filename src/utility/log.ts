@@ -17,7 +17,6 @@ export const mkWorkerLog = (
   messenger: IGatsbyWorkerMessenger<MessagesFromParent, MessagesFromWorker>
 ): any => {
   return function (message: string, context?: unknown) {
-    context ? console.log(message, context) : console.log(message);
     if (messenger) {
       messenger.sendMessage({
         type: "log:info",

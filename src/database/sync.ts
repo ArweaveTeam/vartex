@@ -332,7 +332,7 @@ async function resolveFork(previousBlock: BlockType): Promise<void> {
                 tag_index: index,
               });
               const owner = ownerToAddress(abandonedTx.owner);
-              const tagDropParams: DropTagQueryParameters = {
+              const tagDropParameters: DropTagQueryParameters = {
                 tagName,
                 tagValue,
                 owner,
@@ -344,7 +344,7 @@ async function resolveFork(previousBlock: BlockType): Promise<void> {
                 txId: abandonedTx.tx_id,
                 txIndex: abandonedTx.tx_id,
               };
-              await dropTagQuery(tagDropParams);
+              await dropTagQuery(tagDropParameters);
               index += 1;
             }
             if (isManifest) {
@@ -388,7 +388,7 @@ async function resolveFork(previousBlock: BlockType): Promise<void> {
       blockQueryResult.rows[0].height.toInt() + 1,
       typeof nodeInfo.height === "number"
         ? nodeInfo.height
-        : parseInt(nodeInfo.height)
+        : Number.parseInt(nodeInfo.height)
     )) {
       await workerPool.single.importBlock(newForkHeight);
     }

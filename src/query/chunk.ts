@@ -48,13 +48,10 @@ export async function getChunk({
     const body: ChunkType | undefined = (await got
       .get(`${grabNode()}/chunk/${offset}`, {
         responseType: "json",
-        resolveBodyOnly: true,
-        timeout: HTTP_TIMEOUT_SECONDS * 1000,
-        followRedirect: true,
       })
       .catch((error) => {
         console.error(error);
-        return;
+        return undefined;
       })) as ChunkType | undefined;
 
     if (body) {
@@ -69,9 +66,13 @@ export async function getChunk({
         response_chunk,
       };
     } else {
-      return retry && retryCount > 0 ? getChunk({ offset, retry: true, retryCount: retryCount - 1 }) : undefined;
+      return retry && retryCount > 0
+        ? getChunk({ offset, retry: true, retryCount: retryCount - 1 })
+        : undefined;
     }
   } catch {
-    return retry && retryCount > 0 ? getChunk({ offset, retry: true, retryCount: retryCount - 1 }) : undefined;
+    return retry && retryCount > 0
+      ? getChunk({ offset, retry: true, retryCount: retryCount - 1 })
+      : undefined;
   }
 }

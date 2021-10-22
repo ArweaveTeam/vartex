@@ -46,7 +46,15 @@ export async function importManifests(): Promise<void> {
       console.log("offsdone", offsetData);
       if (offsetData) {
         const offset = CassandraTypes.Long.fromString(offsetData.offset);
-        console.log("prefetch");
+        console.log("prefetch", {
+          startOffset: offset
+            .subtract(CassandraTypes.Long.fromString(offsetData.size))
+            .add(1)
+            .toString(),
+          endOffset: offset.toString(),
+          id: unimportedManifest.tx_id,
+          retry: true,
+        });
         buffer = await getDataFromChunks({
           startOffset: offset
             .subtract(CassandraTypes.Long.fromString(offsetData.size))

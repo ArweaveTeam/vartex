@@ -212,7 +212,7 @@ export async function getDataFromChunks({
         console.error(error);
         return undefined;
       });
-      console.error(chunk);
+
       if (chunk) {
         byte += chunk.parsed_chunk.length;
         chunks = Buffer.concat([chunks, chunk.response_chunk]);

@@ -161,8 +161,8 @@ export async function dataRoute(
       txId = manifestedIndex.target_id;
       manifestSubpathContentType = manifestedIndex.content_type;
     } else {
-      response.sendStatus(404);
-      return;
+      // optimistic fallback
+      txId = firstPath;
     }
   }
 

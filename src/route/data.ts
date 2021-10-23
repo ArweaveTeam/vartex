@@ -10,6 +10,7 @@ import StreamJsonValues from "stream-json/streamers/StreamValues";
 import {
   manifestMapper,
   manifestUnimportedMapper,
+  permawebPathMapper,
   transactionMapper,
   txOffsetMapper,
 } from "../database/mapper";
@@ -22,12 +23,10 @@ import { grabNode } from "../query/node";
 import { utf8DecodeTag, utf8DecodeTupleTag } from "../utility/encoding";
 
 class B64Transform extends Transform {
-  protected extra: string;
   protected iterLength: number;
 
   constructor(startOffset: number) {
     super();
-    this.extra = "";
     this.iterLength = startOffset;
   }
 
@@ -36,27 +35,16 @@ class B64Transform extends Transform {
     chunk = "" + chunk;
 
     // Add previous extra and remove any newline characters
-    chunk = this.extra + chunk.replace(/(\r\n|\n|\r)/gm, "");
+    chunk = chunk.replace(/(\r\n|\n|\r)/gm, "");
 
-    // 4 characters represent 3 bytes, so we can only decode in groups of 4 chars
-    const remaining = chunk.length % 4;
-
-    // Store the extra chars for later
-    this.extra = chunk.slice(chunk.length - remaining);
-    chunk = chunk.slice(0, chunk.length - remaining);
-
-    // Create the new buffer and push
-    const buf = Buffer.from(chunk, "base64");
+    const buf = Buffer.from(chunk, "base64url");
     this.iterLength += buf.length;
     this.push(buf);
+
     cb();
   }
 
   _flush(cb: any) {
-    if (this.extra.length) {
-      this.push(Buffer.from(this.extra, "base64"));
-    }
-
     cb();
   }
 }
@@ -121,6 +109,8 @@ function recurNextChunk(
       );
     } else {
       head<any>(pipeline.streams)._expect = "done";
+      // last<any>(pipeline.streams)._flush();
+      // console.log(Object.keys(pipeline));
       pipeline.on("end", response.end.bind(response));
       pipeline.end();
     }
@@ -173,19 +163,23 @@ export async function dataRoute(
       for (const tag of tags as { name: string; value: string }[]) {
         if (tag.name.toLowerCase() === "content-type") {
           if (tag.value.startsWith("application/x.arweave-manifest")) {
-            const maybeManifest = await manifestMapper.get({
-              tx_id: txId,
+            const maybeIndex = await permawebPathMapper.get({
+              domain_id: txId,
+              uri_path: "",
             });
-            if (
-              maybeManifest &&
-              maybeManifest.manifest_index &&
-              lastJmp !== maybeManifest.manifest_index
-            ) {
-              lastJmp = txId;
-              txId = maybeManifest.manifest_index;
-              break RESOLVE_DATA;
+
+            if (maybeIndex) {
+              txId = maybeIndex.target_id;
+              contentType = maybeIndex.content_type;
+              offset = await txOffsetMapper.get({
+                tx_id: maybeIndex.target_id,
+              });
+
+              if (!offset) {
+                offset = await getTxOffset({ txId: maybeIndex.target_id });
+              }
             } else if (
-              !maybeManifest &&
+              !maybeIndex &&
               (await manifestUnimportedMapper.get({ tx_id: txId }))
             ) {
               response.statusMessage = "Pending import";

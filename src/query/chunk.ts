@@ -43,7 +43,7 @@ export async function getChunk({
   retryCount?: number;
 }): Promise<ChunkType | undefined> {
   const nodeGrab = forEachNode(retryCount);
-  const mayebeMissingProtocol = nodeGrab.startsWith("http") ? "http://" : "";
+  const mayebeMissingProtocol = nodeGrab.startsWith("http") ? "" : "http://";
   let body: any;
 
   try {

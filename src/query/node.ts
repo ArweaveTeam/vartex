@@ -35,6 +35,10 @@ const syncNodeTemperatures = () => {
 
 // iterates the nodes, high temperatures first
 export function forEachNode(index: number): string {
+  if (R.isEmpty(nodeTemperatures)) {
+    syncNodeTemperatures();
+  }
+
   return (R.pipe as any)(
     R.sortBy(R.prop("weight")),
     R.nth(index % nodeTemperatures.length),

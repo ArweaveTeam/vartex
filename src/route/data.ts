@@ -19,7 +19,7 @@ import {
   getTransaction,
   getTxOffset,
 } from "../query/transaction";
-import { grabNode } from "../query/node";
+import { forEachNode } from "../query/node";
 import { utf8DecodeTag, utf8DecodeTupleTag } from "../utility/encoding";
 
 class B64Transform extends Transform {
@@ -57,8 +57,9 @@ function recurNextChunk(
   retry = 0
 ) {
   const passThru = new PassThrough();
+  const nodeGrab: string = forEachNode(retry);
 
-  const chunkStream = got.stream(`${grabNode()}/chunk/${nextOffset}`, {
+  const chunkStream = got.stream(`${nodeGrab}/chunk/${nextOffset}`, {
     followRedirect: true,
   });
 
@@ -117,49 +118,75 @@ function recurNextChunk(
   });
 }
 
+// C6IyOj4yAaJPaV8KuOG2jdf4gQCmpPisuE3eAUBdcUs
 export async function dataRoute(
   request: Request,
   response: Response,
   next: (error?: string) => void
 ): Promise<void> {
-  const firstPath = request.params["0"];
+  let firstPath: string;
+  let subPath: string;
+
+  if (request.params["0"]) {
+    firstPath = request.params["0"];
+  } else if (!request.params["0"] && request.params["1"]) {
+    firstPath = request.params["1"];
+    if (request.params["2"]) {
+      subPath = request.params["2"];
+    }
+  }
 
   if (!firstPath) {
     response.sendStatus(404);
     return;
   }
 
-  let lastJmp: string;
   let txId = firstPath;
+  let manifestSubpathContentType: string;
 
-  // goto like it's 1975
-  RESOLVE_DATA: {
-    const txDb = await transactionMapper.get({ tx_id: txId });
-    let txUpstream: TransactionType | undefined;
-
-    if (!txDb) {
-      try {
-        txUpstream = await getTransaction({ txId, retry: 2 });
-      } catch {
-        console.error(`tx ${txId} wasn't found`);
-        response.sendStatus(404);
-        return;
-      }
+  if (subPath) {
+    const manifestedSubpath = await permawebPathMapper.get({
+      domain_id: txId,
+      uri_path: subPath,
+    });
+    if (manifestedSubpath) {
+      txId = manifestedSubpath.target_id;
+      manifestSubpathContentType = manifestedSubpath.content_type;
+    } else {
+      response.sendStatus(404);
+      return;
     }
+  }
 
-    let offset = await txOffsetMapper.get({ tx_id: txId });
+  const txDb = await transactionMapper.get({ tx_id: txId });
+  let txUpstream: TransactionType | undefined;
 
-    if (!offset) {
-      offset = await getTxOffset({ txId });
+  if (!txDb) {
+    try {
+      txUpstream = await getTransaction({ txId, retry: 2 });
+    } catch {
+      console.error(`tx ${txId} wasn't found`);
+      response.sendStatus(404);
+      return;
     }
+  }
 
-    if (offset) {
-      const tags = txUpstream
-        ? txUpstream.tags.map(utf8DecodeTag)
-        : txDb.tags.map(utf8DecodeTupleTag);
-      let contentType: string;
-      let filename: string;
+  let offset = await txOffsetMapper.get({ tx_id: txId });
 
+  if (!offset) {
+    offset = await getTxOffset({ txId });
+  }
+
+  if (offset) {
+    const tags = txUpstream
+      ? txUpstream.tags.map(utf8DecodeTag)
+      : txDb.tags.map(utf8DecodeTupleTag);
+    let contentType: string;
+    let filename: string;
+
+    if (manifestSubpathContentType) {
+      contentType = manifestSubpathContentType;
+    } else {
       for (const tag of tags as { name: string; value: string }[]) {
         if (tag.name.toLowerCase() === "content-type") {
           if (tag.value.startsWith("application/x.arweave-manifest")) {
@@ -171,6 +198,7 @@ export async function dataRoute(
             if (maybeIndex) {
               txId = maybeIndex.target_id;
               contentType = maybeIndex.content_type;
+
               offset = await txOffsetMapper.get({
                 tx_id: maybeIndex.target_id,
               });
@@ -198,39 +226,39 @@ export async function dataRoute(
           contentType = mimeLookup(tag.value) || undefined;
         }
       }
-
-      const size = parseInt(offset.size);
-      const endOffset = parseInt(offset.offset);
-      const startOffset = endOffset - size + 1;
-
-      response.set({
-        "Content-Type": contentType || "text/plain",
-        "Content-Length": size,
-      });
-
-      const b64Transform = new B64Transform(startOffset);
-      const streamJsonParser = StreamJson.parser();
-
-      const pipeline = StreamChain.chain([
-        streamJsonParser,
-        StreamJsonPick.pick({ filter: "chunk" }),
-        StreamJsonValues.streamValues(),
-        prop("value"),
-        b64Transform,
-      ]);
-
-      pipeline.pipe(response);
-      response.on("error", () => {
-        response.end();
-      });
-      pipeline.on("error", () => {
-        response.end();
-      });
-
-      recurNextChunk(response, pipeline, endOffset, startOffset);
-    } else {
-      console.error(`offset for ${txId} wasn't found`);
-      response.sendStatus(404);
     }
+
+    const size = parseInt(offset.size);
+    const endOffset = parseInt(offset.offset);
+    const startOffset = endOffset - size + 1;
+
+    response.set({
+      "Content-Type": contentType || "text/plain",
+      "Content-Length": size,
+    });
+
+    const b64Transform = new B64Transform(startOffset);
+    const streamJsonParser = StreamJson.parser();
+
+    const pipeline = StreamChain.chain([
+      streamJsonParser,
+      StreamJsonPick.pick({ filter: "chunk" }),
+      StreamJsonValues.streamValues(),
+      prop("value"),
+      b64Transform,
+    ]);
+
+    pipeline.pipe(response);
+    response.on("error", () => {
+      response.end();
+    });
+    pipeline.on("error", () => {
+      response.end();
+    });
+
+    recurNextChunk(response, pipeline, endOffset, startOffset);
+  } else {
+    console.error(`offset for ${txId} wasn't found`);
+    response.sendStatus(404);
   }
 }

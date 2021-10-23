@@ -6,6 +6,7 @@ import path from "node:path";
 import exitHook from "exit-hook";
 import killPort from "kill-port";
 import express, { Express, Request, Response } from "express";
+import expressSlash from "express-trailing-slash";
 import gpmeImport from "graphql-playground-middleware-express";
 import { config } from "dotenv";
 import cors from "cors";
@@ -55,10 +56,49 @@ function poweredBy(_: Request, response: Response, next: () => void) {
   }
 }
 
+app.enable("strict routing");
+
 app.use(poweredBy);
 
-const dataPathRegex =
-  /^\/?([a-zA-Z0-9-_]{43})\/?$|^\/?([a-zA-Z0-9-_]{43})\/(.*)$/i;
+// app.use(expressSlash());
+
+const dataPathRegex = new RegExp(
+  /^\/?([a-zA-Z0-9-_]{43})\/?$|^\/?([a-zA-Z0-9-_]{43})\/(.*)$/i
+);
+
+// lack of slash causes permaweb apps to fetch from root domain.com/
+// and not domain.com/path/
+function appendSlashMiddleware(
+  request: Request,
+  response: Response,
+  next: () => void
+) {
+  const method = request.method.toLowerCase();
+
+  // Skip when the req method is neither a GET nor a HEAD
+  if (!["get", "head"].includes(method)) {
+    next();
+    return;
+  }
+
+  if (request.path.split("/").pop().includes(".")) {
+    // Path has an extension. Do not add slash.
+    next();
+    return;
+  }
+
+  // 44 = / + txid
+  if (request.path.length === 44 && request.path.substr(-1) !== "/") {
+    const query = request.url.slice(request.path.length);
+    response.redirect(301, `${request.path}/${query}`);
+    return;
+  } else {
+    next();
+    return;
+  }
+}
+
+app.use(appendSlashMiddleware);
 
 export function start(): void {
   app.set("trust proxy", 1);

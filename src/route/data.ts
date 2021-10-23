@@ -145,6 +145,10 @@ export async function dataRoute(
   let manifestSubpathContentType: string;
 
   if (subPath) {
+    const manifestedIndex = await permawebPathMapper.get({
+      domain_id: txId,
+      uri_path: "",
+    });
     const manifestedSubpath = await permawebPathMapper.get({
       domain_id: txId,
       uri_path: subPath,
@@ -152,6 +156,10 @@ export async function dataRoute(
     if (manifestedSubpath) {
       txId = manifestedSubpath.target_id;
       manifestSubpathContentType = manifestedSubpath.content_type;
+    } else if (manifestedIndex) {
+      // SPA handle routing via index
+      txId = manifestedIndex.target_id;
+      manifestSubpathContentType = manifestedIndex.content_type;
     } else {
       response.sendStatus(404);
       return;

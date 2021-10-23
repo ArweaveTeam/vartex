@@ -401,7 +401,13 @@ const pollNewBlocks = async (): Promise<void> => {
     isPollingStarted = true;
     poller = pWhilst(
       () => !exited,
-      () => (pMinDelay as any)(pollNewBlocks, 1000)
+      async () => {
+        try {
+          await (pMinDelay as any)(pollNewBlocks(), 120 * 1000);
+        } catch (error) {
+          console.error(error);
+        }
+      }
     );
     // poller = setInterval(pollNewBlocks, POLLTIME_DELAY_SECONDS * 1000);
     log.info(

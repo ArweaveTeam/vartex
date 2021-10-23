@@ -230,12 +230,14 @@ async function resolveFork(previousBlock: BlockType): Promise<void> {
         block.block_height
       );
 
-      await blockGqlAscMapper.remove({
-        partition_id: txGqlBlockAscPartitionId,
-        bucket_id: txGqlBlockAscBucketName,
-        bucket_number: txGqlBlockAscBucketNumber,
-        height: block.block_height,
-      });
+      try {
+        await blockGqlAscMapper.remove({
+          partition_id: txGqlBlockAscPartitionId,
+          bucket_id: txGqlBlockAscBucketName,
+          bucket_number: txGqlBlockAscBucketNumber,
+          height: block.block_height,
+        });
+      } catch {}
 
       // BlockGqlDesc
       const txGqlBlockDescPartitionId =
@@ -246,12 +248,14 @@ async function resolveFork(previousBlock: BlockType): Promise<void> {
       const txGqlBlockDescBucketNumber =
         CONST.getGqlBlockHeightDescBucketNumber(block.block_height);
 
-      await blockGqlDescMapper.remove({
-        partition_id: txGqlBlockDescPartitionId,
-        bucket_id: txGqlBlockDescBucketName,
-        bucket_number: txGqlBlockDescBucketNumber,
-        height: block.block_height,
-      });
+      try {
+        await blockGqlDescMapper.remove({
+          partition_id: txGqlBlockDescPartitionId,
+          bucket_id: txGqlBlockDescBucketName,
+          bucket_number: txGqlBlockDescBucketNumber,
+          height: block.block_height,
+        });
+      } catch {}
 
       if (!R.isEmpty(abandonedBlock.txs)) {
         for (const abandonedTx of abandonedBlock.txs) {
@@ -264,12 +268,14 @@ async function resolveFork(previousBlock: BlockType): Promise<void> {
           const txGqlAscBucketNumber = CONST.getGqlTxIdAscBucketNumber(
             block.block_height
           );
-          await txGqlAscMapper.remove({
-            tx_index: abandonedTx.tx_index,
-            partition_id: txGqlAscPart,
-            bucket_id: txGqlAscBucketId,
-            bucket_number: txGqlAscBucketNumber,
-          });
+          try {
+            await txGqlAscMapper.remove({
+              tx_index: abandonedTx.tx_index,
+              partition_id: txGqlAscPart,
+              bucket_id: txGqlAscBucketId,
+              bucket_number: txGqlAscBucketNumber,
+            });
+          } catch {}
 
           const txGqlDescPart = CONST.getGqlTxIdDescPartitionName(
             block.block_height
@@ -280,14 +286,19 @@ async function resolveFork(previousBlock: BlockType): Promise<void> {
           const txGqlDescBucketNumber = CONST.getGqlTxIdDescBucketNumber(
             block.block_height
           );
-          await txGqlDescMapper.remove({
-            tx_index: abandonedTx.tx_index,
-            partition_id: txGqlDescPart,
-            bucket_id: txGqlDescBucketId,
-            bucket_number: txGqlDescBucketNumber,
-          });
 
-          await txOffsetMapper.remove({ tx_id: abandonedTx.tx_id });
+          try {
+            await txGqlDescMapper.remove({
+              tx_index: abandonedTx.tx_index,
+              partition_id: txGqlDescPart,
+              bucket_id: txGqlDescBucketId,
+              bucket_number: txGqlDescBucketNumber,
+            });
+          } catch {}
+
+          try {
+            await txOffsetMapper.remove({ tx_id: abandonedTx.tx_id });
+          } catch {}
 
           if (
             abandonedTx.tags &&
@@ -313,13 +324,16 @@ async function resolveFork(previousBlock: BlockType): Promise<void> {
                 block.block_height
               );
 
-              await txTagMapper.remove({
-                partition_id: txGqlTagPart,
-                bucket_id: txGqlTagBucketId,
-                bucket_number: txGqlTagBucketNumber,
-                tx_index: abandonedTx.tx_index,
-                tag_index: index,
-              });
+              try {
+                await txTagMapper.remove({
+                  partition_id: txGqlTagPart,
+                  bucket_id: txGqlTagBucketId,
+                  bucket_number: txGqlTagBucketNumber,
+                  tx_index: abandonedTx.tx_index,
+                  tag_index: index,
+                });
+              } catch {}
+
               const owner = ownerToAddress(abandonedTx.owner);
               const tagDropParameters: DropTagQueryParameters = {
                 tagName,
@@ -346,22 +360,28 @@ async function resolveFork(previousBlock: BlockType): Promise<void> {
                 const manifestFiles = Object.keys(manifestPaths);
 
                 if (manifestFiles.includes(maybeManifest.manifest_index)) {
-                  await permawebPathMapper.remove({
-                    domain_id: abandonedTx.tx_id,
-                    uri_path: "",
-                  });
+                  try {
+                    await permawebPathMapper.remove({
+                      domain_id: abandonedTx.tx_id,
+                      uri_path: "",
+                    });
+                  } catch {}
                 }
                 for (const manifestFile of manifestFiles) {
-                  await permawebPathMapper.remove({
-                    domain_id: abandonedTx.tx_id,
-                    uri_path: escape(manifestFile),
-                  });
+                  try {
+                    await permawebPathMapper.remove({
+                      domain_id: abandonedTx.tx_id,
+                      uri_path: escape(manifestFile),
+                    });
+                  } catch {}
                 }
               }
-              await manifestUnimportedMapper.remove(
-                { tx_id: abandonedTx.tx_id },
-                { ifExists: true }
-              );
+              try {
+                await manifestUnimportedMapper.remove(
+                  { tx_id: abandonedTx.tx_id },
+                  { ifExists: true }
+                );
+              } catch {}
             }
           }
         }

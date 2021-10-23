@@ -6,7 +6,6 @@ import path from "node:path";
 import exitHook from "exit-hook";
 import killPort from "kill-port";
 import express, { Express, Request, Response } from "express";
-import expressSlash from "express-trailing-slash";
 import gpmeImport from "graphql-playground-middleware-express";
 import { config } from "dotenv";
 import cors from "cors";

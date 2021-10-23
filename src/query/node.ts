@@ -229,7 +229,7 @@ export async function getDataFromChunks({
     }
 
     if (chunk) {
-      byte += chunk.chunk.length;
+      byte += chunk.chunkSize;
       chunks = Buffer.concat([chunks, chunk.chunk]);
     } else {
       error = true;

@@ -15,6 +15,7 @@ export interface ChunkType {
   tx_path: string;
   data_path: string;
   chunk: Uint8Array;
+  chunkSize: number;
 }
 
 // export const decoder = new TextDecoder();
@@ -61,6 +62,7 @@ export async function getChunk({
     return {
       tx_path: body.tx_path,
       data_path: body.data_path,
+      chunkSize: body.chunk.length,
       chunk: B64js.toByteArray(body.chunk),
     };
   } else {

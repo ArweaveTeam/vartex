@@ -49,7 +49,11 @@ export async function getChunk({
     .get(`${mayebeMissingProtocol}${nodeGrab}/chunk/${offset}`, {
       responseType: "json",
     })
-    .catch((error: string) => {
+    .catch((error: any) => {
+      console.error(
+        `${mayebeMissingProtocol}${nodeGrab}/chunk/${offset}`,
+        error.message
+      );
       body = undefined;
     });
 

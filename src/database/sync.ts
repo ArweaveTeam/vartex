@@ -182,9 +182,9 @@ let isPollingStarted = false;
 // let isImportCacheGcRunning = true; // true because we want to wait before starting periodic gc runs
 let isPaused = false;
 
-export function togglePause(): void {
-  isPaused = !isPaused;
-}
+// export function togglePause(): void {
+//   isPaused = !isPaused;
+// }
 
 async function resolveFork(previousBlock: BlockType): Promise<void> {
   isPaused = true;

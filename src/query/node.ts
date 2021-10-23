@@ -207,36 +207,35 @@ export async function getDataFromChunks({
   id,
   startOffset,
   endOffset,
-  retry = 2,
 }: {
   id: string;
-  retry?: number;
   startOffset: CassandraTypes.Long;
   endOffset: CassandraTypes.Long;
 }): Promise<Buffer | undefined> {
   let byte = 0;
   let chunks = Buffer.from("");
+  let error = false;
 
-  while (startOffset.add(byte).lt(endOffset)) {
+  while (!error && startOffset.add(byte).lt(endOffset)) {
     let chunk: ChunkType | undefined;
-    let retryCnt = 0;
-    while (!chunk && retryCnt < retry) {
-      try {
-        chunk = await getChunk({
-          offset: startOffset.add(byte).toString(),
-        });
-      } catch {
-        retryCnt += 1;
-      }
+
+    try {
+      chunk = await getChunk({
+        offset: startOffset.add(byte).toString(),
+      });
+    } catch {
+      error = true;
+      break;
     }
 
     if (chunk) {
-      byte += chunk.parsed_chunk.length;
-      chunks = Buffer.concat([chunks, chunk.response_chunk]);
+      byte += chunk.chunk.length;
+      chunks = Buffer.concat([chunks, chunk.chunk]);
     } else {
-      return undefined;
+      error = true;
+      break;
     }
   }
 
-  return chunks;
+  return error ? undefined : chunks;
 }

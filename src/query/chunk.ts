@@ -1,6 +1,7 @@
 import got from "got";
-import { TextDecoder } from "node:util";
-import { b64UrlToBuffer } from "../utility/encoding";
+import * as B64js from "base64-js";
+// import { TextDecoder } from "node:util";
+// import { b64UrlToBuffer } from "../utility/encoding";
 import { forEachNode, grabNode } from "./node";
 import { HTTP_TIMEOUT_SECONDS } from "../constants";
 
@@ -13,12 +14,10 @@ import { HTTP_TIMEOUT_SECONDS } from "../constants";
 export interface ChunkType {
   tx_path: string;
   data_path: string;
-  chunk: string;
-  parsed_chunk: Uint8Array;
-  response_chunk: Buffer;
+  chunk: Uint8Array;
 }
 
-export const decoder = new TextDecoder();
+// export const decoder = new TextDecoder();
 
 // export async function getTransactionOffset(id: string): Promise<TransactionOffsetType> {
 //   const payload = await get(`${grabNode()}/tx/${id}/offset`);
@@ -46,28 +45,19 @@ export async function getChunk({
   const mayebeMissingProtocol = nodeGrab.startsWith("http") ? "" : "http://";
   let body: any;
 
-  try {
-    body = await got
-      .get(`${mayebeMissingProtocol}${nodeGrab}/chunk/${offset}`, {
-        responseType: "json",
-      })
-      .catch(() => {
-        body = undefined;
-      });
-  } catch {
-    body = undefined;
-  }
+  body = await got
+    .get(`${mayebeMissingProtocol}${nodeGrab}/chunk/${offset}`, {
+      responseType: "json",
+    })
+    .catch((error: string) => {
+      body = undefined;
+    });
 
-  if (body) {
-    const parsed_chunk = b64UrlToBuffer(body.chunk);
-    const response_chunk = Buffer.from(parsed_chunk);
-
+  if (body && typeof body === "object") {
     return {
       tx_path: body.tx_path,
       data_path: body.data_path,
-      chunk: body.chunk,
-      parsed_chunk,
-      response_chunk,
+      chunk: B64js.toByteArray(body.chunk),
     };
   } else {
     if (retryCount > 0) {

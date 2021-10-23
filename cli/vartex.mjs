@@ -29,9 +29,18 @@ async function importBlock(height) {
   const exitCode = await execa("_import-block", [height]);
   if (exitCode === 0) {
     console.log(`block ${height} was successfully imported`);
-    done();
   } else {
     console.log(`block ${height} couldn't be imported`);
+    process.exit(exitCode);
+  }
+}
+
+async function importManifest(txId) {
+  const exitCode = await execa("_import-manifest", [txId]);
+  if (exitCode === 0) {
+    console.log(`manifest ${txId} was successfully imported`);
+  } else {
+    console.log(`manifest ${txId} couldn't be imported`);
     process.exit(exitCode);
   }
 }
@@ -59,10 +68,13 @@ async function main() {
 
   program
     .command("import-block <height>")
-    .description(
-      "import block manually into database (mostly for internal usage)"
-    )
+    .description("a one shot action to import block manually into database")
     .action(importBlock);
+
+  program
+    .command("import-manifest <txid>")
+    .description("a one shot action import manifest into database")
+    .action(importManifest);
 
   await program.parseAsync(process.argv);
 }

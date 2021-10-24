@@ -423,7 +423,7 @@ const pollNewBlocks = async (): Promise<void> => {
       () => !exited,
       async () => {
         try {
-          await (pMinDelay as any)(pollNewBlocks(), 120 * 1000);
+          await (pMinDelay as any)(await pollNewBlocks(), 120 * 1000);
         } catch (error) {
           console.error(error);
         }

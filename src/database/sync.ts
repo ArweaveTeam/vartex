@@ -197,6 +197,12 @@ async function resolveFork(previousBlock: BlockType): Promise<void> {
 
   if (blockQueryResult.rowLength > 0) {
     log.info("fork diverges at " + blockQueryResult.rows[0].height.toString());
+    if (getTxsInFlight() > 0) {
+      log.info(
+        "waiting for " + getTxsInFlight() + " txs in flight to settle..."
+      );
+      await pWaitFor(() => getTxsInFlight() === 0, { interval: 200 });
+    }
     const result = await cassandraClient.execute(
       `SELECT block_height,block_hash
        FROM ${KEYSPACE}.block_height_by_block_hash

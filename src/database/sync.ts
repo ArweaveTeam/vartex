@@ -41,7 +41,6 @@ import {
   transactionMapper,
   txGqlAscMapper,
   txGqlDescMapper,
-  txTagMapper,
   txOffsetMapper,
 } from "./mapper";
 import { DropTagQueryParameters, dropTagQuery } from "./tags-mapper";
@@ -320,26 +319,6 @@ async function resolveFork(previousBlock: BlockType): Promise<void> {
             for (const abandonedTag of abandonedTxTags) {
               const [tagName, tagValue] = abandonedTag;
 
-              const txGqlTagPart = CONST.getTxTagPartitionName(
-                block.block_height
-              );
-              const txGqlTagBucketId = CONST.getTxTagBucketName(
-                block.block_height
-              );
-              const txGqlTagBucketNumber = CONST.getTxTagBucketNumber(
-                block.block_height
-              );
-
-              try {
-                await txTagMapper.remove({
-                  partition_id: txGqlTagPart,
-                  bucket_id: txGqlTagBucketId,
-                  bucket_number: txGqlTagBucketNumber,
-                  tx_index: abandonedTx.tx_index,
-                  tag_index: index,
-                });
-              } catch {}
-
               const owner = ownerToAddress(abandonedTx.owner);
               const tagDropParameters: DropTagQueryParameters = {
                 tagName,
@@ -399,6 +378,7 @@ async function resolveFork(previousBlock: BlockType): Promise<void> {
     );
 
     const nodeInfo = await getNodeInfo({});
+
     for (const newForkHeight of R.range(
       blockQueryResult.rows[0].height.toInt() + 1,
       typeof nodeInfo.height === "number"

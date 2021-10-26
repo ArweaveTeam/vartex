@@ -7,110 +7,101 @@ import { KEYSPACE } from "../constants";
 const filtersToTable: { [direction: string]: Record<string, string> } = {
   HEIGHT_ASC: {
     bundledId_dataRoots_ids_owners_recipients_tags:
-      "tx_tag_gql_by_tx_id_and_owner_and_target_and_bundled_in_and_data_root_asc_migration_1",
+      "tx_tag_gql_by_tx_id_and_owner_and_target_and_bundled_in_and_data_root_asc",
     bundledId_dataRoots_owners_recipients_tags:
-      "tx_tag_gql_by_owner_and_target_and_bundled_in_and_data_root_asc_migration_1",
+      "tx_tag_gql_by_owner_and_target_and_bundled_in_and_data_root_asc",
     bundledId_dataRoots_ids_recipients_tags:
-      "tx_tag_gql_by_tx_id_and_target_and_bundled_in_and_data_root_asc_migration_1",
+      "tx_tag_gql_by_tx_id_and_target_and_bundled_in_and_data_root_asc",
     bundledId_dataRoots_ids_owners_tags:
-      "tx_tag_gql_by_tx_id_and_owner_and_bundled_in_and_data_root_asc_migration_1",
+      "tx_tag_gql_by_tx_id_and_owner_and_bundled_in_and_data_root_asc",
     dataRoots_ids_owners_recipients_tags:
-      "tx_tag_gql_by_tx_id_and_owner_and_target_and_data_root_asc_migration_1",
+      "tx_tag_gql_by_tx_id_and_owner_and_target_and_data_root_asc",
     bundledId_ids_owners_recipients_tags:
-      "tx_tag_gql_by_tx_id_and_owner_and_target_and_bundled_in_asc_migration_1",
+      "tx_tag_gql_by_tx_id_and_owner_and_target_and_bundled_in_asc",
     bundledId_dataRoots_recipients_tags:
-      "tx_tag_gql_by_target_and_bundled_in_and_data_root_asc_migration_1",
+      "tx_tag_gql_by_target_and_bundled_in_and_data_root_asc",
     bundledId_dataRoots_owners_tags:
-      "tx_tag_gql_by_owner_and_bundled_in_and_data_root_asc_migration_1",
+      "tx_tag_gql_by_owner_and_bundled_in_and_data_root_asc",
     dataRoots_owners_recipients_tags:
-      "tx_tag_gql_by_owner_and_target_and_data_root_asc_migration_1",
+      "tx_tag_gql_by_owner_and_target_and_data_root_asc",
     bundledId_owners_recipients_tags:
-      "tx_tag_gql_by_owner_and_target_and_bundled_in_asc_migration_1",
+      "tx_tag_gql_by_owner_and_target_and_bundled_in_asc",
     bundledId_dataRoots_ids_tags:
-      "tx_tag_gql_by_tx_id_and_bundled_in_and_data_root_asc_migration_1",
+      "tx_tag_gql_by_tx_id_and_bundled_in_and_data_root_asc",
     dataRoots_ids_recipients_tags:
-      "tx_tag_gql_by_tx_id_and_target_and_data_root_asc_migration_1",
+      "tx_tag_gql_by_tx_id_and_target_and_data_root_asc",
     bundledId_ids_recipients_tags:
-      "tx_tag_gql_by_tx_id_and_target_and_bundled_in_asc_migration_1",
+      "tx_tag_gql_by_tx_id_and_target_and_bundled_in_asc",
     dataRoots_ids_owners_tags:
-      "tx_tag_gql_by_tx_id_and_owner_and_data_root_asc_migration_1",
+      "tx_tag_gql_by_tx_id_and_owner_and_data_root_asc",
     bundledId_ids_owners_tags:
-      "tx_tag_gql_by_tx_id_and_owner_and_bundled_in_asc_migration_1",
-    ids_owners_recipients_tags:
-      "tx_tag_gql_by_tx_id_and_owner_and_target_asc_migration_1",
-    bundledId_dataRoots_tags:
-      "tx_tag_gql_by_bundled_in_and_data_root_asc_migration_1",
-    dataRoots_recipients_tags:
-      "tx_tag_gql_by_target_and_data_root_asc_migration_1",
-    bundledId_recipients_tags:
-      "tx_tag_gql_by_target_and_bundled_in_asc_migration_1",
-    dataRoots_owners_tags: "tx_tag_gql_by_owner_and_data_root_asc_migration_1",
-    bundledId_owners_tags: "tx_tag_gql_by_owner_and_bundled_in_asc_migration_1",
-    owners_recipients_tags: "tx_tag_gql_by_owner_and_target_asc_migration_1",
-    dataRoots_ids_tags: "tx_tag_gql_by_tx_id_and_data_root_asc_migration_1",
-    bundledId_ids_tags: "tx_tag_gql_by_tx_id_and_bundled_in_asc_migration_1",
-    ids_recipients_tags: "tx_tag_gql_by_tx_id_and_target_asc_migration_1",
-    ids_owners_tags: "tx_tag_gql_by_tx_id_and_owner_asc_migration_1",
-    dataRoots_tags: "tx_tag_gql_by_data_root_asc_migration_1",
-    bundledId_tags: "tx_tag_gql_by_bundled_in_asc_migration_1",
-    recipients_tags: "tx_tag_gql_by_target_asc_migration_1",
-    owners_tags: "tx_tag_gql_by_owner_asc_migration_1",
-    ids_tags: "tx_tag_gql_by_tx_id_asc_migration_1",
-    tags: "tx_tag_gql_asc_migration_1",
+      "tx_tag_gql_by_tx_id_and_owner_and_bundled_in_asc",
+    ids_owners_recipients_tags: "tx_tag_gql_by_tx_id_and_owner_and_target_asc",
+    bundledId_dataRoots_tags: "tx_tag_gql_by_bundled_in_and_data_root_asc",
+    dataRoots_recipients_tags: "tx_tag_gql_by_target_and_data_root_asc",
+    bundledId_recipients_tags: "tx_tag_gql_by_target_and_bundled_in_asc",
+    dataRoots_owners_tags: "tx_tag_gql_by_owner_and_data_root_asc",
+    bundledId_owners_tags: "tx_tag_gql_by_owner_and_bundled_in_asc",
+    owners_recipients_tags: "tx_tag_gql_by_owner_and_target_asc",
+    dataRoots_ids_tags: "tx_tag_gql_by_tx_id_and_data_root_asc",
+    bundledId_ids_tags: "tx_tag_gql_by_tx_id_and_bundled_in_asc",
+    ids_recipients_tags: "tx_tag_gql_by_tx_id_and_target_asc",
+    ids_owners_tags: "tx_tag_gql_by_tx_id_and_owner_asc",
+    dataRoots_tags: "tx_tag_gql_by_data_root_asc",
+    bundledId_tags: "tx_tag_gql_by_bundled_in_asc",
+    recipients_tags: "tx_tag_gql_by_target_asc",
+    owners_tags: "tx_tag_gql_by_owner_asc",
+    ids_tags: "tx_tag_gql_by_tx_id_asc",
+    tags: "tx_tag_gql_asc",
   },
   HEIGHT_DESC: {
     bundledId_dataRoots_ids_owners_recipients_tags:
-      "tx_tag_gql_by_tx_id_and_owner_and_target_and_bundled_in_and_data_root_desc_migration_1",
+      "tx_tag_gql_by_tx_id_and_owner_and_target_and_bundled_in_and_data_root_desc",
     bundledId_dataRoots_owners_recipients_tags:
-      "tx_tag_gql_by_owner_and_target_and_bundled_in_and_data_root_desc_migration_1",
+      "tx_tag_gql_by_owner_and_target_and_bundled_in_and_data_root_desc",
     bundledId_dataRoots_ids_recipients_tags:
-      "tx_tag_gql_by_tx_id_and_target_and_bundled_in_and_data_root_desc_migration_1",
+      "tx_tag_gql_by_tx_id_and_target_and_bundled_in_and_data_root_desc",
     bundledId_dataRoots_ids_owners_tags:
-      "tx_tag_gql_by_tx_id_and_owner_and_bundled_in_and_data_root_desc_migration_1",
+      "tx_tag_gql_by_tx_id_and_owner_and_bundled_in_and_data_root_desc",
     dataRoots_ids_owners_recipients_tags:
-      "tx_tag_gql_by_tx_id_and_owner_and_target_and_data_root_desc_migration_1",
+      "tx_tag_gql_by_tx_id_and_owner_and_target_and_data_root_desc",
     bundledId_ids_owners_recipients_tags:
-      "tx_tag_gql_by_tx_id_and_owner_and_target_and_bundled_in_desc_migration_1",
+      "tx_tag_gql_by_tx_id_and_owner_and_target_and_bundled_in_desc",
     bundledId_dataRoots_recipients_tags:
-      "tx_tag_gql_by_target_and_bundled_in_and_data_root_desc_migration_1",
+      "tx_tag_gql_by_target_and_bundled_in_and_data_root_desc",
     bundledId_dataRoots_owners_tags:
-      "tx_tag_gql_by_owner_and_bundled_in_and_data_root_desc_migration_1",
+      "tx_tag_gql_by_owner_and_bundled_in_and_data_root_desc",
     dataRoots_owners_recipients_tags:
-      "tx_tag_gql_by_owner_and_target_and_data_root_desc_migration_1",
+      "tx_tag_gql_by_owner_and_target_and_data_root_desc",
     bundledId_owners_recipients_tags:
-      "tx_tag_gql_by_owner_and_target_and_bundled_in_desc_migration_1",
+      "tx_tag_gql_by_owner_and_target_and_bundled_in_desc",
     bundledId_dataRoots_ids_tags:
-      "tx_tag_gql_by_tx_id_and_bundled_in_and_data_root_desc_migration_1",
+      "tx_tag_gql_by_tx_id_and_bundled_in_and_data_root_desc",
     dataRoots_ids_recipients_tags:
-      "tx_tag_gql_by_tx_id_and_target_and_data_root_desc_migration_1",
+      "tx_tag_gql_by_tx_id_and_target_and_data_root_desc",
     bundledId_ids_recipients_tags:
-      "tx_tag_gql_by_tx_id_and_target_and_bundled_in_desc_migration_1",
+      "tx_tag_gql_by_tx_id_and_target_and_bundled_in_desc",
     dataRoots_ids_owners_tags:
-      "tx_tag_gql_by_tx_id_and_owner_and_data_root_desc_migration_1",
+      "tx_tag_gql_by_tx_id_and_owner_and_data_root_desc",
     bundledId_ids_owners_tags:
-      "tx_tag_gql_by_tx_id_and_owner_and_bundled_in_desc_migration_1",
-    ids_owners_recipients_tags:
-      "tx_tag_gql_by_tx_id_and_owner_and_target_desc_migration_1",
-    bundledId_dataRoots_tags:
-      "tx_tag_gql_by_bundled_in_and_data_root_desc_migration_1",
-    dataRoots_recipients_tags:
-      "tx_tag_gql_by_target_and_data_root_desc_migration_1",
-    bundledId_recipients_tags:
-      "tx_tag_gql_by_target_and_bundled_in_desc_migration_1",
-    dataRoots_owners_tags: "tx_tag_gql_by_owner_and_data_root_desc_migration_1",
-    bundledId_owners_tags:
-      "tx_tag_gql_by_owner_and_bundled_in_desc_migration_1",
-    owners_recipients_tags: "tx_tag_gql_by_owner_and_target_desc_migration_1",
-    dataRoots_ids_tags: "tx_tag_gql_by_tx_id_and_data_root_desc_migration_1",
-    bundledId_ids_tags: "tx_tag_gql_by_tx_id_and_bundled_in_desc_migration_1",
-    ids_recipients_tags: "tx_tag_gql_by_tx_id_and_target_desc_migration_1",
-    ids_owners_tags: "tx_tag_gql_by_tx_id_and_owner_desc_migration_1",
-    dataRoots_tags: "tx_tag_gql_by_data_root_desc_migration_1",
-    bundledId_tags: "tx_tag_gql_by_bundled_in_desc_migration_1",
-    recipients_tags: "tx_tag_gql_by_target_desc_migration_1",
-    owners_tags: "tx_tag_gql_by_owner_desc_migration_1",
-    ids_tags: "tx_tag_gql_by_tx_id_desc_migration_1",
-    tags: "tx_tag_gql_desc_migration_1",
+      "tx_tag_gql_by_tx_id_and_owner_and_bundled_in_desc",
+    ids_owners_recipients_tags: "tx_tag_gql_by_tx_id_and_owner_and_target_desc",
+    bundledId_dataRoots_tags: "tx_tag_gql_by_bundled_in_and_data_root_desc",
+    dataRoots_recipients_tags: "tx_tag_gql_by_target_and_data_root_desc",
+    bundledId_recipients_tags: "tx_tag_gql_by_target_and_bundled_in_desc",
+    dataRoots_owners_tags: "tx_tag_gql_by_owner_and_data_root_desc",
+    bundledId_owners_tags: "tx_tag_gql_by_owner_and_bundled_in_desc",
+    owners_recipients_tags: "tx_tag_gql_by_owner_and_target_desc",
+    dataRoots_ids_tags: "tx_tag_gql_by_tx_id_and_data_root_desc",
+    bundledId_ids_tags: "tx_tag_gql_by_tx_id_and_bundled_in_desc",
+    ids_recipients_tags: "tx_tag_gql_by_tx_id_and_target_desc",
+    ids_owners_tags: "tx_tag_gql_by_tx_id_and_owner_desc",
+    dataRoots_tags: "tx_tag_gql_by_data_root_desc",
+    bundledId_tags: "tx_tag_gql_by_bundled_in_desc",
+    recipients_tags: "tx_tag_gql_by_target_desc",
+    owners_tags: "tx_tag_gql_by_owner_desc",
+    ids_tags: "tx_tag_gql_by_tx_id_desc",
+    tags: "tx_tag_gql_desc",
   },
 };
 

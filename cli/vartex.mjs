@@ -66,12 +66,16 @@ async function main() {
     )
     .action(addWorker);
 
-  program
+  const oneShot = program
+    .command("one-shot [action]")
+    .description("run single action on vartex db for single entity");
+
+  oneShot
     .command("import-block <height>")
     .description("a one shot action to import block manually into database")
     .action(importBlock);
 
-  program
+  oneShot
     .command("import-manifest <txid>")
     .description("a one shot action import manifest into database")
     .action(importManifest);

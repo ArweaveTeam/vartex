@@ -4,9 +4,6 @@ const path = require("path");
 const net = require("net");
 const cassandra = require("cassandra-driver");
 const tagTables = require("./tag-tables.cjs");
-const migration1 = require("./migration1.cjs");
-const migration2 = require("./migration2.cjs");
-const migration3 = require("./migration3.cjs");
 const dotenvPath = path.resolve(__dirname, "../.env");
 const dotenvPathFallback = path.resolve(__dirname, "../.env.example");
 
@@ -66,11 +63,13 @@ async function connect() {
            PRIMARY KEY (block_hash, block_height)
          )
          WITH CLUSTERING ORDER BY (block_height DESC)`,
+
         `CREATE TABLE IF NOT EXISTS block_height_by_block_hash (
            block_height bigint,
            block_hash text,
            PRIMARY KEY (block_height)
          )`,
+
         `CREATE TABLE IF NOT EXISTS block (
            block_size bigint,
            cumulative_diff text,
@@ -95,7 +94,7 @@ async function connect() {
            PRIMARY KEY (indep_hash)
          )`,
 
-        `CREATE TABLE IF NOT EXISTS block_gql_asc_migration_1 (
+        `CREATE TABLE IF NOT EXISTS block_gql_asc (
           partition_id text,
           bucket_id text,
           bucket_number int,
@@ -107,7 +106,7 @@ async function connect() {
         )
         WITH CLUSTERING ORDER BY (bucket_number ASC, height ASC)`,
 
-        `CREATE TABLE IF NOT EXISTS block_gql_desc_migration_1 (
+        `CREATE TABLE IF NOT EXISTS block_gql_desc (
           partition_id text,
           bucket_id text,
           bucket_number int,
@@ -119,60 +118,41 @@ async function connect() {
         )
         WITH CLUSTERING ORDER BY (bucket_number DESC, height DESC)`,
 
-        `CREATE TABLE IF NOT EXISTS tx_id_gql_asc_migration_1 (
+        `CREATE TABLE IF NOT EXISTS tx_id_gql_asc (
            partition_id text,
            bucket_id text,
            bucket_number int,
            tx_index bigint,
+           data_item_index bigint,
            tags list<frozen<tuple<text,text>>>,
            tx_id text,
            owner text,
            target text,
-           bundle_id text,
-           PRIMARY KEY ((partition_id, bucket_id), bucket_number, tx_index)
+           bundled_in text,
+           data_root text,
+           PRIMARY KEY ((partition_id, bucket_id), bucket_number, tx_index, data_item_index)
          )
-         WITH CLUSTERING ORDER BY (bucket_number ASC, tx_index ASC)`,
+         WITH CLUSTERING ORDER BY (bucket_number ASC, tx_index ASC, data_item_index ASC)`,
 
-        `CREATE TABLE IF NOT EXISTS tx_id_gql_desc_migration_1 (
+        `CREATE TABLE IF NOT EXISTS tx_id_gql_desc (
            partition_id text,
            bucket_id text,
            bucket_number int,
            tx_index bigint,
+           data_item_index bigint,
            tags list<frozen<tuple<text,text>>>,
            tx_id text,
            owner text,
            target text,
-           bundle_id text,
-           PRIMARY KEY ((partition_id, bucket_id), bucket_number, tx_index)
+           bundled_in text,
+           data_root text,
+           PRIMARY KEY ((partition_id, bucket_id), bucket_number, tx_index, data_item_index)
          )
-         WITH CLUSTERING ORDER BY (bucket_number DESC, tx_index DESC)`,
-
-        // the benefits of index here outweigh the possible cons (I think and hope, otherwise more redundant tables later if needed...)
-        `CREATE INDEX IF NOT EXISTS ON tx_id_gql_asc_migration_1 (owner)`,
-        `CREATE INDEX IF NOT EXISTS ON tx_id_gql_desc_migration_1 (owner)`,
-        `CREATE INDEX IF NOT EXISTS ON tx_id_gql_asc_migration_1 (target)`,
-        `CREATE INDEX IF NOT EXISTS ON tx_id_gql_desc_migration_1 (target)`,
-        `CREATE INDEX IF NOT EXISTS ON tx_id_gql_asc_migration_1 (bundle_id)`,
-        `CREATE INDEX IF NOT EXISTS ON tx_id_gql_desc_migration_1 (bundle_id)`,
-        `CREATE INDEX IF NOT EXISTS ON tx_id_gql_asc_migration_1 (tx_id)`,
-        `CREATE INDEX IF NOT EXISTS ON tx_id_gql_desc_migration_1 (tx_id)`,
-
-        `CREATE TABLE IF NOT EXISTS tx_tag_migration_1 (
-           partition_id text,
-           bucket_id text,
-           bucket_number int,
-           tx_index bigint,
-           tag_index int,
-           tx_id text,
-           next_tag_index int,
-           name text,
-           value text,
-           PRIMARY KEY ((partition_id, bucket_id), bucket_number, tx_index, tag_index)
-        )
-        WITH CLUSTERING ORDER BY (bucket_number DESC, tx_index DESC, tag_index DESC)`,
+         WITH CLUSTERING ORDER BY (bucket_number DESC, tx_index DESC, data_item_index DESC)`,
 
         `CREATE TABLE IF NOT EXISTS transaction (
           tx_index bigint,
+          data_item_index bigint,
           block_height bigint,
           block_hash text,
           bundled_in text,
@@ -207,13 +187,6 @@ async function connect() {
           manifest_paths text,
           PRIMARY KEY(tx_id)
         )`,
-        // manifests rely on data which may not be available
-        // at the same time as the tx headers attached to it are.
-        `CREATE TABLE IF NOT EXISTS manifest_unimported (
-          tx_id text,
-          import_attempt_cnt int,
-          PRIMARY KEY(tx_id)
-        )`,
 
         `CREATE TABLE IF NOT EXISTS permaweb_path (
           domain_id text,
@@ -236,6 +209,24 @@ async function connect() {
           current_migrations map<int, text>,
           PRIMARY KEY(session)
         )`,
+
+        `CREATE TABLE IF NOT EXISTS block_queue (
+          block_hash text,
+          block_height bigint,
+          last_import_attempt timestamp,
+          import_attempt_cnt int,
+          PRIMARY KEY(block_hash, block_height)
+         )
+          WITH CLUSTERING ORDER BY (block_height ASC)`,
+        // manifests rely on data which may not be available
+        // at the same time as the tx headers attached to it are.
+        `CREATE TABLE IF NOT EXISTS manifest_queue (
+          tx_id text,
+          first_seen timestamp,
+          last_import_attempt timestamp,
+          import_attempt_cnt int,
+          PRIMARY KEY(tx_id)
+         )`,
       ].concat(tagTables.createTableQueries);
       let p = Promise.resolve();
       let aresolve;
@@ -267,9 +258,9 @@ async function connect() {
         }
         if (!process.env.SKIP_MIGRATION) {
           // skipped when fully migrated
-          await migration1(client);
-          await migration2(client);
-          await migration3(client);
+          // await migration1(client);
+          // await migration2(client);
+          // await migration3(client);
         }
       });
     })

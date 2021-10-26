@@ -33,7 +33,7 @@ export async function importManifests(): Promise<void> {
   log("doing manifest import");
 
   const unimportedManifests = await cassandraClient.execute(
-    `SELECT * FROM ${KEYSPACE}.manifest_unimported`,
+    `SELECT * FROM ${KEYSPACE}.manifest_queue`,
     [],
     { prepare: true }
   );
@@ -185,7 +185,7 @@ export async function importManifest(txId: string): Promise<boolean> {
       } catch (error) {
         messenger.sendMessage({
           type: "log:warn",
-          message: "error while removing unimported manifest from db",
+          message: "error while removing unimported manifest from queue",
           payload: error,
         });
       }
@@ -209,7 +209,7 @@ export async function importManifest(txId: string): Promise<boolean> {
       } catch (error) {
         messenger.sendMessage({
           type: "log:warn",
-          message: "error while removing unimported manifest from db (2)",
+          message: "error while removing unimported manifest from queue (2)",
           payload: error,
         });
       }

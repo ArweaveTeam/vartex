@@ -2,6 +2,7 @@ import realFs from "node:fs";
 import gracefulFs from "graceful-fs";
 gracefulFs.gracefulify(realFs);
 import "colors";
+import querystring from "querystring";
 import path from "node:path";
 import exitHook from "exit-hook";
 import killPort from "kill-port";
@@ -48,7 +49,7 @@ export const session: { uuid: CassandraTypes.TimeUuid } = {
 
 export const app: Express = express();
 
-function poweredBy(_: Request, response: Response, next: () => void) {
+function poweredBy(r: Request, response: Response, next: () => void) {
   response.setHeader("X-Powered-By", "Vartex");
   if (next) {
     next();
@@ -64,6 +65,43 @@ app.use(poweredBy);
 const dataPathRegex = new RegExp(
   /^\/?([a-zA-Z0-9-_]{43})\/?$|^\/?([a-zA-Z0-9-_]{43})\/(.*)$/i
 );
+
+// 1. redirect domain.com/:txid -> txid.domain.org
+// 2. route txid.domain.org -> domain.com/:txid
+function permawebSandboxMiddleware(
+  request: Partial<Request & { txid?: string }>,
+  response: Response,
+  next: () => void
+) {
+  if (
+    request.subdomains &&
+    request.subdomains.length > 0 &&
+    /[a-zA-Z0-9-_]{43}/.test(request.subdomains[0])
+  ) {
+    request.txid = request.subdomains[0];
+    dataRoute(request, response, next);
+    return;
+  } else if (
+    request.originalUrl.replace(/^\//, "").replace(/\/.*/, "").length === 43
+  ) {
+    const reqPath = request.originalUrl.replace(/^\//, "");
+    const reqTxId = reqPath.replace(/\/.*/, "");
+    const reqSubPath = reqPath.replace(/.*\//, "");
+    const query = request.url.slice(request.path.length);
+    response.redirect(
+      302,
+      `${request.protocol}://${reqTxId}.${
+        request.host.endsWith(":80") || request.host.endsWith(":443")
+          ? request.hostname
+          : request.host
+      }/${reqSubPath}${query}`
+    );
+    return;
+  } else {
+    next && next();
+    return;
+  }
+}
 
 // lack of slash causes permaweb apps to fetch from root domain.com/
 // and not domain.com/path/
@@ -89,7 +127,13 @@ function appendSlashMiddleware(
   // 44 = / + txid
   if (request.path.length === 44 && request.path.substr(-1) !== "/") {
     const query = request.url.slice(request.path.length);
-    response.redirect(301, `${request.path}/${query}`);
+    response.redirect(302, `${request.path}/${query}`);
+    return;
+  } else if (/\/\//.test(request.path)) {
+    // prevent double slashes
+    const query = request.url.slice(request.path.length);
+    const cleanPath = request.path.replace(/\/\//g, "/");
+    response.redirect(302, `${cleanPath === "/" ? "" : cleanPath}/${query}`);
     return;
   } else {
     next();
@@ -97,14 +141,16 @@ function appendSlashMiddleware(
   }
 }
 
+app.use(permawebSandboxMiddleware);
+
 app.use(appendSlashMiddleware);
 
 export function start(): void {
   app.set("trust proxy", 1);
+  app.set("query parser", "simple");
 
   app.use(cors());
   // app.use(jsonMiddleware);
-
   app.get("/", statusRoute);
   app.get("/status", statusRoute);
   app.get("/info", proxyGetRoute);

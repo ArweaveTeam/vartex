@@ -42,11 +42,11 @@ const mapper = new Mapper(cassandraClient, {
     },
     BlockGqlAsc: {
       keyspace: KEYSPACE,
-      tables: ["block_gql_asc_migration_1"],
+      tables: ["block_gql_asc"],
     },
     BlockGqlDesc: {
       keyspace: KEYSPACE,
-      tables: ["block_gql_desc_migration_1"],
+      tables: ["block_gql_desc"],
     },
     Manifest: {
       keyspace: KEYSPACE,
@@ -54,7 +54,7 @@ const mapper = new Mapper(cassandraClient, {
     },
     ManifestUnimported: {
       keyspace: KEYSPACE,
-      tables: ["manifest_unimported"],
+      tables: ["manifest_queue"],
     },
     Poa: {
       keyspace: KEYSPACE,
@@ -86,16 +86,16 @@ const mapper = new Mapper(cassandraClient, {
     },
     TxGqlAsc: {
       keyspace: KEYSPACE,
-      tables: ["tx_id_gql_asc_migration_1"],
+      tables: ["tx_id_gql_asc"],
     },
     TxGqlDesc: {
       keyspace: KEYSPACE,
-      tables: ["tx_id_gql_desc_migration_1"],
+      tables: ["tx_id_gql_desc"],
     },
-    TxTag: {
-      keyspace: KEYSPACE,
-      tables: ["tx_tag_migration_1"],
-    },
+    // TxTag: {
+    //   keyspace: KEYSPACE,
+    //   tables: ["tx_tag"],
+    // },
     TxOffset: {
       keyspace: KEYSPACE,
       tables: ["tx_offset"],
@@ -129,7 +129,7 @@ export const txGqlAscMapper = mapper.forModel("TxGqlAsc");
 
 export const txGqlDescMapper = mapper.forModel("TxGqlDesc");
 
-export const txTagMapper = mapper.forModel("TxTag");
+// export const txTagMapper = mapper.forModel("TxTag");
 
 export const txOffsetMapper = mapper.forModel("TxOffset");
 

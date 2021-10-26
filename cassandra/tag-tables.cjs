@@ -58,7 +58,7 @@ function generateTagFilterTables(tableName, filters) {
     `
     CREATE TABLE IF NOT EXISTS tx_tag_gql${
       filters.length !== 0 ? "_by_" : ""
-    }${tableName}_asc_migration_1 (
+    }${tableName}_asc (
            tag_pair text,
            tx_id text,
            tx_index bigint,
@@ -71,7 +71,7 @@ function generateTagFilterTables(tableName, filters) {
 
     `CREATE TABLE IF NOT EXISTS tx_tag_gql${
       filters.length !== 0 ? "_by_" : ""
-    }${tableName}_desc_migration_1 (
+    }${tableName}_desc (
            tag_pair text,
            tx_id text,
            tx_index bigint,

@@ -120,20 +120,25 @@ function recurNextChunk(
 
 // C6IyOj4yAaJPaV8KuOG2jdf4gQCmpPisuE3eAUBdcUs
 export async function dataRoute(
-  request: Request,
+  request: Partial<Request & { txid?: string }>,
   response: Response,
   next: (error?: string) => void
 ): Promise<void> {
   let firstPath: string;
   let subPath: string;
 
-  if (request.params["0"]) {
-    firstPath = request.params["0"];
-  } else if (!request.params["0"] && request.params["1"]) {
-    firstPath = request.params["1"];
-    if (request.params["2"]) {
-      subPath = request.params["2"];
+  if (!request.txid) {
+    // sandbox-mode
+    if (request.params["0"]) {
+      firstPath = request.params["0"];
+    } else if (!request.params["0"] && request.params["1"]) {
+      firstPath = request.params["1"];
+      if (request.params["2"]) {
+        subPath = request.params["2"];
+      }
     }
+  } else {
+    subPath = request.originalUrl.replace(/^\//, "");
   }
 
   if (!firstPath) {

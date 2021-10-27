@@ -1,5 +1,6 @@
 import { Command, Option } from "commander/esm.mjs";
 import { spawn } from "child_process";
+import ansiStyle from "ansi-styles";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -45,8 +46,7 @@ async function importManifest(txId) {
   }
 }
 
-async function addWorker(job) {
-  console.log(job);
+async function addWorkerCmd(job) {
   switch (job) {
     case "import-manifests": {
       process.exit(await execa("_worker-import-manifests", []));
@@ -55,12 +55,53 @@ async function addWorker(job) {
   }
 }
 
+async function startCmd(cmd) {
+  switch (cmd) {
+    case "master": {
+      break;
+    }
+    case "slave": {
+      break;
+    }
+    default: {
+      console.error(`unrecoginzed start mode provided: "${cmd}"`);
+      process.exit(1);
+    }
+  }
+}
+
 async function main() {
-  program
+  program.addHelpText(
+    "before",
+    `
+  _....._
+     _.. \\ '.
+ / /\`  |_ |   \\
+; ;  /\` _\\  | ;
+|  /|  (_   ; |
+; ;  \\  _/ .;
+  |'. '.  _.'/
+  '._\`
+     \`\`\`\`\`
+` + `V${ansiStyle.green.open}ar${ansiStyle.green.close}tex`
+  );
+  const start = program
+    .command("start")
+    .description("Start a Vartex gateway and listen for requests")
+    .argument(
+      "[mode]",
+      "must be either master or slave mode",
+      "no mode selected to start, must be either master or slave"
+    )
+    .action(startCmd);
+
+  const addWorker = program
     .command("add-worker [job]")
-    .action(addWorker)
-    .description("add a worker for a specific gateway task")
-    .option(
+    .action(addWorkerCmd)
+    .description("add a worker for a specific gateway task");
+
+  addWorker
+    .command(
       "import-manifests"
       // "add independent worker that consumes incoming manifest imports"
     )

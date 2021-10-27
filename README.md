@@ -6,7 +6,7 @@ Vartex is a vortex into the permaweb -- the decentralised web on top of the Arwe
 
 The service builds upon [Amplify](https://www.amplify.host), a fork of the original [Arweave.net](https://arweave.net/status) gateway service.
 
-### Current Release: BETA-1
+### Current Release: BETA-2
 
 We are in beta! Please give Vartex a spin and let us know what you think via the [Arweave Developer Discord](https://discord.gg/BXk8tq7).
 
@@ -85,15 +85,6 @@ npm run start
 
 # with yarn
 yarn start
-```
-
-While developing you can specify a range of blocks you wish to sync,
-the range starts from the most recent known block from the cached hash_list
-down X amount of blocks specified with DEVELOPMENT_SYNC_LENGTH.
-
-```bash
-# for cached block height 1,000,000 would only sync down to 999,900
-DEVELOPMENT_SYNC_LENGTH=100
 ```
 
 ### Endpoints

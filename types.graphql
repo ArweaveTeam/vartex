@@ -29,7 +29,8 @@ type Query {
     tags: [TagFilter!]
     """
     Find data items from the given data bundles.
-    See: https://github.com/ArweaveTeam/arweave-standards/blob/master/ans/ANS-102.md
+    See ANS102: https://github.com/ArweaveTeam/arweave-standards/blob/master/ans/ANS-102.md
+    See ANS104: https://github.com/ArweaveTeam/arweave-standards/blob/master/ans/ANS-104.md
     """
     bundledIn: [ID!]
     """

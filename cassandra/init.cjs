@@ -3,6 +3,7 @@ const fs = require("fs");
 const path = require("path");
 const net = require("net");
 const cassandra = require("cassandra-driver");
+const txFilterTables = require("./tx-filter-tables.cjs");
 const tagTables = require("./tag-tables.cjs");
 const dotenvPath = path.resolve(__dirname, "../.env");
 const dotenvPathFallback = path.resolve(__dirname, "../.env.example");
@@ -118,38 +119,6 @@ async function connect() {
         )
         WITH CLUSTERING ORDER BY (bucket_number DESC, height DESC)`,
 
-        `CREATE TABLE IF NOT EXISTS tx_id_gql_asc (
-           partition_id text,
-           bucket_id text,
-           bucket_number int,
-           tx_index bigint,
-           data_item_index bigint,
-           tags list<frozen<tuple<text,text>>>,
-           tx_id text,
-           owner text,
-           target text,
-           bundled_in text,
-           data_root text,
-           PRIMARY KEY ((partition_id, bucket_id), bucket_number, tx_index, data_item_index)
-         )
-         WITH CLUSTERING ORDER BY (bucket_number ASC, tx_index ASC, data_item_index ASC)`,
-
-        `CREATE TABLE IF NOT EXISTS tx_id_gql_desc (
-           partition_id text,
-           bucket_id text,
-           bucket_number int,
-           tx_index bigint,
-           data_item_index bigint,
-           tags list<frozen<tuple<text,text>>>,
-           tx_id text,
-           owner text,
-           target text,
-           bundled_in text,
-           data_root text,
-           PRIMARY KEY ((partition_id, bucket_id), bucket_number, tx_index, data_item_index)
-         )
-         WITH CLUSTERING ORDER BY (bucket_number DESC, tx_index DESC, data_item_index DESC)`,
-
         `CREATE TABLE IF NOT EXISTS transaction (
           tx_index bigint,
           data_item_index bigint,
@@ -210,6 +179,13 @@ async function connect() {
           PRIMARY KEY(session)
         )`,
 
+        `CREATE TABLE IF NOT EXISTS heartbeat (
+          session timeuuid,
+          status text,
+          role text,
+          PRIMARY KEY(session)
+        )`,
+
         `CREATE TABLE IF NOT EXISTS block_queue (
           block_hash text,
           block_height bigint,
@@ -217,7 +193,7 @@ async function connect() {
           import_attempt_cnt int,
           PRIMARY KEY(block_hash, block_height)
          )
-          WITH CLUSTERING ORDER BY (block_height ASC)`,
+         WITH CLUSTERING ORDER BY (block_height ASC)`,
         // manifests rely on data which may not be available
         // at the same time as the tx headers attached to it are.
         `CREATE TABLE IF NOT EXISTS manifest_queue (
@@ -225,9 +201,12 @@ async function connect() {
           first_seen timestamp,
           last_import_attempt timestamp,
           import_attempt_cnt int,
-          PRIMARY KEY(tx_id)
+         PRIMARY KEY(tx_id)
          )`,
-      ].concat(tagTables.createTableQueries);
+      ]
+        .concat(tagTables.createTableQueries)
+        .concat(txFilterTables);
+      console.log(queries);
       let p = Promise.resolve();
       let aresolve;
       let a = new Promise((resolve) => {

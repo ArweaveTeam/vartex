@@ -2,44 +2,44 @@ const R = require("rambda");
 const concatAll = R.converge(R.reduce(R.concat), [R.head, R.tail]);
 
 // // of 6
-// tags ids owners recipients bundledId dataRoot
+// tags ids owners recipients bundledIn dataRoot
 
 // // of 5
-// tags ids owners recipients bundledId
+// tags ids owners recipients bundledIn
 // tags ids owners recipients dataRoot
-// tags ids owners bundledId dataRoot
-// tags ids recipients bundledId dataRoot
-// tags owners recipients bundledId dataRoot
+// tags ids owners bundledIn dataRoot
+// tags ids recipients bundledIn dataRoot
+// tags owners recipients bundledIn dataRoot
 
 // // of 4
 // tags ids owners recipients
-// tags ids owners bundledId
+// tags ids owners bundledIn
 // tags ids owners dataRoot
-// tags ids recipients bundledId
+// tags ids recipients bundledIn
 // tags ids recipients dataRoot
-// tags ids bundledId dataRoot
-// tags owners recipients bundledId
+// tags ids bundledIn dataRoot
+// tags owners recipients bundledIn
 // tags owners recipients dataRoot
-// tags owners bundledId dataRoot
-// tags recipients bundledId dataRoot
+// tags owners bundledIn dataRoot
+// tags recipients bundledIn dataRoot
 
 // // of 3
 // tags ids owners
 // tags ids recipients
-// tags ids bundledId
+// tags ids bundledIn
 // tags ids dataRoot
 // tags owners recipients
-// tags owners bundledId
+// tags owners bundledIn
 // tags owners dataRoot
-// tags recipients bundledId
+// tags recipients bundledIn
 // tags recipients dataRoot
-// tags bundledId dataRoot
+// tags bundledIn dataRoot
 
 // // of 2
 // tags ids
 // tags owners
 // tags recipients
-// tags bundledId
+// tags bundledIn
 // tags dataRoot
 
 // tags of 1

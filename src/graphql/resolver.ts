@@ -26,6 +26,7 @@ import {
 } from "./types.graphql";
 import { Tag } from "../types/arweave";
 import { findTxIDsFromTagFilters } from "./tag-search";
+import { findTxIDsFromTxFilters } from "./tx-search";
 import {
   ownerToAddress,
   winstonToAr,
@@ -351,6 +352,289 @@ export const resolvers = {
       request: Request, // eslint-disable-line @typescript-eslint/no-unused-vars
       info: GraphQLResolveInfo
     ): Promise<Maybe<Query["transactions"]>> => {
+      const tagSearchMode =
+        queryParameters.tags && !R.isEmpty(queryParameters.tags);
+      const [txSearchResult, cursor] = tagSearchMode
+        ? await findTxIDsFromTagFilters(queryParameters)
+        : await findTxIDsFromTxFilters(queryParameters);
+
+      if (R.isEmpty(txSearchResult)) {
+        return {
+          pageInfo: {
+            hasNextPage: false,
+          },
+          edges: [],
+        };
+      }
+
+      const txs = await Promise.all(
+        txSearchResult.map((tx_id: string) => transactionMapper.get({ tx_id }))
+      );
+
+      return {
+        pageInfo: {
+          hasNextPage: typeof cursor === "string",
+        },
+        edges: R.reject(R.isNil)(txs),
+      };
+    },
+
+    blocks: async (
+      parent: FieldMap,
+      queryParameters: QueryBlocksArguments,
+      request: Request, // eslint-disable-line @typescript-eslint/no-unused-vars
+      info: GraphQLResolveInfo
+    ): Promise<Maybe<Query["blocks"]>> => {
+      const fieldsWithSubFields = graphqlFields(info);
+
+      const { timestamp, offset } = parseCursor(
+        queryParameters.after || newCursor()
+      );
+      const fetchSize =
+        Math.min(queryParameters.first || DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE) + 1;
+
+      let ids: Array<string> = [];
+      let minHeight = toLong(0);
+      let maxHeight = gatewayHeight;
+
+      if (queryParameters.ids) {
+        ids = queryParameters.ids;
+      }
+
+      if (queryParameters.height && queryParameters.height.min) {
+        minHeight = toLong(queryParameters.height.min);
+      }
+
+      if (queryParameters.height && queryParameters.height.max) {
+        maxHeight = toLong(queryParameters.height.max);
+      }
+
+      const select = resolveGqlBlockSelect(fieldsWithSubFields);
+
+      // No selection = no search
+      if (R.isEmpty(select)) {
+        return {
+          pageInfo: {
+            hasNextPage: false,
+          },
+          edges: [],
+        };
+      }
+
+      const blockQuery = generateBlockQuery({
+        ids,
+        select,
+        minHeight,
+        maxHeight,
+        before: timestamp,
+        offset,
+        fetchSize,
+        sortOrder: queryParameters.sort || undefined,
+      });
+
+      let hasNextPage = false;
+      const resultArray = [];
+      const bucketCount =
+        queryParameters.sort === "HEIGHT_ASC"
+          ? CONST.getGqlTxIdAscBucketNumber(gatewayHeight)
+          : CONST.getGqlTxIdDescBucketNumber(gatewayHeight);
+      let currentBucketNumber = Math.max(
+        0,
+        CONST.getGqlTxIdDescBucketNumber(gatewayHeight)
+      );
+      let ascendingTraverseBucketNumber =
+        CONST.getGqlTxIdAscBucketNumber(minHeight);
+
+      while (
+        resultArray.length < fetchSize &&
+        (queryParameters.sort === "HEIGHT_ASC"
+          ? ascendingTraverseBucketNumber <= bucketCount
+          : currentBucketNumber >= CONST.getGqlTxIdAscBucketNumber(minHeight))
+      ) {
+        const { partition_id, bucket_id, bucket_number } =
+          queryParameters.sort === "HEIGHT_ASC"
+            ? CONST.convertGqlBlockHeightAscBucketNumberToPrimaryKeys(
+                ascendingTraverseBucketNumber
+              )
+            : CONST.convertGqlBlockHeightDescBucketNumberToPrimaryKeys(
+                currentBucketNumber
+              );
+
+        const { rows: bucketResultArray }: { rows: unknown[] } =
+          await cassandraClient.execute(
+            blockQuery.query
+              .replace(/%1/i, `'${partition_id}'`)
+              .replace(/%2/i, `'${bucket_id}'`)
+              .replace(/%3/i, bucket_number),
+
+            blockQuery.params,
+            {
+              prepare: true,
+              executionProfile: "gql",
+            }
+          );
+
+        for (const resultItem of bucketResultArray)
+          resultArray.push(resultItem);
+        if (queryParameters.sort === "HEIGHT_ASC") {
+          ascendingTraverseBucketNumber += 1;
+        } else {
+          currentBucketNumber -= 1;
+        }
+      }
+
+      let result = resultArray;
+
+      if (resultArray.length === fetchSize) {
+        hasNextPage = true;
+        result = R.dropLast(1, resultArray);
+      }
+
+      return {
+        pageInfo: {
+          hasNextPage,
+        },
+        edges: (result as Block[]).map((block, index) => ({
+          cursor: encodeCursor({ timestamp, offset: offset + index + 1 }),
+          node: block,
+        })),
+      };
+    },
+  },
+  Transaction: {
+    id: (parent: FieldMap): string => {
+      return parent.tx_id;
+    },
+    anchor: (parent: FieldMap): string => {
+      return parent.anchor || "";
+    },
+    signature: (parent: FieldMap): string => {
+      return parent.signature || "";
+    },
+    tags: (parent: FieldMap): Tag[] => {
+      return (parent.tags || []).map(utf8DecodeTupleTag);
+    },
+    recipient: (parent: FieldMap): string => {
+      return parent.target || "";
+    },
+    data: (parent: FieldMap): MetaData => {
+      if (parent.data) {
+        // Q29udGVudC1UeXBl = "Content-Type"
+        // Y29udGVudC10eXBl = "content-type"
+        const maybeContentType =
+          Array.isArray(parent.tags) &&
+          parent.tags.find((tag) =>
+            ["Q29udGVudC1UeXBl", "Y29udGVudC10eXBl"].includes(tag.get(0))
+          );
+
+        return {
+          // eslint-ignore-next-line unicorn/explicit-length-check
+          size: `${parent.data.size || 0}`,
+          type:
+            parent.data_type ||
+            (maybeContentType
+              ? fromB64Url(maybeContentType.get(1)).toString("utf8")
+              : ""),
+        };
+      } else {
+        return { size: "", type: "" };
+      }
+    },
+    quantity: (parent: FieldMap): Amount => {
+      return {
+        ar: winstonToAr((parent.quantity && parent.quantity.toString()) || "0"),
+        winston: parent.quantity || "0",
+      };
+    },
+    fee: (parent: FieldMap): Amount => {
+      const maybeFee =
+        parent.fee && parent.fee.winston && parent.fee.winston.toString();
+      return {
+        ar: winstonToAr(maybeFee || "0"),
+        winston: maybeFee || "0",
+      };
+    },
+    block: (parent: FieldMap): Block => {
+      return parent.block as Block;
+      // if (parent.tx_id) {
+      //   return parent.block;
+      // } else if (parent.block_id) {
+      //   return {
+      //     id: parent.block_id,
+      //     previous: parent.block_previous,
+      //     timestamp: moment(parent.block_timestamp).unix(),
+      //     height: parent.block_height,
+      //   };
+      // }
+    },
+    owner: (parent: FieldMap): Owner => {
+      return {
+        address: ownerToAddress(parent.owner),
+        key: parent.owner,
+      };
+    },
+    parent: (parent: FieldMap): Maybe<Parent> => {
+      if (parent.parent) {
+        return parent.parent;
+      }
+    },
+  },
+  Block: {
+    /*
+    reward: (parent) => {
+      return {
+        address: parent.extended.reward_addr,
+        pool: parent.extended.reward_pool,
+      };
+    },
+    size: (parent) => {
+      return parent.extended?.block_size;
+    },
+    */
+    height: (parent: FieldMap): number => {
+      return parent.height.toInt();
+    },
+    id: (parent: FieldMap): string => {
+      return parent.indep_hash;
+    },
+    previous: (parent: FieldMap): string => {
+      return parent.previous;
+    },
+    timestamp: (parent: FieldMap): string => {
+      return parent.timestamp.toString();
+    },
+  },
+};
+
+export interface Cursor {
+  timestamp: string;
+  offset: number;
+}
+
+export function newCursor(): string {
+  return encodeCursor({
+    timestamp: moment(new Date()).unix().toString(),
+    offset: 0,
+  });
+}
+
+export function encodeCursor({ timestamp, offset }: Cursor): string {
+  const string = JSON.stringify([timestamp, offset]);
+  return Buffer.from(string).toString("base64");
+}
+
+export function parseCursor(cursor: string): Cursor {
+  try {
+    const [timestamp, offset] = JSON.parse(
+      Buffer.from(cursor, "base64").toString()
+    ) as [string, number];
+    return { timestamp, offset };
+  } catch {
+    throw new Error("invalid cursor");
+  }
+}
+
+/*
       const { timestamp, offset } = parseCursor(
         queryParameters.after || newCursor()
       );
@@ -412,7 +696,7 @@ export const resolvers = {
               "dataRoots",
               "bundledIn",
             ].includes(parameter) &&
-            !R.isEmpty((queryParameters as any)[parameter])
+            !R.isEmpty((queryParameters as QueryTransactionsArgs)[parameter])
           ) {
             tagFilterVals[parameter] = (queryParameters as any)[parameter];
             tagFilterKeys.push(parameter);
@@ -726,258 +1010,4 @@ export const resolvers = {
             })) as any
           )[0]
         : null;
-    },
-    blocks: async (
-      parent: FieldMap,
-      queryParameters: QueryBlocksArguments,
-      request: Request, // eslint-disable-line @typescript-eslint/no-unused-vars
-      info: GraphQLResolveInfo
-    ): Promise<Maybe<Query["blocks"]>> => {
-      const fieldsWithSubFields = graphqlFields(info);
-
-      const { timestamp, offset } = parseCursor(
-        queryParameters.after || newCursor()
-      );
-      const fetchSize =
-        Math.min(queryParameters.first || DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE) + 1;
-
-      let ids: Array<string> = [];
-      let minHeight = toLong(0);
-      let maxHeight = gatewayHeight;
-
-      if (queryParameters.ids) {
-        ids = queryParameters.ids;
-      }
-
-      if (queryParameters.height && queryParameters.height.min) {
-        minHeight = toLong(queryParameters.height.min);
-      }
-
-      if (queryParameters.height && queryParameters.height.max) {
-        maxHeight = toLong(queryParameters.height.max);
-      }
-
-      const select = resolveGqlBlockSelect(fieldsWithSubFields);
-
-      // No selection = no search
-      if (R.isEmpty(select)) {
-        return {
-          pageInfo: {
-            hasNextPage: false,
-          },
-          edges: [],
-        };
-      }
-
-      const blockQuery = generateBlockQuery({
-        ids,
-        select,
-        minHeight,
-        maxHeight,
-        before: timestamp,
-        offset,
-        fetchSize,
-        sortOrder: queryParameters.sort || undefined,
-      });
-
-      let hasNextPage = false;
-      const resultArray = [];
-      const bucketCount =
-        queryParameters.sort === "HEIGHT_ASC"
-          ? CONST.getGqlTxIdAscBucketNumber(gatewayHeight)
-          : CONST.getGqlTxIdDescBucketNumber(gatewayHeight);
-      let currentBucketNumber = Math.max(
-        0,
-        CONST.getGqlTxIdDescBucketNumber(gatewayHeight)
-      );
-      let ascendingTraverseBucketNumber =
-        CONST.getGqlTxIdAscBucketNumber(minHeight);
-
-      while (
-        resultArray.length < fetchSize &&
-        (queryParameters.sort === "HEIGHT_ASC"
-          ? ascendingTraverseBucketNumber <= bucketCount
-          : currentBucketNumber >= CONST.getGqlTxIdAscBucketNumber(minHeight))
-      ) {
-        const { partition_id, bucket_id, bucket_number } =
-          queryParameters.sort === "HEIGHT_ASC"
-            ? CONST.convertGqlBlockHeightAscBucketNumberToPrimaryKeys(
-                ascendingTraverseBucketNumber
-              )
-            : CONST.convertGqlBlockHeightDescBucketNumberToPrimaryKeys(
-                currentBucketNumber
-              );
-
-        const { rows: bucketResultArray }: { rows: unknown[] } =
-          await cassandraClient.execute(
-            blockQuery.query
-              .replace(/%1/i, `'${partition_id}'`)
-              .replace(/%2/i, `'${bucket_id}'`)
-              .replace(/%3/i, bucket_number),
-
-            blockQuery.params,
-            {
-              prepare: true,
-              executionProfile: "gql",
-            }
-          );
-
-        for (const resultItem of bucketResultArray)
-          resultArray.push(resultItem);
-        if (queryParameters.sort === "HEIGHT_ASC") {
-          ascendingTraverseBucketNumber += 1;
-        } else {
-          currentBucketNumber -= 1;
-        }
-      }
-
-      let result = resultArray;
-
-      if (resultArray.length === fetchSize) {
-        hasNextPage = true;
-        result = R.dropLast(1, resultArray);
-      }
-
-      return {
-        pageInfo: {
-          hasNextPage,
-        },
-        edges: (result as Block[]).map((block, index) => ({
-          cursor: encodeCursor({ timestamp, offset: offset + index + 1 }),
-          node: block,
-        })),
-      };
-    },
-  },
-  Transaction: {
-    id: (parent: FieldMap): string => {
-      return parent.tx_id;
-    },
-    anchor: (parent: FieldMap): string => {
-      return parent.anchor || "";
-    },
-    signature: (parent: FieldMap): string => {
-      return parent.signature || "";
-    },
-    tags: (parent: FieldMap): Tag[] => {
-      return (parent.tags || []).map(utf8DecodeTupleTag);
-    },
-    recipient: (parent: FieldMap): string => {
-      return parent.target || "";
-    },
-    data: (parent: FieldMap): MetaData => {
-      if (parent.data) {
-        // Q29udGVudC1UeXBl = "Content-Type"
-        // Y29udGVudC10eXBl = "content-type"
-        const maybeContentType =
-          Array.isArray(parent.tags) &&
-          parent.tags.find((tag) =>
-            ["Q29udGVudC1UeXBl", "Y29udGVudC10eXBl"].includes(tag.get(0))
-          );
-
-        return {
-          // eslint-ignore-next-line unicorn/explicit-length-check
-          size: `${parent.data.size || 0}`,
-          type:
-            parent.data_type ||
-            (maybeContentType
-              ? fromB64Url(maybeContentType.get(1)).toString("utf8")
-              : ""),
-        };
-      } else {
-        return { size: "", type: "" };
-      }
-    },
-    quantity: (parent: FieldMap): Amount => {
-      return {
-        ar: winstonToAr((parent.quantity && parent.quantity.toString()) || "0"),
-        winston: parent.quantity || "0",
-      };
-    },
-    fee: (parent: FieldMap): Amount => {
-      const maybeFee =
-        parent.fee && parent.fee.winston && parent.fee.winston.toString();
-      return {
-        ar: winstonToAr(maybeFee || "0"),
-        winston: maybeFee || "0",
-      };
-    },
-    block: (parent: FieldMap): Block => {
-      return parent.block as Block;
-      // if (parent.tx_id) {
-      //   return parent.block;
-      // } else if (parent.block_id) {
-      //   return {
-      //     id: parent.block_id,
-      //     previous: parent.block_previous,
-      //     timestamp: moment(parent.block_timestamp).unix(),
-      //     height: parent.block_height,
-      //   };
-      // }
-    },
-    owner: (parent: FieldMap): Owner => {
-      return {
-        address: ownerToAddress(parent.owner),
-        key: parent.owner,
-      };
-    },
-    parent: (parent: FieldMap): Maybe<Parent> => {
-      if (parent.parent) {
-        return parent.parent;
-      }
-    },
-  },
-  Block: {
-    /*
-    reward: (parent) => {
-      return {
-        address: parent.extended.reward_addr,
-        pool: parent.extended.reward_pool,
-      };
-    },
-    size: (parent) => {
-      return parent.extended?.block_size;
-    },
-    */
-    height: (parent: FieldMap): number => {
-      return parent.height.toInt();
-    },
-    id: (parent: FieldMap): string => {
-      return parent.indep_hash;
-    },
-    previous: (parent: FieldMap): string => {
-      return parent.previous;
-    },
-    timestamp: (parent: FieldMap): string => {
-      return parent.timestamp.toString();
-    },
-  },
-};
-
-export interface Cursor {
-  timestamp: string;
-  offset: number;
-}
-
-export function newCursor(): string {
-  return encodeCursor({
-    timestamp: moment(new Date()).unix().toString(),
-    offset: 0,
-  });
-}
-
-export function encodeCursor({ timestamp, offset }: Cursor): string {
-  const string = JSON.stringify([timestamp, offset]);
-  return Buffer.from(string).toString("base64");
-}
-
-export function parseCursor(cursor: string): Cursor {
-  try {
-    const [timestamp, offset] = JSON.parse(
-      Buffer.from(cursor, "base64").toString()
-    ) as [string, number];
-    return { timestamp, offset };
-  } catch {
-    throw new Error("invalid cursor");
-  }
-}
+*/

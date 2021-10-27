@@ -1,6 +1,6 @@
 {
-  "name": "@arweave/gateway",
-  "version": "1.0.0",
+  "name": "vartex",
+  "version": "1.0.0-beta0",
   "main": "dist/src/gateway",
   "repository": "git@github.com:ArweaveTeam/gateway.git",
   "author": "Arweave <hello@arweave.org>",
@@ -8,6 +8,9 @@
   "license": "MIT",
   "engines": {
     "node": ">=16"
+  },
+  "bin": {
+    "vartex": "./cli/vartex.mjs"
   },
   "prettier": {
     "singleQuote": false,
@@ -17,7 +20,7 @@
     "ts": "node --loader ts-node/esm"
   },
   "exports": {
-    ".": "./src"
+    ".": "./cli/vartex.mjs"
   },
   "scripts": {
     "test": "yarn run gql && TS_NODE_FILES=true node --experimental-vm-modules node_modules/jest/bin/jest.js --verbose false --ci --forceExit --runInBand --detectOpenHandles ./{src,test}/*",
@@ -38,6 +41,7 @@
   },
   "dependencies": {
     "@ridi/cql-builder": "^1.0.4",
+    "ansi-styles": "^6.1.0",
     "apollo-server-express": "^3.3.0",
     "arweave": "^1.10.16",
     "arweave-bundles": "^1.0.3",

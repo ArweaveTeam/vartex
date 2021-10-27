@@ -1,6 +1,7 @@
-import { propOr } from "rambda";
+import * as R from "rambda";
 import { cassandraClient } from "../database/cassandra";
 import { types as CassandraTypes } from "cassandra-driver";
+import { QueryTransactionsArgs as QueryTransactionsArguments } from "./types.graphql";
 import { toB64url } from "../query/transaction";
 import { KEYSPACE } from "../constants";
 
@@ -110,23 +111,29 @@ interface TagQueryFilter {
   values: string[];
 }
 
-export const findTxIDsFromTagFilters = async ({
-  tagFilterKeys,
-  tagFilterVals,
-  minHeight,
-  maxHeight,
-  limit,
-  offset,
-  sortOrder,
-}: {
-  tagFilterKeys: string[];
-  tagFilterVals: { [any_: string]: any; tags: TagQueryFilter[] };
-  minHeight?: CassandraTypes.Long;
-  maxHeight?: CassandraTypes.Long;
-  limit?: number;
-  offset?: number;
-  sortOrder?: string;
-}) => {
+//  {
+//   tagFilterKeys,
+//   tagFilterVals,
+//   minHeight,
+//   maxHeight,
+//   limit,
+//   offset,
+//   sortOrder,
+// }: {
+//   tagFilterKeys: string[];
+//   tagFilterVals: { [any_: string]: any; tags: TagQueryFilter[] };
+//   minHeight?: CassandraTypes.Long;
+//   maxHeight?: CassandraTypes.Long;
+//   limit?: number;
+//   offset?: number;
+//   sortOrder?: string;
+// }
+
+export const findTxIDsFromTagFilters = async (
+  queryParameters: QueryTransactionsArguments
+): Promise<[string[], string | undefined]> => {
+  return [[], undefined];
+  /*
   console.log({
     tagFilterKeys,
     tagFilterVals,
@@ -191,4 +198,5 @@ export const findTxIDsFromTagFilters = async ({
   );
 
   return (tagQ as any).rows;
+*/
 };

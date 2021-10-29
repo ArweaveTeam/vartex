@@ -25,7 +25,7 @@ const mapper = new Mapper(cassandraClient, {
   models: {
     BlockHeightByBlockHash: {
       keyspace: KEYSPACE,
-      tables: ["block_height_by_block_hash"],
+      tables: ["block_height_to_block_hash"],
     },
     Block: {
       keyspace: KEYSPACE,
@@ -40,19 +40,11 @@ const mapper = new Mapper(cassandraClient, {
         withDefault({ name: "txs", fallback: [] }),
       ]),
     },
-    BlockGqlAsc: {
-      keyspace: KEYSPACE,
-      tables: ["block_gql_asc"],
-    },
-    BlockGqlDesc: {
-      keyspace: KEYSPACE,
-      tables: ["block_gql_desc"],
-    },
     Manifest: {
       keyspace: KEYSPACE,
       tables: ["manifest"],
     },
-    ManifestUnimported: {
+    ManifestQueue: {
       keyspace: KEYSPACE,
       tables: ["manifest_queue"],
     },
@@ -100,6 +92,10 @@ const mapper = new Mapper(cassandraClient, {
       keyspace: KEYSPACE,
       tables: ["tx_offset"],
     },
+    TxQueue: {
+      keyspace: KEYSPACE,
+      tables: ["tx_queue"],
+    },
   },
 });
 
@@ -109,15 +105,11 @@ export const blockHeightToHashMapper = mapper.forModel(
 
 export const blockMapper = mapper.forModel("Block");
 
-export const blockGqlAscMapper = mapper.forModel("BlockGqlAsc");
-
-export const blockGqlDescMapper = mapper.forModel("BlockGqlDesc");
-
 export const poaMapper = mapper.forModel("Poa");
 
 export const manifestMapper = mapper.forModel("Manifest");
 
-export const manifestUnimportedMapper = mapper.forModel("ManifestUnimported");
+export const manifestQueueMapper = mapper.forModel("ManifestQueue");
 
 export const permawebPathMapper = mapper.forModel("PermawebPath");
 
@@ -129,33 +121,8 @@ export const txGqlAscMapper = mapper.forModel("TxGqlAsc");
 
 export const txGqlDescMapper = mapper.forModel("TxGqlDesc");
 
-// export const txTagMapper = mapper.forModel("TxTag");
-
 export const txOffsetMapper = mapper.forModel("TxOffset");
 
-// export const tagsByTxId = async (
-//   txId: string
-// ): Promise<CassandraTypes.Tuple[]> => {};
-
-/*
-export const tagsByTxId = async (txId: string): Promise<UpstreamTag[]> => {
-  let lastTagResponse = await txTagMapper.get({ tx_id: txId, tag_index: 0 });
-  const tags: UpstreamTag[] = [];
-
-  if (!lastTagResponse) {
-    return tags;
-  } else {
-    tags.push({ name: lastTagResponse.name, value: lastTagResponse.value });
-    while (lastTagResponse.next_tag_index) {
-      lastTagResponse = await txTagMapper.get({
-        tx_id: txId,
-        tag_index: lastTagResponse.next_tag_index,
-      });
-      tags.push({ name: lastTagResponse.name, value: lastTagResponse.value });
-    }
-  }
-  return tags;
-};
-*/
+export const txQueueMapper = mapper.forModel("TxQueue");
 
 export { cassandraClient };

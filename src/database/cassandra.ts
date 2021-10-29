@@ -316,39 +316,6 @@ const transformTxOffsetKeys = (
   }
 };
 
-// interface Tag {
-//   partition_id: string;
-//   bucket_id: string;
-//   bucket_number: number;
-//   tag_index: number;
-//   tx_index: CassandraTypes.Long | number;
-//   next_tag_index?: CassandraTypes.Long | number;
-//   tx_id: string;
-//   name: string;
-//   value: string;
-// }
-
-// const transformTag = (
-//   tag: UpstreamTag,
-//   txObject: any, // eslint-disable-line @typescript-eslint/no-explicit-any
-//   blockHeight: CassandraTypes.Long,
-//   txIndex: CassandraTypes.Long,
-//   index: number,
-//   nextIndex?: number
-// ): Tag => {
-//   const tagObject = {} as Tag;
-//   tagObject["partition_id"] = CONST.getTxTagPartitionName(blockHeight);
-//   tagObject["bucket_id"] = CONST.getTxTagBucketName(blockHeight);
-//   tagObject["bucket_number"] = CONST.getTxTagBucketNumber(blockHeight);
-//   tagObject["tag_index"] = index;
-//   tagObject["next_tag_index"] = nextIndex || undefined;
-//   tagObject["tx_index"] = txIndex;
-//   tagObject["tx_id"] = txObject["id"];
-//   tagObject["name"] = tag.name || "";
-//   tagObject["value"] = tag.value || "";
-//   return tagObject;
-// };
-
 const poaInsertQuery = `INSERT INTO ${KEYSPACE}.poa (${poaKeys.join(
   ", "
 )}) VALUES (${poaKeys.map(() => "?").join(", ")})`;
@@ -367,37 +334,7 @@ const txOffsetInsertQuery = `INSERT INTO ${KEYSPACE}.tx_offset (${txOffsetKeys.j
   ", "
 )}) VALUES (${txOffsetKeys.map(() => "?").join(", ")})`;
 
-// const txTagsInsertQuery = `INSERT INTO ${KEYSPACE}.tx_tag (${txTagKeys.join(
-//   ", "
-// )}) VALUES (${txTagKeys.map(() => "?").join(", ")})`;
-
-const blockHeightByHashInsertQuery = `INSERT INTO ${KEYSPACE}.block_height_by_block_hash (block_height, block_hash) VALUES (?, ?) IF NOT EXISTS`;
-
-// const blockByTxIdInsertQuery = `INSERT INTO ${KEYSPACE}.block_by_tx_id (tx_id, block_height, block_hash) VALUES (?, ?, ?) IF NOT EXISTS`;
-
-const blockGqlInsertAscQuery = `INSERT INTO ${KEYSPACE}.block_gql_asc
-  (partition_id, bucket_id, bucket_number, height, indep_hash, timestamp, previous)
-  VALUES (?, ?, ?, ?, ?, ?, ?)`;
-
-const blockGqlInsertDescQuery = `INSERT INTO ${KEYSPACE}.block_gql_desc
-  (partition_id, bucket_id, bucket_number, height, indep_hash, timestamp, previous)
-  VALUES (?, ?, ?, ?, ?, ?, ?)`;
-
-const txIdGqlInsertAscQuery = `INSERT INTO ${KEYSPACE}.tx_id_gql_asc
-   (partition_id, bucket_id, bucket_number, tx_index, tags, tx_id, data_root, owner, target, bundled_in, data_item_index)
-   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
-
-const txIdGqlInsertDescQuery = `INSERT INTO ${KEYSPACE}.tx_id_gql_desc
-    (partition_id, bucket_id, bucket_number, tx_index, tags, tx_id, data_root, owner, target, bundled_in, data_item_index)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
-
-// const txTagGqlInsertAscQuery = `INSERT INTO ${KEYSPACE}.tx_tag_gql_by_name_asc
-//   (partition_id, bucket_id, bucket_number, tx_index, tag_index, tag_value, tag_name, tx_id, owner, target, bundle_id)
-//   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
-
-// const txTagGqlInsertDescQuery = `INSERT INTO ${KEYSPACE}.tx_tag_gql_by_name_desc
-//   (partition_id, bucket_id, bucket_number, tx_index, tag_index, tag_value, tag_name, tx_id, owner, target, bundle_id)
-//   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+const blockHeightToHashInsertQuery = `INSERT INTO ${KEYSPACE}.block_height_to_block_hash (block_height, block_hash) VALUES (?, ?) IF NOT EXISTS`;
 
 const tagsMapper = makeTagsMapper(cassandraClient);
 
@@ -425,7 +362,7 @@ export const insertGqlTag = async (tx: Transaction): Promise<void> => {
         const [tag_name, tag_value] = tuple.values();
 
         const insertObject = R.merge(object, {
-          tag_pair: `${tag_name}-${tag_value}`,
+          tag_pair: `${tag_name}|${tag_value}`,
           tag_index: index,
         });
 
@@ -522,43 +459,6 @@ export const makeTxImportQuery =
             txInsertParameters,
             { prepare: true, executionProfile: "full" }
           ),
-
-          cassandraClient.execute(
-            txIdGqlInsertAscQuery,
-            [
-              CONST.getGqlTxIdAscPartitionName(height),
-              CONST.getGqlTxIdAscBucketName(height),
-              CONST.getGqlTxIdAscBucketNumber(height),
-              txIndex,
-              (tx.tags || []).map(({ name, value }: UpstreamTag) =>
-                CassandraTypes.Tuple.fromArray([name, value])
-              ),
-              tx.id,
-              txPrepared.data_root,
-              ownerToAddress(tx.owner),
-              tx.target,
-              txPrepared.bundled_in, // FIXME ANS-102/ANS-104
-              -1,
-            ],
-            { prepare: true, executionProfile: "full" }
-          ),
-          cassandraClient.execute(
-            txIdGqlInsertDescQuery,
-            [
-              CONST.getGqlTxIdDescPartitionName(height),
-              CONST.getGqlTxIdDescBucketName(height),
-              CONST.getGqlTxIdDescBucketNumber(height),
-              txIndex,
-              tx.tags,
-              tx.id,
-              txPrepared.data_root,
-              ownerToAddress(tx.owner),
-              tx.target,
-              txPrepared.bundled_in,
-              -1, // FIXME ANS-102/ANS-104
-            ],
-            { prepare: true, executionProfile: "full" }
-          ),
         ].concat(
           dataSize && dataSize.gt(0) && txOffsetData
             ? [
@@ -609,33 +509,7 @@ export const makeBlockImportQuery =
           executionProfile: "full",
         }),
       cassandraClient.execute(
-        blockGqlInsertAscQuery,
-        [
-          CONST.getGqlBlockHeightAscPartitionName(height),
-          CONST.getGqlBlockHeightAscBucketName(height),
-          CONST.getGqlBlockHeightAscBucketNumber(height),
-          height,
-          input.indep_hash,
-          input.timestamp,
-          input.previous_block,
-        ],
-        { prepare: true, executionProfile: "full" }
-      ),
-      cassandraClient.execute(
-        blockGqlInsertDescQuery,
-        [
-          CONST.getGqlBlockHeightDescPartitionName(height),
-          CONST.getGqlBlockHeightDescBucketName(height),
-          CONST.getGqlBlockHeightDescBucketNumber(height),
-          height,
-          input.indep_hash,
-          input.timestamp,
-          input.previous_block,
-        ],
-        { prepare: true, executionProfile: "full" }
-      ),
-      cassandraClient.execute(
-        blockHeightByHashInsertQuery,
+        blockHeightToHashInsertQuery,
         [height, input.indep_hash],
         { prepare: true, executionProfile: "full" }
       ),

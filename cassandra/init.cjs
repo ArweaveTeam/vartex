@@ -65,7 +65,7 @@ async function connect() {
          )
          WITH CLUSTERING ORDER BY (block_height DESC)`,
 
-        `CREATE TABLE IF NOT EXISTS block_height_by_block_hash (
+        `CREATE TABLE IF NOT EXISTS block_height_to_block_hash (
            block_height bigint,
            block_hash text,
            PRIMARY KEY (block_height)
@@ -94,30 +94,6 @@ async function connect() {
            weave_size bigint,
            PRIMARY KEY (indep_hash)
          )`,
-
-        `CREATE TABLE IF NOT EXISTS block_gql_asc (
-          partition_id text,
-          bucket_id text,
-          bucket_number int,
-          height bigint,
-          indep_hash text,
-          previous text,
-          timestamp bigint,
-          PRIMARY KEY ((partition_id, bucket_id), bucket_number, height)
-        )
-        WITH CLUSTERING ORDER BY (bucket_number ASC, height ASC)`,
-
-        `CREATE TABLE IF NOT EXISTS block_gql_desc (
-          partition_id text,
-          bucket_id text,
-          bucket_number int,
-          height bigint,
-          indep_hash text,
-          previous text,
-          timestamp bigint,
-          PRIMARY KEY ((partition_id, bucket_id), bucket_number, height)
-        )
-        WITH CLUSTERING ORDER BY (bucket_number DESC, height DESC)`,
 
         `CREATE TABLE IF NOT EXISTS transaction (
           tx_index bigint,
@@ -187,11 +163,20 @@ async function connect() {
         )`,
 
         `CREATE TABLE IF NOT EXISTS block_queue (
-          block_hash text,
-          block_height bigint,
-          last_import_attempt timestamp,
-          import_attempt_cnt int,
-          PRIMARY KEY(block_hash, block_height)
+           block_hash text,
+           block_height bigint,
+           last_import_attempt timestamp,
+           import_attempt_cnt int,
+           PRIMARY KEY(block_hash, block_height)
+         )
+         WITH CLUSTERING ORDER BY (block_height ASC)`,
+
+        `CREATE TABLE IF NOT EXISTS tx_queue (
+           tx_id text,
+           block_height bigint,
+           last_import_attempt timestamp,
+           import_attempt_cnt int,
+           PRIMARY KEY(block_hash, block_height)
          )
          WITH CLUSTERING ORDER BY (block_height ASC)`,
         // manifests rely on data which may not be available

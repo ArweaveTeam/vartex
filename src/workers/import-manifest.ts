@@ -11,7 +11,7 @@ import { getDataFromChunks } from "../query/node";
 import {
   cassandraClient,
   manifestMapper,
-  manifestUnimportedMapper,
+  manifestQueueMapper,
   permawebPathMapper,
   transactionMapper,
 } from "../database/mapper";
@@ -46,7 +46,7 @@ export async function importManifests(): Promise<void> {
         log(
           `failed to fetch chunked data for ${unimportedManifest.tx_id} will try again later...`
         );
-        await manifestUnimportedMapper.update({
+        await manifestQueueMapper.update({
           tx_id: unimportedManifest.tx_id,
           import_attempt_cnt: (unimportedManifest.import_attempt_cnt || 0) + 1,
         });
@@ -54,7 +54,7 @@ export async function importManifests(): Promise<void> {
         log(
           `failed to fetch chunked data for ${unimportedManifest.tx_id} and I will not attempt to do so again now that this failed ${numRetries} times!`
         );
-        await manifestUnimportedMapper.remove({
+        await manifestQueueMapper.remove({
           tx_id: unimportedManifest.tx_id,
         });
       }
@@ -172,11 +172,11 @@ export async function importManifest(txId: string): Promise<boolean> {
 
       try {
         if (
-          await manifestUnimportedMapper.get({
+          await manifestQueueMapper.get({
             tx_id: txId,
           })
         ) {
-          await manifestUnimportedMapper.remove({
+          await manifestQueueMapper.remove({
             tx_id: txId,
           });
         }
@@ -203,7 +203,7 @@ export async function importManifest(txId: string): Promise<boolean> {
       });
 
       try {
-        await manifestUnimportedMapper.remove({
+        await manifestQueueMapper.remove({
           tx_id: txId,
         });
       } catch (error) {

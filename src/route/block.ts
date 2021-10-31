@@ -1,10 +1,6 @@
 import * as R from "rambda";
 import { Request, Response } from "express";
-import {
-  blockMapper,
-  blockHeightToHashMapper,
-  poaMapper,
-} from "../database/mapper";
+import { blockMapper, blockHeightToHashMapper } from "../database/mapper";
 import { topHeight } from "../database/sync";
 
 export async function blockByHeightRoute(
@@ -25,7 +21,6 @@ export async function blockByHeightRoute(
         next(`{error: "not_found"}`);
         return;
       }
-      const poa = await poaMapper.get({ block_hash, block_height: height });
       const blockResult = await blockMapper.get({
         // height,
         indep_hash: block_hash,
@@ -33,10 +28,7 @@ export async function blockByHeightRoute(
 
       R.pipe(
         R.dissoc("txs_count"),
-        R.assoc(
-          "poa",
-          R.pipe(R.dissoc("block_hash"), R.dissoc("block_height"))(poa)
-        ),
+
         (returnValue) => response.json(returnValue)
       )(blockResult);
     } catch (error) {
@@ -68,18 +60,8 @@ export async function blockByHashRoute(
         });
       }
 
-      const poa = await poaMapper.get({
-        block_hash: hash,
-        block_height: blockResult.height,
-      });
-
-      R.pipe(
-        R.dissoc("txs_count"),
-        R.assoc(
-          "poa",
-          R.pipe(R.dissoc("block_hash"), R.dissoc("block_height"))(poa)
-        ),
-        (returnValue) => response.json(returnValue)
+      R.pipe(R.dissoc("txs_count"), (returnValue) =>
+        response.json(returnValue)
       )(blockResult);
     } catch (error) {
       // Passes errors into the error handler
@@ -107,19 +89,9 @@ export async function blockCurrentRoute(
       return next("Current block was not found");
     }
 
-    const poa = await poaMapper.get({
-      block_hash,
-      block_height: topHeight.toString(),
-    });
-
-    R.pipe(
-      R.dissoc("txs_count"),
-      R.assoc(
-        "poa",
-        R.pipe(R.dissoc("block_hash"), R.dissoc("block_height"))(poa)
-      ),
-      (returnValue) => response.json(returnValue)
-    )(blockResult);
+    R.pipe(R.dissoc("txs_count"), (returnValue) => response.json(returnValue))(
+      blockResult
+    );
   } catch (error) {
     next(JSON.stringify(error));
   }

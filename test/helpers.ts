@@ -208,12 +208,6 @@ export function generateMockBlocks({
     block_size: "123",
     cumulative_diff: "123",
     hash_list_merkle: "xxx",
-    poa: {
-      option: "1",
-      tx_path: "txp1",
-      data_path: "dp1",
-      chunk: "ch1",
-    },
   };
 
   const blockHeights = R.range(offset, offset + totalBlocks);

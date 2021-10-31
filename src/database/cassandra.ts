@@ -4,7 +4,7 @@ import * as R from "rambda";
 import { BlockType } from "../query/block";
 import { getDataFromChunks } from "../query/node";
 import { mapping, types as CassandraTypes } from "cassandra-driver";
-import { Poa, Transaction, TxOffset, UpstreamTag } from "../types/cassandra";
+import { Transaction, TxOffset, UpstreamTag } from "../types/cassandra";
 import { KEYSPACE } from "../constants";
 import { config } from "dotenv";
 import { makeTagsMapper, tagModels } from "./tags-mapper";
@@ -89,14 +89,14 @@ export const cassandraClient = new cassandra.Client({
   ],
 });
 
-const poaKeys = [
-  "option",
-  "tx_path",
-  "data_path",
-  "chunk",
-  "block_hash",
-  "block_height",
-];
+// const poaKeys = [
+//   "option",
+//   "tx_path",
+//   "data_path",
+//   "chunk",
+//   "block_hash",
+//   "block_height",
+// ];
 
 const txTagKeys = [
   "partition_id",
@@ -154,21 +154,21 @@ const blockKeys = [
   "weave_size",
 ];
 
-const transformPoaKeys = (object: Partial<BlockType>): Poa | undefined => {
-  const poa = object.poa;
-  if (poa) {
-    const poaObject = {
-      block_height: toLong(object["height"]),
-      block_hash: object.indep_hash || "",
-      chunk: poa.chunk || "",
-      data_path: poa.data_path || "",
-      tx_path: poa.tx_path || "",
-      option: poa.option || "",
-    } as Poa;
+// const transformPoaKeys = (object: Partial<BlockType>): Poa | undefined => {
+//   const poa = object.poa;
+//   if (poa) {
+//     const poaObject = {
+//       block_height: toLong(object["height"]),
+//       block_hash: object.indep_hash || "",
+//       chunk: poa.chunk || "",
+//       data_path: poa.data_path || "",
+//       tx_path: poa.tx_path || "",
+//       option: poa.option || "",
+//     } as Poa;
 
-    return poaObject;
-  }
-};
+//     return poaObject;
+//   }
+// };
 
 // note for optimization reasons
 // we may store the data differently than we serve it (eg. bigint->string)
@@ -316,9 +316,9 @@ const transformTxOffsetKeys = (
   }
 };
 
-const poaInsertQuery = `INSERT INTO ${KEYSPACE}.poa (${poaKeys.join(
-  ", "
-)}) VALUES (${poaKeys.map(() => "?").join(", ")})`;
+// const poaInsertQuery = `INSERT INTO ${KEYSPACE}.poa (${poaKeys.join(
+//   ", "
+// )}) VALUES (${poaKeys.map(() => "?").join(", ")})`;
 
 const blockInsertQuery = (nonNilBlockKeys: string[]) =>
   `INSERT INTO ${KEYSPACE}.block (${nonNilBlockKeys.join(
@@ -500,14 +500,8 @@ export const makeBlockImportQuery =
     );
 
     const height = toLong(input.height);
-    const poa = transformPoaKeys(input);
 
     return Promise.all([
-      poa &&
-        cassandraClient.execute(poaInsertQuery, transformPoaKeys(input), {
-          prepare: true,
-          executionProfile: "full",
-        }),
       cassandraClient.execute(
         blockHeightToHashInsertQuery,
         [height, input.indep_hash],

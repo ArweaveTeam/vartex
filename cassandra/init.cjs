@@ -54,18 +54,8 @@ async function connect() {
       ];
       const queries = [
         `USE ${KEYSPACE}`,
-        `CREATE TABLE IF NOT EXISTS poa (
-           option text,
-           tx_path text,
-           data_path text,
-           chunk text,
-           block_hash text,
-           block_height bigint,
-           PRIMARY KEY (block_hash, block_height)
-         )
-         WITH CLUSTERING ORDER BY (block_height DESC)`,
 
-        `CREATE TABLE IF NOT EXISTS block_height_to_block_hash (
+        `CREATE TABLE IF NOT EXISTS block_height_to_hash (
            block_height bigint,
            block_hash text,
            PRIMARY KEY (block_height)
@@ -172,26 +162,46 @@ async function connect() {
          WITH CLUSTERING ORDER BY (block_height ASC)`,
 
         `CREATE TABLE IF NOT EXISTS tx_queue (
+           block_hash text,
            tx_id text,
-           block_height bigint,
            last_import_attempt timestamp,
            import_attempt_cnt int,
-           PRIMARY KEY(block_hash, block_height)
+           PRIMARY KEY(block_hash, tx_id)
          )
-         WITH CLUSTERING ORDER BY (block_height ASC)`,
+         WITH CLUSTERING ORDER BY (tx_id ASC)`,
+
         // manifests rely on data which may not be available
         // at the same time as the tx headers attached to it are.
         `CREATE TABLE IF NOT EXISTS manifest_queue (
+          block_hash text,
           tx_id text,
-          first_seen timestamp,
           last_import_attempt timestamp,
           import_attempt_cnt int,
-         PRIMARY KEY(tx_id)
-         )`,
+         PRIMARY KEY(block_hash, tx_id)
+         )
+         WITH CLUSTERING ORDER BY (tx_id ASC)`,
+
+        `CREATE TABLE IF NOT EXISTS ans_102_queue (
+          block_hash text,
+          tx_id text,
+          last_import_attempt timestamp,
+          import_attempt_cnt int,
+          PRIMARY KEY(block_hash, tx_id)
+         )
+         WITH CLUSTERING ORDER BY (tx_id ASC)`,
+
+        `CREATE TABLE IF NOT EXISTS ans_104_queue (
+          block_hash text,
+          tx_id text,
+          last_import_attempt timestamp,
+          import_attempt_cnt int,
+         PRIMARY KEY(block_hash, tx_id)
+         )
+         WITH CLUSTERING ORDER BY (tx_id ASC)`,
       ]
         .concat(tagTables.createTableQueries)
         .concat(txFilterTables);
-      console.log(queries);
+
       let p = Promise.resolve();
       let aresolve;
       let a = new Promise((resolve) => {

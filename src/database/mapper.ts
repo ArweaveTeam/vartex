@@ -48,10 +48,6 @@ const mapper = new Mapper(cassandraClient, {
       keyspace: KEYSPACE,
       tables: ["manifest_queue"],
     },
-    Poa: {
-      keyspace: KEYSPACE,
-      tables: ["poa"],
-    },
     PermawebPath: {
       keyspace: KEYSPACE,
       tables: ["permaweb_path"],
@@ -104,8 +100,6 @@ export const blockHeightToHashMapper = mapper.forModel(
 );
 
 export const blockMapper = mapper.forModel("Block");
-
-export const poaMapper = mapper.forModel("Poa");
 
 export const manifestMapper = mapper.forModel("Manifest");
 

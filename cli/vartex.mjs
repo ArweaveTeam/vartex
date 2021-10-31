@@ -113,13 +113,15 @@ async function main() {
 
   oneShot
     .command("import-block <height>")
-    .description(
-      "a one shot action to import block manually into database" +
-        "(this will import txs too and index their tags)"
-    )
+    .description("a one shot action to import block manually into database")
     .action(importBlock);
 
-  oneShots.command("import-tx <txid>");
+  oneShots
+    .command("import-tx <txid> <block_height>")
+    .description(
+      "a one shot action to import single tx manually into database. " +
+        "A block containing the tx must exist for this job to succeed."
+    );
 
   oneShot
     .command("import-manifest <txid>")

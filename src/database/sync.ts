@@ -36,7 +36,6 @@ import {
   manifestMapper,
   manifestUnimportedMapper,
   permawebPathMapper,
-  poaMapper,
   statusMapper,
   transactionMapper,
   txGqlAscMapper,
@@ -218,7 +217,6 @@ async function resolveFork(previousBlock: BlockType): Promise<void> {
       const abandonedBlock = await blockMapper.get({
         indep_hash: block.block_hash,
       });
-      await poaMapper.remove(block);
       await blockMapper.remove({ indep_hash: block.block_hash });
       await blockHeightToHashMapper.remove({
         block_height: block.block_height,

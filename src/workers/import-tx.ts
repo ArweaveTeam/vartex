@@ -113,4 +113,13 @@ export const importTx = (txId: string, blockHeight: string) => {
     tx,
     block
   );
+
+  try {
+    await callback();
+  } catch (error) {
+    log(JSON.stringify(error));
+    return TxReturnCode.REQUEUE;
+  }
+
+  return TxReturnCode.DEQUEUE;
 };

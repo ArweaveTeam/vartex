@@ -112,7 +112,11 @@ const buildTxFilterKey = (
         queryParameters[parameter as keyof QueryTransactionsArguments]
       )
     ) {
-      filters.push(parameter);
+      if (parameter === "recipients") {
+        filters.push("target");
+      } else {
+        filters.push(parameter);
+      }
     }
   }
   return filters;
@@ -169,8 +173,11 @@ export const findTxIDsFromTxFilters = async (
   const limit = Math.max(100, queryParameters.first || 10);
 
   const whereClause = txFilterKeys.reduce((accumulator, key) => {
-    const whereVals: any =
-      queryParameters[key as keyof QueryTransactionsArguments];
+    const k_ =
+      key === "target"
+        ? "recipients"
+        : (key as keyof QueryTransactionsArguments);
+    const whereVals: any = queryParameters[k_];
     const cqlKey = R.propOr(
       key,
       key

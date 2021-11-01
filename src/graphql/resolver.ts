@@ -3,15 +3,21 @@ import * as R from "rambda";
 import { Request } from "express";
 import moment from "moment";
 import { types as CassandraTypes } from "cassandra-driver";
-import { cassandraClient, toLong } from "../database/cassandra";
-import { transactionMapper } from "../database/mapper";
-import { gatewayHeight } from "../database/sync";
+import {
+  cassandraClient,
+  blockMapper,
+  blockSortedAsc,
+  blockSortedDesc,
+  transactionMapper,
+} from "../database/mapper";
+import { getMaxHeightBlock, toLong } from "../database/utils";
 import { GraphQLResolveInfo } from "graphql";
 import graphqlFields from "graphql-fields";
 import { config } from "dotenv";
 import {
   Amount,
   Block,
+  BlockEdge,
   Maybe,
   MetaData,
   Owner,
@@ -43,6 +49,18 @@ import {
 } from "./query-builder";
 
 process.env.NODE_ENV !== "test" && config();
+
+let maxHeightBlock: [string, CassandraTypes.Long];
+
+getMaxHeightBlock(cassandraClient).then((max) => {
+  maxHeightBlock = max;
+});
+// update once per minute the maxHeight val
+setInterval(async () => {
+  try {
+    maxHeightBlock = await getMaxHeightBlock(cassandraClient);
+  } catch {}
+}, 1000 * 60);
 
 function sortByTxIndexAsc(
   result1: { tx_index: CassandraTypes.Long },
@@ -102,71 +120,37 @@ interface FieldMap {
   block_previous: string;
 }
 
-const edgeFieldMapTx = {
-  "edges.node.id": "tx_id",
-  "edges.node.last_tx": "anchor",
-  "edges.node.recipient": "target",
-  "edges.node.tags": "tags",
-  // 'edges.node.reward': 'fee',
-  // "edges.node.quantity": "quantity",
-  "edges.node.data_size": "data_size",
-  "edges.node.content_type": "data_type",
-  "edges.node.parent": "parent",
-  "edges.node.owner": "owner",
-  "edges.node.data_root": "data_root",
-  // 'edges.node.owner_address': 'owner_address',
-};
+interface BlockCursor {
+  block_hash: string;
+  block_height: string;
+  cursorType?: string;
+  nthMillion: number;
+}
 
-const edgeFieldMapBlock = {
-  "edges.node.id": "indep_hash",
-  "edges.node.timestamp": "timestamp",
-  "edges.node.height": "height",
-  "edges.node.previous": "previous_block",
-};
+function encodeBlockCursor({
+  block_hash,
+  block_height,
+  nthMillion,
+}: BlockCursor): string {
+  const string = JSON.stringify([
+    "block_search",
+    block_hash,
+    block_height,
+    nthMillion,
+  ]);
+  return Buffer.from(string).toString("base64url");
+}
 
-const blockFieldMap = {
-  id: "blocks.indep_hash",
-  timestamp: "blocks.mined_at",
-  height: "blocks.height",
-  // extended: 'blocks.extended',
-};
-
-const resolveGqlSingleTxSelect = (userFields: unknown): string[] => {
-  const select = [];
-  for (const keyPath of R.keys(edgeFieldMapTx)) {
-    if (
-      R.hasPath(
-        keyPath.replace("edges.node.", ""),
-        userFields as Record<string, unknown>
-      )
-    ) {
-      select.push(edgeFieldMapTx[keyPath]);
-    }
+function parseBlockCursor(cursor: string): BlockCursor {
+  try {
+    const [cursorType, block_hash, block_height, nthMillion] = JSON.parse(
+      Buffer.from(cursor, "base64url").toString()
+    ) as [string, string, string, number];
+    return { cursorType, block_hash, block_height, nthMillion };
+  } catch {
+    throw new Error("invalid cursor");
   }
-  return select;
-};
-
-const resolveGqlTxSelect = (userFields: unknown): string[] => {
-  const select = [];
-  for (const keyPath of R.keys(edgeFieldMapTx)) {
-    if (R.hasPath(keyPath, userFields as Record<string, unknown>)) {
-      select.push(edgeFieldMapTx[keyPath]);
-    }
-  }
-  return select;
-};
-
-const resolveGqlBlockSelect = (userFields: unknown): string[] => {
-  const select: string[] = [];
-
-  for (const keyPath of R.keys(edgeFieldMapBlock)) {
-    if (R.hasPath(keyPath as string, userFields as Record<string, unknown>)) {
-      select.push(edgeFieldMapBlock[keyPath]);
-    }
-  }
-
-  return select;
-};
+}
 
 export const resolvers = {
   Query: {
@@ -263,12 +247,139 @@ export const resolvers = {
       queryParameters: QueryBlocksArguments,
       request: Request, // eslint-disable-line @typescript-eslint/no-unused-vars
       info: GraphQLResolveInfo
-    ): Promise<Maybe<Query["blocks"]>> => {
+    ): Promise<any> => {
+      if (!maxHeightBlock) {
+        throw new Error(`graphql isn't ready!`);
+      }
+
+      const fieldsWithSubFields = graphqlFields(info);
+
+      const wantsCursor = R.hasPath("edges.cursor", fieldsWithSubFields);
+
+      // should never "or" to the fallback
+      const maxHeight = maxHeightBlock[1] || toLong(10e6);
+
+      const sortOrder =
+        queryParameters.sort === "HEIGHT_ASC" ? "HEIGHT_ASC" : "HEIGHT_DESC";
+
+      const cursorQuery =
+        queryParameters.after &&
+        typeof queryParameters.after === "string" &&
+        !R.isEmpty(queryParameters.after);
+
+      const maybeCursor = cursorQuery
+        ? parseBlockCursor(queryParameters.after)
+        : ({} as any);
+
+      const tableName =
+        sortOrder === "HEIGHT_ASC"
+          ? "block_height_sorted_asc"
+          : "block_height_sorted_desc";
+
+      const limit = Math.max(100, queryParameters.first || 10);
+
+      const blockMinHeight_ =
+        typeof queryParameters.height === "object" &&
+        typeof queryParameters.height.min === "number"
+          ? `${queryParameters.height.min}`
+          : "0";
+
+      const blockMinHeight =
+        typeof maybeCursor.block_height !== "undefined" &&
+        sortOrder === "HEIGHT_ASC" &&
+        toLong(maybeCursor.block_height).gt(toLong(blockMinHeight_))
+          ? maybeCursor.block_height
+          : blockMinHeight_;
+
+      const blockMaxHeight_ =
+        typeof queryParameters.height === "object" &&
+        typeof queryParameters.height.max === "number"
+          ? `${queryParameters.height.max}`
+          : maxHeight.toString();
+
+      const blockMaxHeight =
+        typeof maybeCursor.block_height !== "undefined" &&
+        sortOrder === "HEIGHT_DESC" &&
+        toLong(maybeCursor.block_height).lt(toLong(blockMaxHeight_))
+          ? maybeCursor.block_height
+          : blockMaxHeight_;
+
+      const xMillions = toLong(blockMaxHeight).div(1e6);
+
+      const rangePostFn = sortOrder === "HEIGHT_ASC" ? R.identity : R.reverse;
+
+      const bucketStart =
+        typeof maybeCursor.nthMillion !== "undefined" &&
+        sortOrder === "HEIGHT_ASC"
+          ? maybeCursor.nthMillion
+          : 0;
+
+      const bucketEnd =
+        typeof maybeCursor.nthMillion !== "undefined" &&
+        sortOrder === "HEIGHT_DESC"
+          ? maybeCursor.nthMillion + 1
+          : (xMillions.add(1).toInt() as number);
+
+      const buckets: number[] = rangePostFn(
+        (R.range as any)(bucketStart, bucketEnd)
+      );
+
+      let hasNextPage = false;
+      let resultCount = 0;
+      let nthBucket = 0;
+
+      const searchResult: {
+        nthMillion: number;
+        block_hash: string;
+        block_height: string;
+      }[] = [];
+
+      while (nthBucket < buckets.length && resultCount < limit) {
+        const nextResult = await cassandraClient.execute(
+          `SELECT * FROM ${KEYSPACE}.${tableName} WHERE nth_million=${nthBucket} AND block_height >= ${blockMinHeight} AND block_height <= ${blockMaxHeight} LIMIT ${
+            limit - resultCount + 1
+          }`
+        );
+        for (const row of nextResult.rows) {
+          searchResult.push((R.assoc as any)("nthMillion", nthBucket, row));
+          if (resultCount !== limit) {
+            resultCount += 1;
+          } else {
+            hasNextPage = true;
+          }
+        }
+
+        nthBucket += 1;
+      }
+
+      const blocks = await Promise.all(
+        searchResult
+          .slice(0, limit)
+          .map(
+            async ({ block_hash, nthMillion }) =>
+              await blockMapper.get({ indep_hash: block_hash })
+          )
+      );
+
+      const cursors = wantsCursor
+        ? searchResult.slice(1, limit + 1).map((block: any) =>
+            encodeBlockCursor({
+              block_hash: block.block_hash,
+              block_height: block.block_height.toString(),
+              nthMillion: block.nthMillion,
+            })
+          )
+        : [];
+
       return {
         pageInfo: {
-          hasNextPage: false,
+          hasNextPage,
         },
-        edges: [],
+        edges: blocks.map((block: any, index: number) => ({
+          node: block,
+          cursor:
+            wantsCursor && index < cursors.length ? cursors[index] : undefined,
+        })),
       };
     },
   },
@@ -375,31 +486,3 @@ export const resolvers = {
     },
   },
 };
-
-export interface Cursor {
-  timestamp: string;
-  offset: number;
-}
-
-export function newCursor(): string {
-  return encodeCursor({
-    timestamp: moment(new Date()).unix().toString(),
-    offset: 0,
-  });
-}
-
-export function encodeCursor({ timestamp, offset }: Cursor): string {
-  const string = JSON.stringify([timestamp, offset]);
-  return Buffer.from(string).toString("base64");
-}
-
-export function parseCursor(cursor: string): Cursor {
-  try {
-    const [timestamp, offset] = JSON.parse(
-      Buffer.from(cursor, "base64").toString()
-    ) as [string, number];
-    return { timestamp, offset };
-  } catch {
-    throw new Error("invalid cursor");
-  }
-}

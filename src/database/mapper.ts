@@ -41,6 +41,14 @@ const mapper = new Mapper(cassandraClient, {
         withDefault({ name: "txs", fallback: [] }),
       ]),
     },
+    BlockSortedAsc: {
+      keyspace: KEYSPACE,
+      tables: ["block_height_sorted_asc"],
+    },
+    BlockSortedDesc: {
+      keyspace: KEYSPACE,
+      tables: ["block_height_sorted_desc"],
+    },
     Manifest: {
       keyspace: KEYSPACE,
       tables: ["manifest"],
@@ -101,6 +109,10 @@ export const blockHeightToHashMapper = mapper.forModel(
 );
 
 export const blockMapper = mapper.forModel("Block");
+
+export const blockSortedAsc = mapper.forModel("BlockSortedAsc");
+
+export const blockSortedDesc = mapper.forModel("BlockSortedDesc");
 
 export const manifestMapper = mapper.forModel("Manifest");
 

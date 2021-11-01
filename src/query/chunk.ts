@@ -82,14 +82,10 @@ export async function getChunk({
       chunk: chunkBuffer,
     };
   } else {
-    if (retryCount > 0) {
-      return await getChunk({
+    return retryCount > 0 ? (await getChunk({
         offset,
         retryCount: retryCount - 1,
-      });
-    } else {
-      return undefined;
-    }
+      })) : undefined;
   }
 }
 

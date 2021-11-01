@@ -1,6 +1,5 @@
 import * as R from "rambda";
 import { types as CassandraTypes } from "cassandra-driver";
-import * as CONST from "../database/constants";
 import { config } from "dotenv";
 import { KEYSPACE, tableId } from "../constants";
 import { TagFilter } from "./types.graphql";
@@ -55,17 +54,16 @@ export function generateTransactionQuery(
         .where("tx_id = ?", parameters.ids[0])
         .build();
     } else {
-      cql.where.apply(
-        cql,
-        R.concat(
-          [
-            `tx_id IN ( ${R.range(0, parameters.ids.length)
-              .map(() => "?")
-              .join(", ")} )`,
-          ],
-          parameters.ids
-        )
-      );
+      // cql.where.apply(
+      //   cql,
+      //   [...R,
+      //       `tx_id IN ( ${R.range(0, parameters.ids.length)
+      //         .map(() => "?")
+      //         .join(", ")} )`,
+      //     ].concat(
+      //     parameters.ids
+      //   )
+      // );
     }
   }
   const table =
@@ -209,12 +207,12 @@ export function generateBlockQuery(parameters: BlockQueryParameters): CqlQuery {
   } = parameters;
 
   const cql = Select()
-    .table(
-      sortOrder === "HEIGHT_ASC"
-        ? tableId.TABLE_GQL_BLOCK_ASC
-        : tableId.TABLE_GQL_BLOCK_DESC,
-      KEYSPACE
-    )
+    // .table(
+    //   sortOrder === "HEIGHT_ASC"
+    //     ? tableId.TABLE_GQL_BLOCK_ASC
+    //     : tableId.TABLE_GQL_BLOCK_DESC,
+    //   KEYSPACE
+    // )
     .field(
       select.includes("indep_hash") ? select : R.append("indep_hash", select)
     )
@@ -227,17 +225,16 @@ export function generateBlockQuery(parameters: BlockQueryParameters): CqlQuery {
   if (id) {
     cql.where("indep_hash = ?", id);
   } else if (ids && Array.isArray(ids) && !R.isEmpty(ids)) {
-    cql.where.apply(
-      cql,
-      R.concat(
-        [
-          `indep_hash IN ( ${R.range(0, ids.length)
-            .map(() => "?")
-            .join(", ")} )`,
-        ],
-        ids
-      )
-    );
+    // cql.where.apply(
+    //   cql,
+    //   [...R,
+    //       `indep_hash IN ( ${R.range(0, ids.length)
+    //         .map(() => "?")
+    //         .join(", ")} )`,
+    //     ].concat(
+    //     ids
+    //   )
+    // );
   }
 
   if (before) {
@@ -293,12 +290,14 @@ export function generateDeferedTxBlockQuery(
   height: CassandraTypes.Long,
   fieldSelect: unknown
 ): CqlQuery {
-  return Select()
-    .table(tableId.TABLE_GQL_BLOCK_ASC, KEYSPACE)
-    .field(fieldSelect)
-    .where("height = ?", height)
-    .where("bucket_number = ?", CONST.getGqlBlockHeightAscBucketNumber(height))
-    .where("partition_id = ?", CONST.getGqlBlockHeightAscPartitionName(height))
-    .where("bucket_id = ?", CONST.getGqlBlockHeightAscBucketName(height))
-    .build();
+  return (
+    Select()
+      // .table(tableId.TABLE_GQL_BLOCK_ASC, KEYSPACE)
+      .field(fieldSelect)
+      .where("height = ?", height)
+      // .where("bucket_number = ?", CONST.getGqlBlockHeightAscBucketNumber(height))
+      // .where("partition_id = ?", CONST.getGqlBlockHeightAscPartitionName(height))
+      // .where("bucket_id = ?", CONST.getGqlBlockHeightAscBucketName(height))
+      .build()
+  );
 }

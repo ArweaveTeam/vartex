@@ -1,18 +1,17 @@
 import * as R from "rambda";
 import { types as CassandraTypes } from "cassandra-driver";
+import { Transaction, TxOffset, UpstreamTag } from "../types/cassandra";
 import { getTransaction, getTxOffset } from "../query/transaction";
 import {
-  cassandraClient,
-  transactionMapper,
   blockMapper,
   blockHeightToHashMapper,
+  tagsMapper,
+  tagModels,
+  transactionMapper,
+  txOffsetMapper,
   txQueueMapper,
 } from "../database/mapper";
-import {
-  makeBlockImportQuery,
-  makeTxImportQuery,
-  toLong,
-} from "../database/cassandra";
+import { toLong } from "../database/utils";
 
 enum TxReturnCode {
   OK,
@@ -31,6 +30,43 @@ if (messenger) {
 }
 
 const log = mkWorkerLog(messenger);
+
+const commonFields = ["tx_index", "data_item_index", "tx_id"];
+
+export const insertGqlTag = async (
+  tags: CassandraTypes.TimeUuid[]
+): Promise<void> => {
+  if (!R.isEmpty(tags)) {
+    for (const tagModelName of Object.keys(tagModels)) {
+      const tagMapper = tagsMapper.forModel(tagModelName);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const allFields: any = [...R, ...commonFields].concat(tagModels[tagModelName]);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const environment: any = R.pickAll(allFields, tx);
+
+      // until ans104 comes
+      if (!environment["data_item_index"]) {
+        environment["data_item_index"] = toLong(0);
+      }
+      if (typeof environment.owner === "string" && environment.owner.length > 43) {
+        environment.owner = ownerToAddress(environment.owner);
+      }
+
+      let index = 0;
+      for (const tuple of tx.tags) {
+        const [tag_name, tag_value] = tuple.values();
+
+        const insertObject = R.merge(environment, {
+          tag_pair: `${tag_name}|${tag_value}`,
+          tag_index: index,
+        });
+
+        await tagMapper.insert(insertObject);
+        index += 1;
+      }
+    }
+  }
+};
 
 export const importTx = (txId: string, blockHeight: string) => {
   const blockHash = await blockHeightToHashMapper({
@@ -62,7 +98,7 @@ export const importTx = (txId: string, blockHeight: string) => {
   }
 
   // check if it's already imported, or is attached to abandoned fork
-  const maybeImportedTx = transactionMapper({ txId });
+  const maybeImportedTx = await transactionMapper.get({ txId });
 
   if (maybeImportedTx) {
     if (maybeImportedTx.block_hash === blockHash) {
@@ -79,22 +115,31 @@ export const importTx = (txId: string, blockHeight: string) => {
     }
   }
 
-  const currentTx = await getTransaction({ txId });
+  const tx = await getTransaction({ txId });
 
-  if (!currentTx) {
+  if (!tx) {
     log(`Failed to fetch ${txId} from nodes`);
     return TxReturnCode.REQUEUE;
   }
 
-  let maybeTxOffset;
-
-  const dataSize = toLong(currentTransaction.data_size);
+  const dataSize = toLong(tx.data_size);
 
   if (dataSize && dataSize.gt(0)) {
-    maybeTxOffset = await getTxOffset({ txId });
+    const maybeTxOffset = await getTxOffset({ txId });
     if (!maybeTxOffset) {
       log(`Failed to fetch data offset for ${txId} from nodes`);
       return TxReturnCode.REQUEUE;
+    } else {
+      try {
+        await txOffsetMapper.insert({
+          tx_id: tx.id,
+          size: maybeTxOffset.size,
+          offset: maybeTxOffset.offset,
+        });
+      } catch (error) {
+        log(JSON.stringify(error));
+        return TxReturnCode.REQUEUE;
+      }
     }
   }
 
@@ -102,20 +147,42 @@ export const importTx = (txId: string, blockHeight: string) => {
     .multiply(1000)
     .add(block.txs.indexOf(txId));
 
-  const tx = R.mergeAll([
-    currentTransaction,
-    maybeTxOffset ? { tx_offset: maybeTxOffset } : {},
-  ]);
+  let tags = [];
 
-  const callback = await makeTxImportQuery(
-    toLong(blockHeight),
-    txIndex,
-    tx,
-    block
-  );
+  if (!R.isEmpty(tx.tags) && Array.isArray(tx.tags)) {
+    tags = tx.tags.map(({ name, value }: UpstreamTag) =>
+      CassandraTypes.Tuple.fromArray([name, value])
+    );
+  }
 
   try {
-    await callback();
+    await insertGqlTag(tags);
+  } catch (error) {
+    log(JSON.stringify(error));
+    return TxReturnCode.REQUEUE;
+  }
+
+  try {
+    await transactionMapper.insert({
+      tx_index: txIndex,
+      data_item_index: toLong(-1),
+      block_height: block.height,
+      block_hash: block.indep_hash,
+      bundled_in: null,
+      data_root: tx.data_root,
+      data_size: tx.data_size,
+      data_tree: tx.data_tree || [],
+      format: tx.format,
+      tx_id: tx.id,
+      last_tx: tx.last_tx,
+      owner: tx.owner,
+      quantity: tx.quantity,
+      reward: tx.reward,
+      signature: tx.signature,
+      tags,
+      tag_count: tags.length,
+      target: tx.target,
+    });
   } catch (error) {
     log(JSON.stringify(error));
     return TxReturnCode.REQUEUE;

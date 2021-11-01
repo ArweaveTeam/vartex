@@ -36,8 +36,7 @@
   },
   "resolutions": {
     "cassandra-driver/long": "^4.0.0",
-    "**/graphql": "15",
-    "**/ts-node": "^10.2.1"
+    "**/graphql": "16"
   },
   "dependencies": {
     "@ridi/cql-builder": "^1.0.4",
@@ -51,8 +50,6 @@
     "colors": "^1.4.0",
     "commander": "^8.3.0",
     "cors": "^2.8.5",
-    "crypto-random-string": "^4.0.0",
-    "detect-mocha": "^0.1.0",
     "dotenv": "^10.0.0",
     "event-stream": "^4.0.1",
     "exit-hook": "^3.0.0",
@@ -76,7 +73,6 @@
     "mime-types": "^2.1.33",
     "mkdirp": "^1.0.4",
     "moment": "^2.29.1",
-    "node-cron": "^3.0.0",
     "p-limit": "^4.0.0",
     "p-min-delay": "^4.0.1",
     "p-wait-for": "^4.1.0",
@@ -88,7 +84,6 @@
     "shortid": "^2.2.16",
     "stream-chain": "^2.2.4",
     "stream-json": "^1.7.3",
-    "threads": "^1.7.0",
     "ts-node": "^10.4.0",
     "winston": "^3.3.3",
     "zod": "^3.11.6"

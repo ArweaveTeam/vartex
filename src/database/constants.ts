@@ -1,3 +1,4 @@
+/*
 import { types as CassandraTypes } from "cassandra-driver";
 import { toLong } from "./cassandra";
 
@@ -188,3 +189,5 @@ export const getTxTagBucketName = (height: CassandraTypes.Long): string =>
 
 export const getTxTagBucketNumber = (height: CassandraTypes.Long): number =>
   height.divide(GQL_TX_TAG_BUCKET_SIZE).toInt();
+
+*/

@@ -1,5 +1,6 @@
 import * as R from "rambda";
 import { types as CassandraTypes } from "cassandra-driver";
+import { MessagesFromParent, MessagesFromWorker } from "./message-types";
 import { getBlock as queryGetBlock } from "../query/block";
 import {
   blockHeightToHashMapper,
@@ -12,6 +13,8 @@ import {
   makeTxImportQuery,
   toLong,
 } from "../database/cassandra";
+import { getMessenger } from "../gatsby-worker/child";
+import { mkWorkerLog } from "../utility/log";
 
 let messenger = getMessenger<MessagesFromParent, MessagesFromWorker>();
 

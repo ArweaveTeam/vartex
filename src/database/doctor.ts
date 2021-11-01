@@ -8,66 +8,60 @@ import { cassandraClient, toLong } from "./cassandra";
 //   recollectImportableTxs,
 //   recollectIncomingTxs,
 // } from "../caching/cacache";
-import * as C from "./constants";
+// import * as C from "./constants";
 
-export const checkForBlockGaps = async (): Promise<boolean> => {
-  const expectedBlockHeightResult = await cassandraClient.execute(
-    `SELECT height FROM ${KEYSPACE}.${tableId.TABLE_GQL_BLOCK_DESC} LIMIT 1`
-  );
-  const expectedBlockHeight = expectedBlockHeightResult.rows[0].height;
+export const checkForBlockGaps = async (
+  maxHeight: CassandraTypes.Long
+): Promise<boolean> => {
+  // const expectedBlockHeightResult = await cassandraClient.execute(
+  //   `SELECT height FROM ${KEYSPACE}.${tableId.TABLE_GQL_BLOCK_DESC} LIMIT 1`
+  // );
+  // const expectedBlockHeight = expectedBlockHeightResult.rows[0].height;
 
-  const eachBucket = R.range(
-    0,
-    expectedBlockHeight.divide(C.GQL_BLOCK_HEIGHT_BUCKET_SIZE).add(1).toInt()
-  );
+  const eachBucket = R.range(0, maxHeight.toInt());
 
   let totalBlocksCount = toLong(0);
 
   for (const bucket of eachBucket) {
-    const currentPartition = toLong(bucket)
-      .mul(C.GQL_BLOCK_HEIGHT_BUCKET_SIZE)
-      .divide(C.GQL_BLOCK_HEIGHT_PARTITION_SIZE)
-      .toString();
+    // const currentPartition = toLong(bucket)
+    //   .mul(C.GQL_BLOCK_HEIGHT_BUCKET_SIZE)
+    //   .divide(C.GQL_BLOCK_HEIGHT_PARTITION_SIZE)
+    //   .toString();
     const currentBucketCountResult = await cassandraClient.execute(
-      `SELECT COUNT(*) from ${KEYSPACE}.${tableId.TABLE_GQL_BLOCK_ASC}
-       WHERE bucket_id='gql_bucket_block_height_asc_${bucket}'
-       AND partition_id='gql_partition_block_height_asc_${currentPartition}'`
+      `SELECT COUNT(*) from ${KEYSPACE}.block_height_sorted_asc
+       WHERE nth_million=${bucket}`
     );
     totalBlocksCount = totalBlocksCount.add(
       currentBucketCountResult.rows[0].count
     );
   }
-  return !expectedBlockHeight.add(1).equals(totalBlocksCount);
+  return !maxHeight.subtract(1).equals(totalBlocksCount);
 };
 
-export const findBlockGaps = async (): Promise<number[]> => {
-  const topHeightQ = await cassandraClient.execute(
-    `SELECT height FROM ${KEYSPACE}.${tableId.TABLE_GQL_BLOCK_DESC} LIMIT 1`
-  );
-  const topHeight = topHeightQ.rows[0].height;
-
+export const findBlockGaps = async (
+  maxHeight: CassandraTypes.Long
+): Promise<number[]> => {
   const queryHeightGroups = R.splitEvery(
-    1000,
-    R.range(0, topHeight.add(1).toInt())
+    1000000,
+    R.range(0, maxHeight.add(1).toInt())
   );
 
   const missingHeights: number[] = [];
 
   for (const heightGroup of queryHeightGroups) {
     const blockQ: { rows: unknown[] } = await cassandraClient.execute(
-      `SELECT height FROM ${KEYSPACE}.${
-        tableId.TABLE_BLOCK
-      } WHERE height >= ${R.head(heightGroup)} AND height <= ${R.last(
+      `SELECT block_height FROM ${KEYSPACE}.block_height_sorted_asc  WHERE height >= ${R.head(
         heightGroup
-      )} ALLOW FILTERING`
+      )} AND height <= ${R.last(heightGroup)}`
     );
     for (const height of R.range(
       R.head(heightGroup),
       R.last(heightGroup) + 1
     )) {
-      const findResult = R.findIndex((row: { height: CassandraTypes.Long }) =>
-        row.height.equals(height)
-      )(blockQ.rows as { height: CassandraTypes.Long }[]);
+      const findResult = R.findIndex(
+        (row: { block_height: CassandraTypes.Long }) =>
+          row.block_height.equals(height)
+      )(blockQ.rows as { block_height: CassandraTypes.Long }[]);
       if (findResult < 0) {
         missingHeights.push(height);
       }
@@ -76,11 +70,8 @@ export const findBlockGaps = async (): Promise<number[]> => {
   }
 };
 
-export const findTxGaps = async (): Promise<void> => {
-  const topHeightQ = await cassandraClient.execute(
-    `SELECT height FROM ${KEYSPACE}.${tableId.TABLE_GQL_BLOCK_DESC} LIMIT 1`
-  );
-  const topHeight = topHeightQ.rows[0].height;
+/*
+export const findTxGaps = async (maxHeight: CassandraTypes.Long): Promise<void> => {
 
   const queryHeightGroups = R.splitEvery(
     C.MAX_TX_PER_BLOCK,
@@ -139,6 +130,7 @@ export const findTxGaps = async (): Promise<void> => {
     );
   }
 };
+*/
 
 // export async function enqueueUnhandledCache(
 //   enqueueIncomingTxQueue: (any) => void,

@@ -1,6 +1,7 @@
 import * as R from "rambda";
 import { cassandraClient } from "../database/cassandra";
 import { types as CassandraTypes } from "cassandra-driver";
+import { TxSearchResult } from "./resolver-types";
 import { QueryTransactionsArgs as QueryTransactionsArguments } from "./types.graphql";
 import { toB64url } from "../query/transaction";
 import { KEYSPACE } from "../constants";
@@ -111,11 +112,59 @@ interface TagQueryFilter {
   values: string[];
 }
 
+const buildTagFilterKey = (
+  queryParameters: QueryTransactionsArguments
+): string[] => {
+  const filters = [];
+  for (const parameter of Object.keys(queryParameters)) {
+    if (
+      [
+        "tags",
+        "ids",
+        "recipients",
+        "owners",
+        "dataRoots",
+        "bundledIn",
+      ].includes(parameter) &&
+      !R.isEmpty<any>(
+        queryParameters[parameter as keyof QueryTransactionsArguments]
+      )
+    ) {
+      filters.push(parameter);
+    }
+  }
+  return filters;
+};
+
+interface TagFilterCursor {
+  txIndex: string;
+  dataItemIndex: string;
+  sortOrder: string;
+  tagFilterKeys: string[];
+}
+
+function encodeCursor({
+  sortOrder,
+  txIndex,
+  dataItemIndex,
+  tagFilterKeys,
+}: TagFilterCursor): string {
+  const string = JSON.stringify([
+    "tag_search",
+    sortOrder,
+    txIndex,
+    dataItemIndex,
+    tagFilterKeys,
+  ]);
+  return Buffer.from(string).toString("base64url");
+}
+
 export const findTxIDsFromTagFilters = async (
   queryParameters: QueryTransactionsArguments
-): Promise<[string[], string | undefined]> => {
-  const txFilterKeys = buildTxFilterKey(queryParameters);
-  const tableKey = txFilterKeys.sort().join("_");
+): Promise<[TxSearchResult[], boolean]> => {
+  const tagFilterKeys = buildTagFilterKey(queryParameters);
+  const tagFilterVals = R.pick(tagFilterKeys, queryParameters);
+  const tableKey = tagFilterKeys.sort().join("_");
   const sortOrder =
     queryParameters.sort === "HEIGHT_ASC" ? "HEIGHT_ASC" : "HEIGHT_DESC";
   const table = filtersToTable[sortOrder][tableKey];
@@ -145,7 +194,7 @@ export const findTxIDsFromTagFilters = async (
 
   const limit = Math.max(100, queryParameters.first || 10);
 
-  const whereClause = txFilterKeys.reduce((accumulator, key) => {
+  const whereClause = tagFilterKeys.reduce((accumulator, key) => {
     if (key === "tags") {
       return accumulator;
     } else {
@@ -171,87 +220,22 @@ export const findTxIDsFromTagFilters = async (
   }, "");
 
   const tagFilterQ = await cassandraClient.execute(
-    `SELECT tx_id, tx_index FROM ${KEYSPACE}.${table} WHERE tx_index <= ${txsMaxHeight} AND tx_index >= ${txsMinHeight} AND tag_pair IN (${tagPairsIn.join(
+    `SELECT tx_id, tx_index, data_item_index FROM ${KEYSPACE}.${table} WHERE tx_index <= ${txsMaxHeight} AND tx_index >= ${txsMinHeight} AND tag_pair IN (${tagPairsIn.join(
       ","
     )})${whereClause} LIMIT ${limit + 1}`
   );
 
-  const txIdsResult = tagFilterQ.rows.map((row) => row.tx_id);
+  const hasNextPage = tagFilterQ.rows.length > limit;
 
-  const cursor =
-    tagFilterQ.rows.length > limit
-      ? `${
-          (sortOrder === "HEIGHT_ASC" ? R.head : R.last)(tagFilterQ.rows)
-            .tx_index
-        }`
-      : undefined;
+  const txSearchResult = tagFilterQ.rows.slice(0, limit).map((row) => ({
+    txId: row.tx_id,
+    cursor: encodeCursor({
+      sortOrder,
+      txIndex: row.tx_index.toString(),
+      dataItemIndex: row.data_item_index.toString(),
+      tagFilterKeys,
+    }),
+  }));
 
-  return [txIdsResult, cursor];
-
-  /*
-  console.log({
-    tagFilterKeys,
-    tagFilterVals,
-    minHeight,
-    maxHeight,
-    limit,
-    sortOrder,
-  });
-  const txsMinHeight =
-    sortOrder === "HEIGHT_ASC"
-      ? minHeight.add(offset).toString()
-      : minHeight.toString();
-  const txsMaxHeight =
-    sortOrder === "HEIGHT_DESC"
-      ? maxHeight.sub(offset).toString()
-      : maxHeight.toString();
-  const tableKey = tagFilterKeys.sort().join("_");
-  const table = filtersToTable[sortOrder][tableKey];
-  const tagPairsIn = tagFilterVals.tags.reduce((accumulator, tagPairs) => {
-    // acc[0].push(`'${}'`);
-    const tagName = toB64url(tagPairs.name || "");
-    for (const tagValue of tagPairs.values) {
-      accumulator.push(`'${tagName}-${toB64url(tagValue)}'`);
-    }
-    return accumulator;
-  }, []);
-  const whereClause = tagFilterKeys.reduce((accumulator, key) => {
-    if (key === "tags") {
-      return accumulator;
-    } else {
-      const whereVals = tagFilterVals[key];
-      const cqlKey = propOr(
-        key,
-        key
-      )({
-        ids: "tx_id",
-        recipients: "target",
-        owners: "owner",
-        dataRoots: "data_root",
-        bundledIn: "bundled_in",
-      });
-      // if (cqlKey === "owner") {
-      //   console.log({ whereVals });
-      //   console.log("OWNER", whereVals.map(ownerToAddress));
-      // }
-      const whereValsString =
-        whereVals.length === 1
-          ? ` = '${whereVals[0]}'`
-          : `IN (${whereVals.map((wv: string) => `'${wv}'`).join(",")})`;
-      return `${accumulator} AND ${cqlKey} ${whereValsString}`;
-    }
-  }, "");
-  console.log(
-    `SELECT tx_id FROM ${KEYSPACE}.${table} WHERE tag_pair IN (${tagPairsIn.join(
-      ","
-    )}) ${whereClause}`
-  );
-  const tagQ = await cassandraClient.execute(
-    `SELECT tx_id FROM ${KEYSPACE}.${table} WHERE tx_index <= ${txsMaxHeight} AND tx_index >= ${txsMinHeight} AND tag_pair IN (${tagPairsIn.join(
-      ","
-    )}) ${whereClause} LIMIT ${limit || 100}`
-  );
-
-  return (tagQ as any).rows;
-*/
+  return [txSearchResult, hasNextPage];
 };

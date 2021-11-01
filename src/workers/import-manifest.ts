@@ -41,8 +41,8 @@ export async function importManifests(): Promise<void> {
   for await (const unimportedManifest of unimportedManifests) {
     log(`importing manifest ${unimportedManifest.tx_id}`);
     if (!(await importManifest(unimportedManifest.tx_id))) {
-      const numRetries = 10000;
-      if ((unimportedManifest.import_attempt_cnt || 0) < numRetries) {
+      const numberRetries = 10_000;
+      if ((unimportedManifest.import_attempt_cnt || 0) < numberRetries) {
         log(
           `failed to fetch chunked data for ${unimportedManifest.tx_id} will try again later...`
         );
@@ -52,7 +52,7 @@ export async function importManifests(): Promise<void> {
         });
       } else {
         log(
-          `failed to fetch chunked data for ${unimportedManifest.tx_id} and I will not attempt to do so again now that this failed ${numRetries} times!`
+          `failed to fetch chunked data for ${unimportedManifest.tx_id} and I will not attempt to do so again now that this failed ${numberRetries} times!`
         );
         await manifestQueueMapper.remove({
           tx_id: unimportedManifest.tx_id,

@@ -28,8 +28,6 @@ export const POLLTIME_DELAY_SECONDS: number = process.env[
 // Table names (because migration requires name change)
 export const TABLE_BLOCK_HEIGHT_BY_BLOCK_HASH = "block_height_by_block_hash";
 export const TABLE_BLOCK = "block";
-export const TABLE_GQL_BLOCK_ASC = "block_gql_asc";
-export const TABLE_GQL_BLOCK_DESC = "block_gql_desc";
 export const TABLE_GQL_TX_ASC = "tx_id_gql_asc";
 export const TABLE_GQL_TX_DESC = "tx_id_gql_desc";
 export const TABLE_TX = "transaction";
@@ -38,8 +36,6 @@ export const TABLE_TX_OFFSET = "tx_offset";
 export const tableId = {
   TABLE_BLOCK_HEIGHT_BY_BLOCK_HASH,
   TABLE_BLOCK,
-  TABLE_GQL_BLOCK_ASC,
-  TABLE_GQL_BLOCK_DESC,
   TABLE_GQL_TX_ASC,
   TABLE_GQL_TX_DESC,
   TABLE_TX,

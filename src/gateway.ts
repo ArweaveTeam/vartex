@@ -1,8 +1,6 @@
-import realFs from "node:fs";
-import gracefulFs from "graceful-fs";
-gracefulFs.gracefulify(realFs);
+import fs from "node:fs";
 import "colors";
-import querystring from "querystring";
+import querystring from "node:querystring";
 import path from "node:path";
 import exitHook from "exit-hook";
 import killPort from "kill-port";
@@ -37,7 +35,7 @@ const { default: expressPlayground } = gpmeImport as any;
 const dotenvPath = path.resolve("../.env");
 const dotenvPathFallback = path.resolve("../.env.example");
 
-if (realFs.existsSync(dotenvPath)) {
+if (fs.existsSync(dotenvPath)) {
   config({ path: dotenvPath });
 } else {
   config({ path: dotenvPathFallback });
@@ -63,7 +61,7 @@ app.use(poweredBy);
 // app.use(expressSlash());
 
 const dataPathRegex = new RegExp(
-  /^\/?([a-zA-Z0-9-_]{43})\/?$|^\/?([a-zA-Z0-9-_]{43})\/(.*)$/i
+  /^\/?([\w-]{43})\/?$|^\/?([\w-]{43})\/(.*)$/i
 );
 
 // 1. redirect domain.com/:txid -> txid.domain.org
@@ -76,7 +74,7 @@ function permawebSandboxMiddleware(
   if (
     request.subdomains &&
     request.subdomains.length > 0 &&
-    /[a-zA-Z0-9-_]{43}/.test(request.subdomains[0])
+    /[\w-]{43}/.test(request.subdomains[0])
   ) {
     request.txid = request.subdomains[0];
     dataRoute(request, response, next);
@@ -84,17 +82,17 @@ function permawebSandboxMiddleware(
   } else if (
     request.originalUrl.replace(/^\//, "").replace(/\/.*/, "").length === 43
   ) {
-    const reqPath = request.originalUrl.replace(/^\//, "");
-    const reqTxId = reqPath.replace(/\/.*/, "");
-    const reqSubPath = reqPath.replace(/.*\//, "");
+    const requestPath = request.originalUrl.replace(/^\//, "");
+    const requestTxId = requestPath.replace(/\/.*/, "");
+    const requestSubPath = requestPath.replace(/.*\//, "");
     const query = request.url.slice(request.path.length);
     response.redirect(
       302,
-      `${request.protocol}://${reqTxId}.${
+      `${request.protocol}://${requestTxId}.${
         request.host.endsWith(":80") || request.host.endsWith(":443")
           ? request.hostname
           : request.host
-      }/${reqSubPath}${query}`
+      }/${requestSubPath}${query}`
     );
     return;
   } else {
@@ -125,7 +123,7 @@ function appendSlashMiddleware(
   }
 
   // 44 = / + txid
-  if (request.path.length === 44 && request.path.substr(-1) !== "/") {
+  if (request.path.length === 44 && request.path.slice(-1) !== "/") {
     const query = request.url.slice(request.path.length);
     response.redirect(302, `${request.path}/${query}`);
     return;

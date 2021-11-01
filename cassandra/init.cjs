@@ -61,6 +61,22 @@ async function connect() {
            PRIMARY KEY (block_height)
          )`,
 
+        `CREATE TABLE IF NOT EXISTS block_height_sorted_asc (
+           nth_million int,
+           block_height bigint,
+           block_hash text,
+           PRIMARY KEY ((nth_million), block_height)
+         )
+          WITH CLUSTERING ORDER BY (block_height ASC)`,
+
+        `CREATE TABLE IF NOT EXISTS block_height_sorted_desc (
+           nth_million int,
+           block_height bigint,
+           block_hash text,
+           PRIMARY KEY ((nth_million), block_height)
+         )
+          WITH CLUSTERING ORDER BY (block_height DESC)`,
+
         `CREATE TABLE IF NOT EXISTS block (
            block_size bigint,
            cumulative_diff text,

@@ -2,14 +2,14 @@ import got from "got";
 import { lookup as mimeLookup } from "mime-types";
 import { head, last, prop } from "rambda";
 import { Request, Response } from "express";
-import { Duplex, PassThrough, Transform } from "stream";
+import { Duplex, PassThrough, Transform } from "node:stream";
 import StreamChain from "stream-chain";
 import StreamJson from "stream-json";
 import StreamJsonPick from "stream-json/filters/Pick";
 import StreamJsonValues from "stream-json/streamers/StreamValues";
 import {
   manifestMapper,
-  manifestUnimportedMapper,
+  manifestQueueMapper,
   permawebPathMapper,
   transactionMapper,
   txOffsetMapper,
@@ -30,7 +30,7 @@ class B64Transform extends Transform {
     this.iterLength = startOffset;
   }
 
-  _transform(chunk: string, encoding: string, cb: any) {
+  _transform(chunk: string, encoding: string, callback: any) {
     // ensure string
     chunk = "" + chunk;
 
@@ -41,11 +41,11 @@ class B64Transform extends Transform {
     this.iterLength += buf.length;
     this.push(buf);
 
-    cb();
+    callback();
   }
 
-  _flush(cb: any) {
-    cb();
+  _flush(callback: any) {
+    callback();
   }
 }
 
@@ -171,10 +171,10 @@ export async function dataRoute(
     }
   }
 
-  const txDb = await transactionMapper.get({ tx_id: txId });
+  const txDatabase = await transactionMapper.get({ tx_id: txId });
   let txUpstream: TransactionType | undefined;
 
-  if (!txDb) {
+  if (!txDatabase) {
     try {
       txUpstream = await getTransaction({ txId, retry: 2 });
     } catch {
@@ -193,7 +193,7 @@ export async function dataRoute(
   if (offset) {
     const tags = txUpstream
       ? txUpstream.tags.map(utf8DecodeTag)
-      : txDb.tags.map(utf8DecodeTupleTag);
+      : txDatabase.tags.map(utf8DecodeTupleTag);
     let contentType: string;
     let filename: string;
 
@@ -221,7 +221,7 @@ export async function dataRoute(
               }
             } else if (
               !maybeIndex &&
-              (await manifestUnimportedMapper.get({ tx_id: txId }))
+              (await manifestQueueMapper.get({ tx_id: txId }))
             ) {
               response.statusMessage = "Pending import";
               response.status(404).end();
@@ -241,8 +241,8 @@ export async function dataRoute(
       }
     }
 
-    const size = parseInt(offset.size);
-    const endOffset = parseInt(offset.offset);
+    const size = Number.parseInt(offset.size);
+    const endOffset = Number.parseInt(offset.offset);
     const startOffset = endOffset - size + 1;
 
     response.set({

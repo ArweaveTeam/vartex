@@ -1,6 +1,7 @@
 import * as R from "rambda";
 import { cassandraClient } from "../database/cassandra";
 import { types as CassandraTypes } from "cassandra-driver";
+import { TxSearchResult } from "./resolver-types";
 import { QueryTransactionsArgs as QueryTransactionsArguments } from "./types.graphql";
 import { toB64url } from "../query/transaction";
 import { KEYSPACE } from "../constants";
@@ -117,9 +118,32 @@ const buildTxFilterKey = (
   return filters;
 };
 
+interface TxFilterCursor {
+  txIndex: string;
+  dataItemIndex: string;
+  sortOrder: string;
+  txFilterKeys: string[];
+}
+
+function encodeCursor({
+  sortOrder,
+  txIndex,
+  dataItemIndex,
+  txFilterKeys,
+}: TxFilterCursor): string {
+  const string = JSON.stringify([
+    "tx_search",
+    sortOrder,
+    txIndex,
+    dataItemIndex,
+    txFilterKeys,
+  ]);
+  return Buffer.from(string).toString("base64url");
+}
+
 export const findTxIDsFromTxFilters = async (
   queryParameters: QueryTransactionsArguments
-): Promise<[string[], string | undefined]> => {
+): Promise<[TxSearchResult[], boolean]> => {
   const txFilterKeys = buildTxFilterKey(queryParameters);
   const tableKey = txFilterKeys.sort().join("_");
   const sortOrder =
@@ -166,20 +190,22 @@ export const findTxIDsFromTxFilters = async (
   }, "");
 
   const txFilterQ = await cassandraClient.execute(
-    `SELECT tx_id, tx_index FROM ${KEYSPACE}.${table} WHERE tx_index <= ${txsMaxHeight} AND tx_index >= ${txsMinHeight} ${whereClause} LIMIT ${
+    `SELECT tx_id, tx_index, data_item_index FROM ${KEYSPACE}.${table} WHERE tx_index <= ${txsMaxHeight} AND tx_index >= ${txsMinHeight} ${whereClause} LIMIT ${
       limit + 1
     }`
   );
 
-  const txIdsResult = txFilterQ.rows.map((row) => row.tx_id);
+  const hasNextPage = txFilterQ.rows.length > limit;
 
-  const cursor =
-    txFilterQ.rows.length > limit
-      ? `${
-          (sortOrder === "HEIGHT_ASC" ? R.head : R.last)(txFilterQ.rows)
-            .tx_index
-        }`
-      : undefined;
+  const txSearchResult = txFilterQ.rows.slice(0, limit).map((row) => ({
+    txId: row.tx_id,
+    cursor: encodeCursor({
+      sortOrder,
+      txIndex: row.tx_index.toString(),
+      dataItemIndex: row.data_item_index.toString(),
+      txFilterKeys,
+    }),
+  }));
 
-  return [txIdsResult, cursor];
+  return [txSearchResult, hasNextPage];
 };

@@ -9,7 +9,6 @@ import { KEYSPACE } from "../constants";
 import { config } from "dotenv";
 import { makeTagsMapper, tagModels } from "./tags-mapper";
 import { ownerToAddress } from "../utility/encoding";
-import * as CONST from "./constants";
 
 process.env.NODE_ENV !== "test" && config();
 
@@ -514,24 +513,3 @@ export const makeBlockImportQuery =
       ),
     ]);
   };
-
-export const getMaxHeightBlock = async (): Promise<
-  [string, CassandraTypes.Long]
-> => {
-  let bucketNumber = 0;
-  let lastMaxHeight: [string, CassandraTypes.Long] = ["", toLong(-1)];
-  let lastResponse = await cassandraClient.execute(
-    `SELECT height,indep_hash FROM ${KEYSPACE}.block_gql_desc WHERE bucket_number = 0 limit 1 ALLOW FILTERING`
-  );
-  while (lastResponse && !R.isEmpty(lastResponse.rows)) {
-    bucketNumber += 1;
-    const row = lastResponse.rows[0];
-    if (row) {
-      lastMaxHeight = [row["indep_hash"], row["height"]];
-    }
-    lastResponse = await cassandraClient.execute(
-      `SELECT height,indep_hash FROM ${KEYSPACE}.block_gql_desc WHERE bucket_number = ${bucketNumber} limit 1 ALLOW FILTERING`
-    );
-  }
-  return lastMaxHeight;
-};

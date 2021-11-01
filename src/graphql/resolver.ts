@@ -5,7 +5,6 @@ import moment from "moment";
 import { types as CassandraTypes } from "cassandra-driver";
 import { cassandraClient, toLong } from "../database/cassandra";
 import { transactionMapper } from "../database/mapper";
-import * as CONST from "../database/constants";
 import { gatewayHeight } from "../database/sync";
 import { GraphQLResolveInfo } from "graphql";
 import graphqlFields from "graphql-fields";
@@ -25,6 +24,7 @@ import {
   Transaction,
 } from "./types.graphql";
 import { Tag } from "../types/arweave";
+import { KEYSPACE } from "../constants";
 import { findTxIDsFromTagFilters } from "./tag-search";
 import { findTxIDsFromTxFilters } from "./tx-search";
 import {
@@ -78,6 +78,7 @@ interface FieldMap {
   id: string;
   ids: string[] | string; // legacy support, should only be string[]
   tx_id: string;
+  data_root: string;
   anchor: string;
   recipient: string;
   target: string;
@@ -93,7 +94,7 @@ interface FieldMap {
   owner_address: string;
   signature: string;
   timestamp: CassandraTypes.Long;
-  previous: string;
+  previous_block: string;
   block: unknown;
   block_id: string;
   block_timestamp: string;
@@ -354,7 +355,8 @@ export const resolvers = {
     ): Promise<Maybe<Query["transactions"]>> => {
       const tagSearchMode =
         queryParameters.tags && !R.isEmpty(queryParameters.tags);
-      const [txSearchResult, cursor] = tagSearchMode
+
+      const [txSearchResult, hasNextPage] = tagSearchMode
         ? await findTxIDsFromTagFilters(queryParameters)
         : await findTxIDsFromTxFilters(queryParameters);
 
@@ -368,14 +370,37 @@ export const resolvers = {
       }
 
       const txs = await Promise.all(
-        txSearchResult.map((tx_id: string) => transactionMapper.get({ tx_id }))
+        txSearchResult.map(
+          async ({ txId, cursor }: { txId: string; cursor: string }) => ({
+            tx: await transactionMapper.get({ tx_id: txId }),
+            cursor,
+          })
+        )
+      );
+
+      const txsClean = R.reject(R.isNil)(txs);
+      const edges = await Promise.all(
+        txsClean.map(async ({ block, tx, cursor }) => ({
+          cursor,
+          node: R.assoc(
+            "block",
+            queryParameters.block && tx.block_hash
+              ? (
+                  await cassandraClient.execute(
+                    `SELECT timestamp,height,previous_block FROM ${KEYSPACE}.block WHERE indep_hash='${tx.block_hash}'`
+                  )
+                ).rows[0] || {}
+              : {},
+            tx
+          ),
+        }))
       );
 
       return {
         pageInfo: {
-          hasNextPage: typeof cursor === "string",
+          hasNextPage,
         },
-        edges: R.reject(R.isNil)(txs),
+        edges,
       };
     },
 
@@ -385,6 +410,14 @@ export const resolvers = {
       request: Request, // eslint-disable-line @typescript-eslint/no-unused-vars
       info: GraphQLResolveInfo
     ): Promise<Maybe<Query["blocks"]>> => {
+      return {
+        pageInfo: {
+          hasNextPage: false,
+        },
+        edges: [],
+      };
+
+      /*
       const fieldsWithSubFields = graphqlFields(info);
 
       const { timestamp, offset } = parseCursor(
@@ -499,11 +532,15 @@ export const resolvers = {
           node: block,
         })),
       };
+      */
     },
   },
   Transaction: {
     id: (parent: FieldMap): string => {
       return parent.tx_id;
+    },
+    dataRoot: (parent: FieldMap): string => {
+      return parent.data_root;
     },
     anchor: (parent: FieldMap): string => {
       return parent.anchor || "";
@@ -518,27 +555,23 @@ export const resolvers = {
       return parent.target || "";
     },
     data: (parent: FieldMap): MetaData => {
-      if (parent.data) {
-        // Q29udGVudC1UeXBl = "Content-Type"
-        // Y29udGVudC10eXBl = "content-type"
-        const maybeContentType =
-          Array.isArray(parent.tags) &&
-          parent.tags.find((tag) =>
-            ["Q29udGVudC1UeXBl", "Y29udGVudC10eXBl"].includes(tag.get(0))
-          );
+      // Q29udGVudC1UeXBl = "Content-Type"
+      // Y29udGVudC10eXBl = "content-type"
+      const maybeContentType =
+        Array.isArray(parent.tags) &&
+        parent.tags.find((tag) =>
+          ["Q29udGVudC1UeXBl", "Y29udGVudC10eXBl"].includes(tag.get(0))
+        );
 
-        return {
-          // eslint-ignore-next-line unicorn/explicit-length-check
-          size: `${parent.data.size || 0}`,
-          type:
-            parent.data_type ||
-            (maybeContentType
-              ? fromB64Url(maybeContentType.get(1)).toString("utf8")
-              : ""),
-        };
-      } else {
-        return { size: "", type: "" };
-      }
+      return {
+        // eslint-ignore-next-line unicorn/explicit-length-check
+        size: `${parent.data_size || 0}`,
+        type:
+          parent.data_type ||
+          (maybeContentType
+            ? fromB64Url(maybeContentType.get(1)).toString("utf8")
+            : ""),
+      };
     },
     quantity: (parent: FieldMap): Amount => {
       return {
@@ -598,7 +631,7 @@ export const resolvers = {
       return parent.indep_hash;
     },
     previous: (parent: FieldMap): string => {
-      return parent.previous;
+      return parent.previous_block;
     },
     timestamp: (parent: FieldMap): string => {
       return parent.timestamp.toString();

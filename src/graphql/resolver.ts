@@ -188,6 +188,9 @@ export const resolvers = {
       request: Request, // eslint-disable-line @typescript-eslint/no-unused-vars
       info: GraphQLResolveInfo
     ): Promise<Maybe<Query["transactions"]>> => {
+      if (!maxHeightBlock) {
+        throw new Error(`graphql isn't ready!`);
+      }
       const fieldsWithSubFields = graphqlFields(info);
       const wantsBlock = R.hasPath("edges.node.block", fieldsWithSubFields);
 
@@ -196,7 +199,7 @@ export const resolvers = {
 
       const [txSearchResult, hasNextPage] = tagSearchMode
         ? await findTxIDsFromTagFilters(queryParameters)
-        : await findTxIDsFromTxFilters(queryParameters);
+        : await findTxIDsFromTxFilters(maxHeightBlock[1], queryParameters);
 
       if (R.isEmpty(txSearchResult)) {
         return {
@@ -242,6 +245,14 @@ export const resolvers = {
       };
     },
 
+    block: async (
+      parent: FieldMap,
+      queryParameters: QueryBlockArguments,
+      request: Request, // eslint-disable-line @typescript-eslint/no-unused-vars
+      info: GraphQLResolveInfo // eslint-disable-line @typescript-eslint/no-unused-vars
+    ): Promise<Maybe<Block>> => {
+      return await blockMapper.get({ indep_hash: queryParameters.id });
+    },
     blocks: async (
       parent: FieldMap,
       queryParameters: QueryBlocksArguments,
@@ -276,7 +287,7 @@ export const resolvers = {
           ? "block_height_sorted_asc"
           : "block_height_sorted_desc";
 
-      const limit = Math.max(100, queryParameters.first || 10);
+      const limit = Math.min(100, queryParameters.first || 10);
 
       const blockMinHeight_ =
         typeof queryParameters.height === "object" &&
@@ -336,12 +347,16 @@ export const resolvers = {
 
       while (nthBucket < buckets.length && resultCount < limit) {
         const nextResult = await cassandraClient.execute(
-          `SELECT * FROM ${KEYSPACE}.${tableName} WHERE nth_million=${nthBucket} AND block_height >= ${blockMinHeight} AND block_height <= ${blockMaxHeight} LIMIT ${
+          `SELECT * FROM ${KEYSPACE}.${tableName} WHERE nth_million=${
+            buckets[nthBucket]
+          } AND block_height >= ${blockMinHeight} AND block_height <= ${blockMaxHeight} LIMIT ${
             limit - resultCount + 1
           }`
         );
         for (const row of nextResult.rows) {
-          searchResult.push((R.assoc as any)("nthMillion", nthBucket, row));
+          searchResult.push(
+            (R.assoc as any)("nthMillion", buckets[nthBucket], row)
+          );
           if (resultCount !== limit) {
             resultCount += 1;
           } else {
@@ -479,7 +494,7 @@ export const resolvers = {
       return parent.indep_hash;
     },
     previous: (parent: FieldMap): string => {
-      return parent.previous_block;
+      return parent.previous_block || "";
     },
     timestamp: (parent: FieldMap): string => {
       return parent.timestamp.toString();

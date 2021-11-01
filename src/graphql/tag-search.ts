@@ -192,7 +192,7 @@ export const findTxIDsFromTagFilters = async (
     return [[], undefined];
   }
 
-  const limit = Math.max(100, queryParameters.first || 10);
+  const limit = Math.min(100, queryParameters.first || 10);
 
   const whereClause = tagFilterKeys.reduce((accumulator, key) => {
     if (key === "tags") {

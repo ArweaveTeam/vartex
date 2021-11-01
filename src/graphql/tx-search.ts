@@ -1,5 +1,6 @@
 import * as R from "rambda";
 import { cassandraClient } from "../database/cassandra";
+import { toLong } from "../database/utils";
 import { types as CassandraTypes } from "cassandra-driver";
 import { TxSearchResult } from "./resolver-types";
 import { QueryTransactionsArgs as QueryTransactionsArguments } from "./types.graphql";
@@ -81,24 +82,6 @@ const filtersToTable: { [direction: string]: Record<string, string> } = {
   },
 };
 
-//  {
-//   tagFilterKeys,
-//   tagFilterVals,
-//   minHeight,
-//   maxHeight,
-//   limit,
-//   offset,
-//   sortOrder,
-// }: {
-//   txFilterKeys: string[];
-//   txFilterVals: { [any_: string]: any };
-//   minHeight?: CassandraTypes.Long;
-//   maxHeight?: CassandraTypes.Long;
-//   limit?: number;
-//   offset?: number;
-//   sortOrder?: string;
-// }
-
 const buildTxFilterKey = (
   queryParameters: QueryTransactionsArguments
 ): string[] => {
@@ -123,95 +106,208 @@ const buildTxFilterKey = (
 };
 
 interface TxFilterCursor {
+  cursorType?: string;
   txIndex: string;
   dataItemIndex: string;
   sortOrder: string;
-  txFilterKeys: string[];
+  nthMillion: number;
 }
 
 function encodeCursor({
   sortOrder,
   txIndex,
   dataItemIndex,
-  txFilterKeys,
+  nthMillion,
 }: TxFilterCursor): string {
   const string = JSON.stringify([
     "tx_search",
     sortOrder,
     txIndex,
     dataItemIndex,
-    txFilterKeys,
+    nthMillion,
   ]);
   return Buffer.from(string).toString("base64url");
 }
 
+function parseTxFilterCursor(cursor: string): TxFilterCursor {
+  try {
+    const [cursorType, sortOrder, txIndex, dataItemIndex, nthMillion] =
+      JSON.parse(Buffer.from(cursor, "base64url").toString()) as [
+        string,
+        string,
+        string,
+        string,
+        number
+      ];
+    return { cursorType, sortOrder, txIndex, dataItemIndex, nthMillion };
+  } catch {
+    throw new Error("invalid cursor");
+  }
+}
+
 export const findTxIDsFromTxFilters = async (
+  maxHeightBlock: CassandraTypes.Long,
   queryParameters: QueryTransactionsArguments
 ): Promise<[TxSearchResult[], boolean]> => {
   const txFilterKeys = buildTxFilterKey(queryParameters);
   const tableKey = txFilterKeys.sort().join("_");
   const sortOrder =
     queryParameters.sort === "HEIGHT_ASC" ? "HEIGHT_ASC" : "HEIGHT_DESC";
-  const table = filtersToTable[sortOrder][tableKey];
+  const table = R.isEmpty(txFilterKeys)
+    ? sortOrder === "HEIGHT_ASC"
+      ? "txs_sorted_asc"
+      : "txs_sorted_desc"
+    : filtersToTable[sortOrder][tableKey];
 
-  const txsMinHeight =
+  const cursorQuery =
+    queryParameters.after &&
+    typeof queryParameters.after === "string" &&
+    !R.isEmpty(queryParameters.after);
+
+  const maybeCursor = cursorQuery
+    ? parseTxFilterCursor(queryParameters.after)
+    : ({} as any);
+
+  if (maybeCursor.cursorType && maybeCursor.cursorType !== "tx_search") {
+    throw new Error(
+      `invalid cursor: expected cursor of type tx_search but got ${maybeCursor.cursorType}`
+    );
+  }
+
+  if (maybeCursor.sortOrder && maybeCursor.sortOrder !== sortOrder) {
+    throw new Error(
+      `invalid cursor: expected sortOrder ${sortOrder} but got cursor of ${maybeCursor.sortOrder}`
+    );
+  }
+
+  const txsMinHeight_ =
     typeof queryParameters.block === "object" &&
     typeof queryParameters.block.min === "number"
       ? queryParameters.block.min * 1000
       : 0;
 
-  const txsMaxHeight =
+  const txsMinHeight =
+    typeof maybeCursor.txIndex !== "undefined" &&
+    sortOrder === "HEIGHT_ASC" &&
+    toLong(maybeCursor.txIndex).gt(toLong(txsMinHeight_))
+      ? maybeCursor.txIndex
+      : txsMinHeight_;
+
+  const txsMaxHeight_ =
     typeof queryParameters.block === "object" &&
     typeof queryParameters.block.max === "number"
       ? queryParameters.block.max * 1000
       : Number.MAX_SAFE_INTEGER;
 
+  const txsMaxHeight =
+    typeof maybeCursor.txIndex !== "undefined" && sortOrder === "HEIGHT_DESC"
+      ? maybeCursor.txIndex
+      : txsMaxHeight_;
+
   if (queryParameters.first === 0) {
-    return [[], undefined];
+    return [[], false];
   }
 
-  const limit = Math.max(100, queryParameters.first || 10);
+  const limit = Math.min(100, queryParameters.first || 10);
 
-  const whereClause = txFilterKeys.reduce((accumulator, key) => {
-    const k_ =
-      key === "target"
-        ? "recipients"
-        : (key as keyof QueryTransactionsArguments);
-    const whereVals: any = queryParameters[k_];
-    const cqlKey = R.propOr(
-      key,
-      key
-    )({
-      ids: "tx_id",
-      recipients: "target",
-      owners: "owner",
-      dataRoots: "data_root",
-      bundledIn: "bundled_in",
-    });
+  const whereClause = R.isEmpty(txFilterKeys)
+    ? ""
+    : txFilterKeys.reduce((accumulator, key) => {
+        const k_ =
+          key === "target"
+            ? "recipients"
+            : (key as keyof QueryTransactionsArguments);
+        const whereVals: any = queryParameters[k_];
+        const cqlKey = R.propOr(
+          key,
+          key
+        )({
+          ids: "tx_id",
+          recipients: "target",
+          owners: "owner",
+          dataRoots: "data_root",
+          bundledIn: "bundled_in",
+        });
 
-    const whereValsString =
-      whereVals.length === 1
-        ? ` = '${whereVals[0]}'`
-        : `IN (${whereVals.map((wv: string) => `'${wv}'`).join(",")})`;
-    return `${accumulator} AND ${cqlKey} ${whereValsString}`;
-  }, "");
+        const whereValsString =
+          whereVals.length === 1
+            ? ` = '${whereVals[0]}'`
+            : `IN (${whereVals.map((wv: string) => `'${wv}'`).join(",")})`;
+        return `${accumulator} AND ${cqlKey} ${whereValsString}`;
+      }, "");
 
-  const txFilterQ = await cassandraClient.execute(
-    `SELECT tx_id, tx_index, data_item_index FROM ${KEYSPACE}.${table} WHERE tx_index <= ${txsMaxHeight} AND tx_index >= ${txsMinHeight} ${whereClause} LIMIT ${
-      limit + 1
-    }`
-  );
+  let hasNextPage = false;
+  let txsFilterRows = [];
 
-  const hasNextPage = txFilterQ.rows.length > limit;
+  if (!R.isEmpty(txFilterKeys)) {
+    const txFilterQ = await cassandraClient.execute(
+      `SELECT tx_id, tx_index, data_item_index FROM ${KEYSPACE}.${table} WHERE tx_index <= ${txsMaxHeight} AND tx_index >= ${txsMinHeight} ${whereClause} LIMIT ${
+        limit + 1
+      }`
+    );
+    txsFilterRows = txFilterQ.rows;
+    hasNextPage = txFilterQ.rows.length > limit;
+  } else {
+    const xMillions = maxHeightBlock.mul(1000).div(1e6).add(1);
 
-  const txSearchResult = txFilterQ.rows.slice(0, limit).map((row) => ({
-    txId: row.tx_id,
-    cursor: encodeCursor({
+    const rangePostFn = sortOrder === "HEIGHT_ASC" ? R.identity : R.reverse;
+
+    const bucketStart =
+      typeof maybeCursor.nthMillion !== "undefined" &&
+      maybeCursor.nthMillion !== -1 &&
+      sortOrder === "HEIGHT_ASC"
+        ? maybeCursor.nthMillion
+        : 0;
+
+    const bucketEnd =
+      typeof maybeCursor.nthMillion !== "undefined" &&
+      maybeCursor.nthMillion !== -1 &&
+      sortOrder === "HEIGHT_DESC"
+        ? maybeCursor.nthMillion + 1
+        : (xMillions.add(1).toInt() as number);
+
+    const buckets: number[] = rangePostFn(
+      (R.range as any)(bucketStart, bucketEnd)
+    );
+
+    let resultCount = 0;
+    let nthBucket = 0;
+
+    while (nthBucket < buckets.length && resultCount < limit) {
+      const nextResult = await cassandraClient.execute(
+        `SELECT tx_id, tx_index, data_item_index FROM ${KEYSPACE}.${table} WHERE tx_index <= ${txsMaxHeight} AND tx_index >= ${txsMinHeight} AND nth_million=${
+          buckets[nthBucket]
+        } LIMIT ${limit - resultCount + 1}`
+      );
+      for (const row of nextResult.rows) {
+        !hasNextPage &&
+          txsFilterRows.push(
+            (R.assoc as any)("nthMillion", buckets[nthBucket], row)
+          );
+        if (resultCount !== limit) {
+          resultCount += 1;
+        } else {
+          hasNextPage = true;
+          break;
+        }
+      }
+
+      nthBucket += 1;
+    }
+  }
+
+  const cursors = txsFilterRows.slice(1, limit + 1).map((row) =>
+    encodeCursor({
       sortOrder,
       txIndex: row.tx_index.toString(),
       dataItemIndex: row.data_item_index.toString(),
-      txFilterKeys,
-    }),
+      nthMillion: R.isEmpty(txFilterKeys) ? row.nthMillion : -1,
+    })
+  );
+
+  const txSearchResult = txsFilterRows.slice(0, limit).map((row, index) => ({
+    txId: row.tx_id,
+    cursor: index < cursors.length ? cursors[index] : undefined,
   }));
 
   return [txSearchResult, hasNextPage];

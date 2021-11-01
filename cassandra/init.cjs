@@ -130,6 +130,24 @@ async function connect() {
            PRIMARY KEY(tx_id)
          )`,
 
+        `CREATE TABLE IF NOT EXISTS txs_sorted_asc (
+           nth_million int,
+           tx_id text,
+           tx_index bigint,
+           data_item_index bigint,
+           PRIMARY KEY((nth_million), tx_index, data_item_index)
+         )
+         WITH CLUSTERING ORDER BY (tx_index ASC, data_item_index ASC)`,
+
+        `CREATE TABLE IF NOT EXISTS txs_sorted_desc (
+           nth_million int,
+           tx_id text,
+           tx_index bigint,
+           data_item_index bigint,
+           PRIMARY KEY((nth_million), tx_index, data_item_index)
+         )
+         WITH CLUSTERING ORDER BY (tx_index DESC, data_item_index DESC)`,
+
         `CREATE TABLE IF NOT EXISTS manifest (
           tx_id text,
           manifest_type text,

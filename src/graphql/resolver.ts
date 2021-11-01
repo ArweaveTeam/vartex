@@ -228,7 +228,7 @@ export const resolvers = {
             wantsBlock && tx.block_hash
               ? (
                   await cassandraClient.execute(
-                    `SELECT timestamp,height,previous_block FROM ${KEYSPACE}.block WHERE indep_hash='${tx.block_hash}'`
+                    `SELECT indep_hash,timestamp,height,previous_block FROM ${KEYSPACE}.block WHERE indep_hash='${tx.block_hash}'`
                   )
                 ).rows[0] || {}
               : {},

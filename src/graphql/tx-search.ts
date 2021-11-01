@@ -197,7 +197,7 @@ export const findTxIDsFromTxFilters = async (
     typeof queryParameters.block === "object" &&
     typeof queryParameters.block.max === "number"
       ? queryParameters.block.max * 1000
-      : Number.MAX_SAFE_INTEGER;
+      : maxHeightBlock.add(1).mul(1000).toString();
 
   const txsMaxHeight =
     typeof maybeCursor.txIndex !== "undefined" && sortOrder === "HEIGHT_DESC"
@@ -248,7 +248,7 @@ export const findTxIDsFromTxFilters = async (
     txsFilterRows = txFilterQ.rows;
     hasNextPage = txFilterQ.rows.length > limit;
   } else {
-    const xMillions = maxHeightBlock.mul(1000).div(1e6).add(1);
+    const xMillions = toLong(txsMaxHeight).div(1e6).add(1);
 
     const rangePostFn = sortOrder === "HEIGHT_ASC" ? R.identity : R.reverse;
 
@@ -288,7 +288,6 @@ export const findTxIDsFromTxFilters = async (
           resultCount += 1;
         } else {
           hasNextPage = true;
-          break;
         }
       }
 

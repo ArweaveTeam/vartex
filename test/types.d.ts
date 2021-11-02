@@ -1,4 +1,3 @@
-declare module "@ridi/cql-builder";
 declare module "are-we-there-yet";
 declare module "async-disk-cache";
 declare module "gauge";

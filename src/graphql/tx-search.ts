@@ -9,76 +9,76 @@ import { KEYSPACE } from "../constants";
 
 const filtersToTable: { [direction: string]: Record<string, string> } = {
   HEIGHT_ASC: {
-    bundledIn_dataRoots_ids_owner_target:
+    bundledIn_dataRoots_ids_owners_target:
       "tx_gql_by_tx_id_owner_target_bundled_in_data_root_asc",
-    bundledIn_dataRoots_owner_target:
+    bundledIn_dataRoots_owners_target:
       "tx_gql_by_owner_target_bundled_in_data_root_asc",
     bundledIn_dataRoots_ids_target:
       "tx_gql_by_tx_id_target_bundled_in_data_root_asc",
-    bundledIn_dataRoots_ids_owner:
+    bundledIn_dataRoots_ids_owners:
       "tx_gql_by_tx_id_owner_bundled_in_data_root_asc",
-    dataRoots_ids_owner_target: "tx_gql_by_tx_id_owner_target_data_root_asc",
-    bundledIn_ids_owner_target: "tx_gql_by_tx_id_owner_target_bundled_in_asc",
+    dataRoots_ids_owners_target: "tx_gql_by_tx_id_owner_target_data_root_asc",
+    bundledIn_ids_owners_target: "tx_gql_by_tx_id_owner_target_bundled_in_asc",
     bundledIn_dataRoots_target: "tx_gql_by_target_bundled_in_data_root_asc",
-    bundledIn_dataRoots_owner: "tx_gql_by_owner_bundled_in_data_root_asc",
-    dataRoots_owner_target: "tx_gql_by_owner_target_data_root_asc",
-    bundledIn_owner_target: "tx_gql_by_owner_target_bundled_in_asc",
+    bundledIn_dataRoots_owners: "tx_gql_by_owner_bundled_in_data_root_asc",
+    dataRoots_owners_target: "tx_gql_by_owner_target_data_root_asc",
+    bundledIn_owners_target: "tx_gql_by_owner_target_bundled_in_asc",
     bundledIn_dataRoots_ids: "tx_gql_by_tx_id_bundled_in_data_root_asc",
     dataRoots_ids_target: "tx_gql_by_tx_id_target_data_root_asc",
     bundledIn_ids_target: "tx_gql_by_tx_id_target_bundled_in_asc",
-    dataRoots_ids_owner: "tx_gql_by_tx_id_owner_data_root_asc",
-    bundledIn_ids_owner: "tx_gql_by_tx_id_owner_bundled_in_asc",
-    ids_owner_target: "tx_gql_by_tx_id_owner_target_asc",
+    dataRoots_ids_owners: "tx_gql_by_tx_id_owner_data_root_asc",
+    bundledIn_ids_owners: "tx_gql_by_tx_id_owner_bundled_in_asc",
+    ids_owners_target: "tx_gql_by_tx_id_owner_target_asc",
     bundledIn_dataRoots: "tx_gql_by_bundled_in_data_root_asc",
     dataRoots_target: "tx_gql_by_target_data_root_asc",
     bundledId_target: "tx_gql_by_target_bundled_in_asc",
-    dataRoots_owner: "tx_gql_by_owner_data_root_asc",
-    bundledId_owner: "tx_gql_by_owner_bundled_in_asc",
-    owner_target: "tx_gql_by_owner_target_asc",
+    dataRoots_owners: "tx_gql_by_owner_data_root_asc",
+    bundledId_owners: "tx_gql_by_owner_bundled_in_asc",
+    owners_target: "tx_gql_by_owner_target_asc",
     dataRoots_ids: "tx_gql_by_tx_id_data_root_asc",
     bundledId_ids: "tx_gql_by_tx_id_bundled_in_asc",
     ids_target: "tx_gql_by_tx_id_target_asc",
-    ids_owner: "tx_gql_by_tx_id_owner_asc",
+    ids_owners: "tx_gql_by_tx_id_owner_asc",
     dataRoots: "tx_gql_by_data_root_asc",
     bundledIn: "tx_gql_by_bundled_in_asc",
     target: "tx_gql_by_target_asc",
-    owner: "tx_gql_by_owner_asc",
+    owners: "tx_gql_by_owner_asc",
   },
   HEIGHT_DESC: {
-    bundledIn_dataRoots_ids_owner_target:
+    bundledIn_dataRoots_ids_owners_target:
       "tx_gql_by_tx_id_owner_target_bundled_in_data_root_desc",
-    bundledIn_dataRoots_owner_target:
+    bundledIn_dataRoots_owners_target:
       "tx_gql_by_owner_target_bundled_in_data_root_desc",
     bundledIn_dataRoots_ids_target:
       "tx_gql_by_tx_id_target_bundled_in_data_root_desc",
-    bundledIn_dataRoots_ids_owner:
+    bundledIn_dataRoots_ids_owners:
       "tx_gql_by_tx_id_owner_bundled_in_data_root_desc",
-    dataRoots_ids_owner_target: "tx_gql_by_tx_id_owner_target_data_root_desc",
-    bundledIn_ids_owner_target: "tx_gql_by_tx_id_owner_target_bundled_in_desc",
+    dataRoots_ids_owners_target: "tx_gql_by_tx_id_owner_target_data_root_desc",
+    bundledIn_ids_owners_target: "tx_gql_by_tx_id_owner_target_bundled_in_desc",
     bundledIn_dataRoots_target: "tx_gql_by_target_bundled_in_data_root_desc",
-    bundledIn_dataRoots_owner: "tx_gql_by_owner_bundled_in_data_root_desc",
-    dataRoots_owner_target: "tx_gql_by_owner_target_data_root_desc",
-    bundledIn_owner_target: "tx_gql_by_owner_target_bundled_in_desc",
+    bundledIn_dataRoots_owners: "tx_gql_by_owner_bundled_in_data_root_desc",
+    dataRoots_owners_target: "tx_gql_by_owner_target_data_root_desc",
+    bundledIn_owners_target: "tx_gql_by_owner_target_bundled_in_desc",
     bundledIn_dataRoots_ids: "tx_gql_by_tx_id_bundled_in_data_root_desc",
     dataRoots_ids_target: "tx_gql_by_tx_id_target_data_root_desc",
     bundledIn_ids_target: "tx_gql_by_tx_id_target_bundled_in_desc",
-    dataRoots_ids_owner: "tx_gql_by_tx_id_owner_data_root_desc",
-    bundledIn_ids_owner: "tx_gql_by_tx_id_owner_bundled_in_desc",
-    ids_owner_target: "tx_gql_by_tx_id_owner_target_desc",
+    dataRoots_ids_owners: "tx_gql_by_tx_id_owner_data_root_desc",
+    bundledIn_ids_owners: "tx_gql_by_tx_id_owner_bundled_in_desc",
+    ids_owners_target: "tx_gql_by_tx_id_owner_target_desc",
     bundledIn_dataRoots: "tx_gql_by_bundled_in_data_root_desc",
     dataRoots_target: "tx_gql_by_target_data_root_desc",
     bundledId_target: "tx_gql_by_target_bundled_in_desc",
-    dataRoots_owner: "tx_gql_by_owner_data_root_desc",
-    bundledId_owner: "tx_gql_by_owner_bundled_in_desc",
-    owner_target: "tx_gql_by_owner_target_desc",
+    dataRoots_owners: "tx_gql_by_owner_data_root_desc",
+    bundledId_owners: "tx_gql_by_owner_bundled_in_desc",
+    owners_target: "tx_gql_by_owner_target_desc",
     dataRoots_ids: "tx_gql_by_tx_id_data_root_desc",
     bundledId_ids: "tx_gql_by_tx_id_bundled_in_desc",
     ids_target: "tx_gql_by_tx_id_target_desc",
-    ids_owner: "tx_gql_by_tx_id_owner_desc",
+    ids_owners: "tx_gql_by_tx_id_owner_desc",
     dataRoots: "tx_gql_by_data_root_desc",
     bundledIn: "tx_gql_by_bundled_in_desc",
     target: "tx_gql_by_target_desc",
-    owner: "tx_gql_by_owner_desc",
+    owners: "tx_gql_by_owner_desc",
   },
 };
 
@@ -151,6 +151,7 @@ export const findTxIDsFromTxFilters = async (
 ): Promise<[TxSearchResult[], boolean]> => {
   const txFilterKeys = buildTxFilterKey(queryParameters);
   const tableKey = txFilterKeys.sort().join("_");
+
   const sortOrder =
     queryParameters.sort === "HEIGHT_ASC" ? "HEIGHT_ASC" : "HEIGHT_DESC";
   const table = R.isEmpty(txFilterKeys)
@@ -245,6 +246,7 @@ export const findTxIDsFromTxFilters = async (
         limit + 1
       }`
     );
+
     txsFilterRows = txFilterQ.rows;
     hasNextPage = txFilterQ.rows.length > limit;
   } else {

@@ -16,13 +16,13 @@ export function graphServer(
   const graphServer = new ApolloServer({
     typeDefs,
     resolvers,
-    debug: true,
+    debug: false,
     plugins: [ApolloServerPluginLandingPageDisabled()],
     context: (context) => {
       return {
         req: context.req,
         conection: {},
-        tracing: true,
+        tracing: false,
         // connection,
       };
     },

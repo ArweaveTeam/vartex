@@ -1,5 +1,6 @@
 import * as R from "rambda";
 import { cassandraClient } from "../database/cassandra";
+import { toLong } from "../database/utils";
 import { types as CassandraTypes } from "cassandra-driver";
 import { TxSearchResult } from "./resolver-types";
 import { QueryTransactionsArgs as QueryTransactionsArguments } from "./types.graphql";
@@ -137,29 +138,39 @@ const buildTagFilterKey = (
 };
 
 interface TagFilterCursor {
+  cursorType?: string;
   txIndex: string;
   dataItemIndex: string;
   sortOrder: string;
-  tagFilterKeys: string[];
 }
 
 function encodeCursor({
   sortOrder,
   txIndex,
   dataItemIndex,
-  tagFilterKeys,
 }: TagFilterCursor): string {
   const string = JSON.stringify([
     "tag_search",
     sortOrder,
     txIndex,
     dataItemIndex,
-    tagFilterKeys,
   ]);
   return Buffer.from(string).toString("base64url");
 }
 
+function parseTagFilterCursor(cursor: string): TagFilterCursor {
+  try {
+    const [cursorType, sortOrder, txIndex, dataItemIndex] = JSON.parse(
+      Buffer.from(cursor, "base64url").toString()
+    ) as [string, string, string, string, number];
+    return { cursorType, sortOrder, txIndex, dataItemIndex };
+  } catch {
+    throw new Error("invalid cursor");
+  }
+}
+
 export const findTxIDsFromTagFilters = async (
+  maxHeightBlock: CassandraTypes.Long,
   queryParameters: QueryTransactionsArguments
 ): Promise<[TxSearchResult[], boolean]> => {
   const tagFilterKeys = buildTagFilterKey(queryParameters);
@@ -176,17 +187,50 @@ export const findTxIDsFromTagFilters = async (
     return accumulator;
   }, []);
 
-  const txsMinHeight =
+  const cursorQuery =
+    queryParameters.after &&
+    typeof queryParameters.after === "string" &&
+    !R.isEmpty(queryParameters.after);
+
+  const maybeCursor = cursorQuery
+    ? parseTagFilterCursor(queryParameters.after)
+    : ({} as any);
+
+  if (maybeCursor.cursorType && maybeCursor.cursorType !== "tag_search") {
+    throw new Error(
+      `invalid cursor: expected cursor of type tag_search but got ${maybeCursor.cursorType}`
+    );
+  }
+
+  if (maybeCursor.sortOrder && maybeCursor.sortOrder !== sortOrder) {
+    throw new Error(
+      `invalid cursor: expected sortOrder ${sortOrder} but got cursor of ${maybeCursor.sortOrder}`
+    );
+  }
+
+  const txsMinHeight_ =
     typeof queryParameters.block === "object" &&
     typeof queryParameters.block.min === "number"
       ? queryParameters.block.min * 1000
       : 0;
 
-  const txsMaxHeight =
+  const txsMinHeight =
+    typeof maybeCursor.txIndex !== "undefined" &&
+    sortOrder === "HEIGHT_ASC" &&
+    toLong(maybeCursor.txIndex).gt(toLong(txsMinHeight_))
+      ? maybeCursor.txIndex
+      : txsMinHeight_;
+
+  const txsMaxHeight_ =
     typeof queryParameters.block === "object" &&
     typeof queryParameters.block.max === "number"
       ? queryParameters.block.max * 1000
-      : Number.MAX_SAFE_INTEGER;
+      : maxHeightBlock.add(1).mul(1000).toString();
+
+  const txsMaxHeight =
+    typeof maybeCursor.txIndex !== "undefined" && sortOrder === "HEIGHT_DESC"
+      ? maybeCursor.txIndex
+      : txsMaxHeight_;
 
   if (queryParameters.first === 0) {
     return [[], undefined];
@@ -233,7 +277,6 @@ export const findTxIDsFromTagFilters = async (
       sortOrder,
       txIndex: row.tx_index.toString(),
       dataItemIndex: row.data_item_index.toString(),
-      tagFilterKeys,
     }),
   }));
 

@@ -39,14 +39,6 @@ import {
   utf8DecodeTupleTag,
   fromB64Url,
 } from "../utility/encoding";
-import {
-  QueryParameters,
-  generateBlockQuery,
-  generateTransactionQuery,
-  generateDeferedTxQuery,
-  generateDeferedTxBlockQuery,
-  // generateDeferedBlockQuery,
-} from "./query-builder";
 
 process.env.NODE_ENV !== "test" && config();
 
@@ -198,7 +190,7 @@ export const resolvers = {
         queryParameters.tags && !R.isEmpty(queryParameters.tags);
 
       const [txSearchResult, hasNextPage] = tagSearchMode
-        ? await findTxIDsFromTagFilters(queryParameters)
+        ? await findTxIDsFromTagFilters(maxHeightBlock[1], queryParameters)
         : await findTxIDsFromTxFilters(maxHeightBlock[1], queryParameters);
 
       if (R.isEmpty(txSearchResult)) {

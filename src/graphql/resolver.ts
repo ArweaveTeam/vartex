@@ -73,11 +73,6 @@ const DEFAULT_PAGE_SIZE = Number.parseInt(
 );
 const MAX_PAGE_SIZE = Number.parseInt(process.env.MAX_PAGE_SIZE || "100");
 
-interface ArFee {
-  winston: CassandraTypes.Long;
-  ar: string;
-}
-
 interface FieldData {
   size: MetaData["size"];
   type: MetaData["type"];
@@ -93,7 +88,6 @@ interface FieldMap {
   recipient: string;
   target: string;
   tags: CassandraTypes.Tuple[];
-  fee: ArFee;
   height: CassandraTypes.Long;
   quantity: string;
   data: FieldData;
@@ -102,6 +96,7 @@ interface FieldMap {
   parent: Parent;
   owner: string;
   owner_address: string;
+  reward: CassandraTypes.Long;
   signature: string;
   timestamp: CassandraTypes.Long;
   previous_block: string;
@@ -435,8 +430,7 @@ export const resolvers = {
       };
     },
     fee: (parent: FieldMap): Amount => {
-      const maybeFee =
-        parent.fee && parent.fee.winston && parent.fee.winston.toString();
+      const maybeFee = parent.reward ? parent.reward.toString() : "0";
       return {
         ar: winstonToAr(maybeFee || "0"),
         winston: maybeFee || "0",

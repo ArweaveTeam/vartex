@@ -2,14 +2,15 @@ import * as R from "rambda";
 import { types as CassandraTypes } from "cassandra-driver";
 import { MessagesFromParent, MessagesFromWorker } from "./message-types";
 import { ownerToAddress } from "../utility/encoding";
+import { DropTagQueryParameters, dropTagQuery } from "../database/tags-mapper";
+import { DropTxsQueryParameters, dropTxsQuery } from "../database/txs-mapper";
 import {
+  cassandraClient,
   blockMapper,
   blockSortedAscMapper,
   blockSortedDescMapper,
   blockQueueMapper,
   blockHeightToHashMapper,
-  dropTagsQuery,
-  dropTxsQuery,
   manifestMapper,
   manifestQueueMapper,
   permawebPathMapper,
@@ -121,7 +122,7 @@ export async function truncateBlock(
           const [tagName, tagValue] = abandonedTag;
 
           const owner = ownerToAddress(tx.owner);
-          const tagDropParameters = {
+          const tagDropParameters: DropTagQueryParameters = {
             tagName,
             tagValue,
             owner,
@@ -133,7 +134,7 @@ export async function truncateBlock(
             txId: tx.tx_id,
             txIndex,
           };
-          await dropTagsQuery(tagDropParameters);
+          await cassandraClient.exec(dropTagQuery(tagDropParameters));
         }
         if (isManifest) {
           const maybeManifest = await manifestMapper.get({
@@ -175,22 +176,23 @@ export async function truncateBlock(
           await transactionMapper.remove({ tx_id: abandonedTx });
         } catch {}
 
+        const dropTxsParameters: DropTxsQueryParameters = {
+          txIndex,
+          txId: abandonedTx,
+          bundledIn: tx.bundled_in,
+          dataItemIndex: tx.data_item_index,
+          dataRoot: tx.data_root,
+          owner: tx.owner,
+          target: tx.target,
+        };
         try {
-          await dropTxsQuery({
-            txIndex,
-            txId: abandonedTx,
-            bundledIn: tx.bundled_in,
-            dataItemIndex: tx.data_item_index,
-            dataRoot: tx.data_root,
-            owner: tx.owner,
-            target: tx.target,
-          });
+          await cassandraClient.exec(dropTxsQuery(dropTxsParameters));
         } catch {}
       }
     }
   }
 
-  const nthMillBlock = abandonedBlock.div(1e6).toInt();
+  const nthMillBlock = abandonedBlock.height.div(1e6).toInt();
 
   try {
     const maybeMatchingBlock = await blockSortedAscMapper({

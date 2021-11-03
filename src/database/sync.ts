@@ -13,7 +13,6 @@ import {
   POLLTIME_DELAY_SECONDS,
   isGatewayNodeModeEnabled,
 } from "../constants";
-import { fromB64Url, isValidUTF8, ownerToAddress } from "../utility/encoding";
 import { log } from "../utility/log";
 import mkdirp from "mkdirp";
 import { WorkerPool } from "../gatsby-worker";
@@ -21,13 +20,14 @@ import { MessagesFromWorker } from "../workers/message-types";
 import { getHashList, getNodeInfo } from "../query/node";
 import { BlockType, fetchBlockByHash } from "../query/block";
 import { UnsyncedBlock } from "../types/cassandra";
-import { cassandraClient, hasManifestContentType } from "./cassandra";
+import { cassandraClient } from "./cassandra";
 import { statusMapper } from "./mapper";
-import { DropTagQueryParameters, dropTagQuery } from "./tags-mapper";
 import { getMaxHeightBlock, toLong } from "./utils";
 import * as Dr from "./doctor";
 
+/* eslint-disable-next-line @typescript-eslint/no-explicit-any */
 let gauge_: any;
+/* eslint-disable-next-line @typescript-eslint/no-explicit-any */
 let session_: any;
 
 const PARALLEL_WORKERS = Number.isNaN(process.env["PARALLEL_WORKERS"])
@@ -144,8 +144,6 @@ export let gatewayHeight: CassandraTypes.Long = toLong(0);
 export let topHeight = 0;
 export let currentHeight = 0;
 
-// export let topTxIndex: CassandraTypes.Long = toLong(0);
-
 const developmentSyncLength: number | undefined =
   !process.env["DEVELOPMENT_SYNC_LENGTH"] ||
   R.isEmpty(process.env["DEVELOPMENT_SYNC_LENGTH"])
@@ -159,12 +157,7 @@ if (developmentSyncLength === Number.NaN) {
 }
 
 let isPollingStarted = false;
-// let isImportCacheGcRunning = true; // true because we want to wait before starting periodic gc runs
 let isPaused = false;
-
-// export function togglePause(): void {
-//   isPaused = !isPaused;
-// }
 
 async function resolveFork(previousBlock: BlockType): Promise<void> {
   isPaused = true;
@@ -183,6 +176,8 @@ async function resolveFork(previousBlock: BlockType): Promise<void> {
       );
       await pWaitFor(() => getTxsInFlight() === 0, { interval: 200 });
     }
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const result = await cassandraClient.execute(
       `SELECT block_height,block_hash
        FROM ${KEYSPACE}.block_height_by_block_hash
@@ -228,6 +223,7 @@ const pollNewBlocks = async (): Promise<void> => {
       () => !exited,
       async () => {
         try {
+          /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
           await (pMinDelay as any)(await pollNewBlocks(), 120 * 1000);
         } catch (error) {
           console.error(error);
@@ -336,6 +332,7 @@ async function startGatewayNodeMode(): Promise<void> {
 
 async function startManifestImportWorker(): Promise<void> {
   try {
+    /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
     await (pMinDelay as any)(workerPool.single.importManifests(), 120 * 1000);
   } catch (error) {
     console.error(error);

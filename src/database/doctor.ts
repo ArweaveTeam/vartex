@@ -1,6 +1,6 @@
 import * as R from "rambda";
 import { types as CassandraTypes } from "cassandra-driver";
-import { KEYSPACE, tableId } from "../constants";
+import { KEYSPACE } from "../constants";
 import { cassandraClient, toLong } from "./cassandra";
 // import { BlockType } from "../query/block.query";
 // import {

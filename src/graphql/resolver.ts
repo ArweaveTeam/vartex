@@ -1,13 +1,10 @@
 /* eslint-disable unicorn/no-null */
 import * as R from "rambda";
 import { Request } from "express";
-import moment from "moment";
 import { types as CassandraTypes } from "cassandra-driver";
 import {
   cassandraClient,
   blockMapper,
-  blockSortedAsc,
-  blockSortedDesc,
   transactionMapper,
 } from "../database/mapper";
 import { getMaxHeightBlock, toLong } from "../database/utils";
@@ -17,7 +14,6 @@ import { config } from "dotenv";
 import {
   Amount,
   Block,
-  BlockEdge,
   Maybe,
   MetaData,
   Owner,
@@ -54,30 +50,6 @@ setInterval(async () => {
   } catch {}
 }, 1000 * 60);
 
-function sortByTxIndexAsc(
-  result1: { tx_index: CassandraTypes.Long },
-  result2: { tx_index: CassandraTypes.Long }
-) {
-  return result2.tx_index.compare(result1.tx_index);
-}
-
-function sortByTxIndexDesc(
-  result1: { tx_index: CassandraTypes.Long },
-  result2: { tx_index: CassandraTypes.Long }
-) {
-  return result1.tx_index.compare(result2.tx_index);
-}
-
-const DEFAULT_PAGE_SIZE = Number.parseInt(
-  process.env.DEFAULT_PAGE_SIZE || "10"
-);
-const MAX_PAGE_SIZE = Number.parseInt(process.env.MAX_PAGE_SIZE || "100");
-
-interface FieldData {
-  size: MetaData["size"];
-  type: MetaData["type"];
-}
-
 interface FieldMap {
   indep_hash: string;
   id: string;
@@ -90,7 +62,6 @@ interface FieldMap {
   tags: CassandraTypes.Tuple[];
   height: CassandraTypes.Long;
   quantity: string;
-  data: FieldData;
   data_size: MetaData["size"];
   data_type: MetaData["type"];
   parent: Parent;
@@ -208,7 +179,7 @@ export const resolvers = {
 
       const txsClean = R.reject(R.isNil)(txs);
       const edges = await Promise.all(
-        txsClean.map(async ({ block, tx, cursor }) => ({
+        txsClean.map(async ({ tx, cursor }) => ({
           cursor,
           node: R.assoc(
             "block",
@@ -245,6 +216,7 @@ export const resolvers = {
       queryParameters: QueryBlocksArguments,
       request: Request, // eslint-disable-line @typescript-eslint/no-unused-vars
       info: GraphQLResolveInfo
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ): Promise<any> => {
       if (!maxHeightBlock) {
         throw new Error(`graphql isn't ready!`);
@@ -267,7 +239,8 @@ export const resolvers = {
 
       const maybeCursor = cursorQuery
         ? parseBlockCursor(queryParameters.after)
-        : ({} as any);
+        : // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          ({} as any);
 
       const tableName =
         sortOrder === "HEIGHT_ASC"
@@ -304,7 +277,8 @@ export const resolvers = {
 
       const xMillions = toLong(blockMaxHeight).div(1e6);
 
-      const rangePostFunction = sortOrder === "HEIGHT_ASC" ? R.identity : R.reverse;
+      const rangePostFunction =
+        sortOrder === "HEIGHT_ASC" ? R.identity : R.reverse;
 
       const bucketStart =
         typeof maybeCursor.nthMillion !== "undefined" &&
@@ -319,6 +293,7 @@ export const resolvers = {
           : (xMillions.add(1).toInt() as number);
 
       const buckets: number[] = rangePostFunction(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (R.range as any)(bucketStart, bucketEnd)
       );
 
@@ -342,6 +317,7 @@ export const resolvers = {
         );
         for (const row of nextResult.rows) {
           searchResult.push(
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             (R.assoc as any)("nthMillion", buckets[nthBucket], row)
           );
           if (resultCount !== limit) {
@@ -358,13 +334,14 @@ export const resolvers = {
         searchResult
           .slice(0, limit)
           .map(
-            async ({ block_hash, nthMillion }) =>
+            async ({ block_hash }) =>
               await blockMapper.get({ indep_hash: block_hash })
           )
       );
 
       const cursors = wantsCursor
-        ? searchResult.slice(1, limit + 1).map((block: any) =>
+        ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          searchResult.slice(1, limit + 1).map((block: any) =>
             encodeBlockCursor({
               block_hash: block.block_hash,
               block_height: block.block_height.toString(),
@@ -377,6 +354,7 @@ export const resolvers = {
         pageInfo: {
           hasNextPage,
         },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         edges: blocks.map((block: any, index: number) => ({
           node: block,
           cursor:

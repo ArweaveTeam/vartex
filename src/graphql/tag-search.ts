@@ -108,11 +108,6 @@ const filtersToTable: { [direction: string]: Record<string, string> } = {
   },
 };
 
-interface TagQueryFilter {
-  name: string;
-  values: string[];
-}
-
 const buildTagFilterKey = (
   queryParameters: QueryTransactionsArguments
 ): string[] => {
@@ -127,6 +122,7 @@ const buildTagFilterKey = (
         "dataRoots",
         "bundledIn",
       ].includes(parameter) &&
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       !R.isEmpty<any>(
         queryParameters[parameter as keyof QueryTransactionsArguments]
       )
@@ -194,7 +190,8 @@ export const findTxIDsFromTagFilters = async (
 
   const maybeCursor = cursorQuery
     ? parseTagFilterCursor(queryParameters.after)
-    : ({} as any);
+    : // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ({} as any);
 
   if (maybeCursor.cursorType && maybeCursor.cursorType !== "tag_search") {
     throw new Error(
@@ -242,6 +239,7 @@ export const findTxIDsFromTagFilters = async (
     if (key === "tags") {
       return accumulator;
     } else {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const whereVals: any =
         queryParameters[key as keyof QueryTransactionsArguments];
       const cqlKey = R.propOr(

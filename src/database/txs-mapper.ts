@@ -79,7 +79,7 @@ export function dropTxsQuery({
   txId,
   txIndex,
   owner,
-}: DropTxsQueryParameters) {
+}: DropTxsQueryParameters): string {
   const commonWhere = `
     WHERE tx_index=${txIndex}
     AND data_item_index=${dataItemIndex}

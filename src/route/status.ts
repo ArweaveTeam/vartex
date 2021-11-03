@@ -69,6 +69,7 @@ export const initializeStatusSession = async (
         `DELETE FROM ${KEYSPACE}.status WHERE session = ${session} IF EXISTS`
       );
     }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     lastSession = (maybeLastSession as any).rows[0] as StatusSchema;
   }
 
@@ -82,8 +83,7 @@ export const initializeStatusSession = async (
 
 export async function statusRoute(
   request: Request,
-  response: Response,
-  next: (error?: string) => void
+  response: Response
 ): Promise<void> {
   if (!ready) {
     response.send("not ready");
@@ -93,8 +93,8 @@ export async function statusRoute(
         session: lastKnownSessionUuid,
       });
       const delta =
-        Number.parseInt(currentStatus.arweave_height) -
-        Number.parseInt(currentStatus.gateway_height);
+        Number.parseInt(currentStatus ? currentStatus.arweave_height : "0") -
+        Number.parseInt(currentStatus ? currentStatus.gateway_height : "0");
       response.status(200).send({
         delta,
         ...currentStatus,

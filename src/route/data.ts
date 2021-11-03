@@ -2,13 +2,12 @@ import got from "got";
 import { lookup as mimeLookup } from "mime-types";
 import { head, last, prop } from "rambda";
 import { Request, Response } from "express";
-import { Duplex, PassThrough, Transform } from "node:stream";
+import { PassThrough, Transform } from "node:stream";
 import StreamChain from "stream-chain";
 import StreamJson from "stream-json";
 import StreamJsonPick from "stream-json/filters/Pick";
 import StreamJsonValues from "stream-json/streamers/StreamValues";
 import {
-  manifestMapper,
   manifestQueueMapper,
   permawebPathMapper,
   transactionMapper,
@@ -30,7 +29,7 @@ class B64Transform extends Transform {
     this.iterLength = startOffset;
   }
 
-  _transform(chunk: string, encoding: string, callback: any) {
+  _transform(chunk: string, encoding: string, callback: () => void) {
     // ensure string
     chunk = "" + chunk;
 
@@ -44,13 +43,14 @@ class B64Transform extends Transform {
     callback();
   }
 
-  _flush(callback: any) {
+  _flush(callback: () => void) {
     callback();
   }
 }
 
 function recurNextChunk(
   response: Response,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   pipeline: any,
   endOffset: number,
   nextOffset: number,
@@ -88,7 +88,6 @@ function recurNextChunk(
     if (!pipeStarted && !hasError) {
       pipeStarted = true;
       chunkStream.pipe(passThru).pipe(pipeline);
-      // pipeline.resume();
     }
   });
 
@@ -99,19 +98,20 @@ function recurNextChunk(
 
       // maybe a bug in the library itself, but it stays otherwise
       // stuck in "done" state, here we restart the json parser
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       head<any>(pipeline.streams)._expect = "value";
 
       return recurNextChunk(
         response,
         pipeline,
         endOffset,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         last<any>(pipeline.streams).iterLength,
         0
       );
     } else {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       head<any>(pipeline.streams)._expect = "done";
-      // last<any>(pipeline.streams)._flush();
-      // console.log(Object.keys(pipeline));
       pipeline.on("end", response.end.bind(response));
       pipeline.end();
     }
@@ -121,8 +121,7 @@ function recurNextChunk(
 // C6IyOj4yAaJPaV8KuOG2jdf4gQCmpPisuE3eAUBdcUs
 export async function dataRoute(
   request: Partial<Request & { txid?: string }>,
-  response: Response,
-  next: (error?: string) => void
+  response: Response
 ): Promise<void> {
   let firstPath: string;
   let subPath: string;
@@ -195,7 +194,6 @@ export async function dataRoute(
       ? txUpstream.tags.map(utf8DecodeTag)
       : txDatabase.tags.map(utf8DecodeTupleTag);
     let contentType: string;
-    let filename: string;
 
     if (manifestSubpathContentType) {
       contentType = manifestSubpathContentType;

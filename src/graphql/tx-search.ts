@@ -4,7 +4,6 @@ import { toLong } from "../database/utils";
 import { types as CassandraTypes } from "cassandra-driver";
 import { TxSearchResult } from "./resolver-types";
 import { QueryTransactionsArgs as QueryTransactionsArguments } from "./types.graphql";
-import { toB64url } from "../query/transaction";
 import { KEYSPACE } from "../constants";
 
 const filtersToTable: { [direction: string]: Record<string, string> } = {
@@ -91,6 +90,7 @@ const buildTxFilterKey = (
       ["ids", "recipients", "owners", "dataRoots", "bundledIn"].includes(
         parameter
       ) &&
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       !R.isEmpty<any>(
         queryParameters[parameter as keyof QueryTransactionsArguments]
       )
@@ -167,7 +167,8 @@ export const findTxIDsFromTxFilters = async (
 
   const maybeCursor = cursorQuery
     ? parseTxFilterCursor(queryParameters.after)
-    : ({} as any);
+    : // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ({} as any);
 
   if (maybeCursor.cursorType && maybeCursor.cursorType !== "tx_search") {
     throw new Error(
@@ -218,6 +219,7 @@ export const findTxIDsFromTxFilters = async (
           key === "target"
             ? "recipients"
             : (key as keyof QueryTransactionsArguments);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const whereVals: any = queryParameters[k_];
         const cqlKey = R.propOr(
           key,
@@ -252,7 +254,8 @@ export const findTxIDsFromTxFilters = async (
   } else {
     const xMillions = toLong(txsMaxHeight).div(1e6).add(1);
 
-    const rangePostFunction = sortOrder === "HEIGHT_ASC" ? R.identity : R.reverse;
+    const rangePostFunction =
+      sortOrder === "HEIGHT_ASC" ? R.identity : R.reverse;
 
     const bucketStart =
       typeof maybeCursor.nthMillion !== "undefined" &&
@@ -269,6 +272,7 @@ export const findTxIDsFromTxFilters = async (
         : (xMillions.add(1).toInt() as number);
 
     const buckets: number[] = rangePostFunction(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (R.range as any)(bucketStart, bucketEnd)
     );
 
@@ -284,6 +288,7 @@ export const findTxIDsFromTxFilters = async (
       for (const row of nextResult.rows) {
         !hasNextPage &&
           txsFilterRows.push(
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             (R.assoc as any)("nthMillion", buckets[nthBucket], row)
           );
         if (resultCount !== limit) {

@@ -39,6 +39,7 @@ export function forEachNode(index: number): string {
     syncNodeTemperatures();
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return (R.pipe as any)(
     R.sortBy(R.prop("weight")),
     R.nth(index % nodeTemperatures.length),
@@ -208,11 +209,9 @@ export async function getData(id: string): Promise<unknown> {
 }
 
 export async function getDataFromChunks({
-  id,
   startOffset,
   endOffset,
 }: {
-  id: string;
   startOffset: CassandraTypes.Long;
   endOffset: CassandraTypes.Long;
 }): Promise<Buffer | undefined> {

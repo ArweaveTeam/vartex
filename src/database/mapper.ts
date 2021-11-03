@@ -1,8 +1,7 @@
 import * as R from "rambda";
-import { mapping, types as CassandraTypes } from "cassandra-driver";
+// import { mapping, types as CassandraTypes } from "cassandra-driver";
 import { cassandraClient } from "./cassandra";
 import { makeTagsMapper } from "./tags-mapper";
-import { UpstreamTag } from "../types/cassandra";
 import { KEYSPACE } from "../constants";
 
 const { Mapper } = mapping;
@@ -139,4 +138,3 @@ export const tagsMapper = makeTagsMapper(cassandraClient);
 export { cassandraClient };
 
 export { tagModels, dropTagsQuery } from "./tags-mapper";
-export { dropTxsQuery } from "./txs-mapper";

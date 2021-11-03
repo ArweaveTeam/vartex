@@ -69,6 +69,7 @@ export const tagModels: Record<string, string[]> = {
   ],
 };
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const makeTagsMapper = (cassandraClient: CassandraClient): any =>
   new Mapper(cassandraClient, {
     models: {
@@ -308,7 +309,7 @@ export function dropTagQuery({
   txId,
   txIndex,
   owner,
-}: DropTagQueryParameters) {
+}: DropTagQueryParameters): string {
   const tagPair = `${tagName}-${tagValue}`;
   const commonWhere = `WHERE tag_pair='${tagPair}' AND tx_index=${txIndex}
                        AND data_item_index=${dataItemIndex} AND tag_index=${tagIndex}`;

@@ -15,6 +15,7 @@ export const log = createLogger({
 
 export const mkWorkerLog = (
   messenger: IGatsbyWorkerMessenger<MessagesFromParent, MessagesFromWorker>
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
 ): any => {
   return function (message: string, context?: unknown) {
     if (messenger) {

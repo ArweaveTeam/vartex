@@ -1,18 +1,14 @@
-import * as R from "rambda";
-import { types as CassandraTypes } from "cassandra-driver";
+// import { types as CassandraTypes } from "cassandra-driver";
 import { MessagesFromParent, MessagesFromWorker } from "./message-types";
 import { getBlock as queryGetBlock } from "../query/block";
 import {
   blockHeightToHashMapper,
   blockMapper,
-  cassandraClient,
+  blockSortedAscMapper,
+  blockSortedDescMapper,
   txQueueMapper,
 } from "../database/mapper";
-import {
-  makeBlockImportQuery,
-  makeTxImportQuery,
-  toLong,
-} from "../database/cassandra";
+import { toLong } from "../database/utils";
 import { getMessenger } from "../gatsby-worker/child";
 import { mkWorkerLog } from "../utility/log";
 
@@ -23,6 +19,7 @@ if (messenger) {
     type: "worker:ready",
   });
 } else {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (messenger as any) = { sendMessage: console.log };
 }
 
@@ -70,6 +67,36 @@ export async function importBlock(
     await blockMapper.insert(newBlock);
   } catch (error) {
     log(`Error inserting block to database\n` + JSON.stringify(error));
+    return BlockImportReturnCode.REQUEUE;
+  }
+
+  let nthMillBlock;
+  try {
+    nthMillBlock = toLong(newBlock.height).div(1e6).toInt();
+  } catch {}
+
+  if (typeof nthMillBlock !== "number") {
+    log(
+      `Error while parsing the block height of ${newBlock.indep_hash} from response`
+    );
+    return BlockImportReturnCode.REQUEUE;
+  }
+
+  try {
+    await blockSortedAscMapper.insert({
+      block_hash: newBlock.indep_hash,
+      nth_million: nthMillBlock,
+    });
+  } catch {
+    return BlockImportReturnCode.REQUEUE;
+  }
+
+  try {
+    await blockSortedDescMapper.insert({
+      block_hash: newBlock.indep_hash,
+      nth_million: nthMillBlock,
+    });
+  } catch {
     return BlockImportReturnCode.REQUEUE;
   }
 

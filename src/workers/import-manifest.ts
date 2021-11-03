@@ -24,6 +24,7 @@ if (messenger) {
     type: "worker:ready",
   });
 } else {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (messenger as any) = { sendMessage: console.log };
 }
 
@@ -193,9 +194,7 @@ export async function importManifest(txId: string): Promise<boolean> {
     } else {
       messenger.sendMessage({
         type: "log:warn",
-        message: `Invalid manifest detected ${txId} ${
-          (validResult as any).error
-        }`,
+        message: `Invalid manifest detected ${txId} ${validResult.error}`,
       });
       await manifestMapper.insert({
         tx_id: txId,

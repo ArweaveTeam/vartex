@@ -1,15 +1,6 @@
 import got, { Response } from "got";
-import * as B64js from "base64-js";
-// import { TextDecoder } from "node:util";
 import { b64UrlToBuffer } from "../utility/encoding";
-import { forEachNode, grabNode } from "./node";
-import { HTTP_TIMEOUT_SECONDS } from "../constants";
-
-// export interface TransactionOffsetType {
-//   size: number;
-//   endOffset: number;
-//   startOffset: number;
-// }
+import { forEachNode } from "./node";
 
 export interface ChunkType {
   tx_path: string;
@@ -17,23 +8,6 @@ export interface ChunkType {
   chunk: Uint8Array;
   chunkSize: number;
 }
-
-// export const decoder = new TextDecoder();
-
-// export async function getTransactionOffset(id: string): Promise<TransactionOffsetType> {
-//   const payload = await get(`${grabNode()}/tx/${id}/offset`);
-//   const body = JSON.parse(payload.text);
-
-//   const size = parseInt(body.size);
-//   const endOffset = parseInt(body.offset);
-//   const startOffset = endOffset - size + 1;
-
-//   return {
-//     size,
-//     endOffset,
-//     startOffset,
-//   };
-// }
 
 interface ChunkResponse extends Response {
   body: {
@@ -54,12 +28,12 @@ export async function getChunk({
 }): Promise<ChunkType | undefined> {
   const nodeGrab = forEachNode(retryCount);
   const mayebeMissingProtocol = nodeGrab.startsWith("http") ? "" : "http://";
-  // let body: any;
 
   const chunkResponse: ChunkResponse | void = (await got
     .get(`${mayebeMissingProtocol}${nodeGrab}/chunk/${offset}`, {
       responseType: "json",
     })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .catch((error: any) => {
       console.error(
         `${mayebeMissingProtocol}${nodeGrab}/chunk/${offset}`,
@@ -73,7 +47,7 @@ export async function getChunk({
     chunkResponse.statusCode >= 200 &&
     chunkResponse.statusCode < 300
   ) {
-    const { body, statusCode } = chunkResponse;
+    const { body } = chunkResponse;
     const chunkBuffer = Buffer.from(b64UrlToBuffer(body.chunk));
     return {
       tx_path: body.tx_path,
@@ -82,15 +56,11 @@ export async function getChunk({
       chunk: chunkBuffer,
     };
   } else {
-    return retryCount > 0 ? (await getChunk({
-        offset,
-        retryCount: retryCount - 1,
-      })) : undefined;
+    return retryCount > 0
+      ? await getChunk({
+          offset,
+          retryCount: retryCount - 1,
+        })
+      : undefined;
   }
 }
-
-// catch {
-//    return retry && retryCount > 0
-//      ? getChunk({ offset, retry: true, retryCount: retryCount - 1 })
-//      : undefined;
-//  }

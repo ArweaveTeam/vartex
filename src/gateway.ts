@@ -1,6 +1,5 @@
 import fs from "node:fs";
 import "colors";
-import querystring from "node:querystring";
 import path from "node:path";
 import exitHook from "exit-hook";
 import killPort from "kill-port";
@@ -60,9 +59,7 @@ app.use(poweredBy);
 
 // app.use(expressSlash());
 
-const dataPathRegex = new RegExp(
-  /^\/?([\w-]{43})\/?$|^\/?([\w-]{43})\/(.*)$/i
-);
+const dataPathRegex = new RegExp(/^\/?([\w-]{43})\/?$|^\/?([\w-]{43})\/(.*)$/i);
 
 // 1. redirect domain.com/:txid -> txid.domain.org
 // 2. route txid.domain.org -> domain.com/:txid

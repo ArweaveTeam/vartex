@@ -403,6 +403,7 @@ export const makeTxImportQuery =
 
     /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
     const txInsertParameters: any = transactionKeys.reduce(
+      /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
       (paramz: Array<any>, key: string) => {
         const nextValue = transformTxKey(key, txIndex, tx, blockData);
 
@@ -464,6 +465,7 @@ export const makeBlockImportQuery =
   (input: BlockType) => (): Promise<CassandraTypes.ResultSet[]> => {
     const nonNilBlockKeys: string[] = [];
     const blockInsertParameters = blockKeys.reduce(
+      /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
       (paramz: Array<any>, key: string) => {
         const nextValue = transformBlockKey(key, input);
         if (nextValue && !R.isEmpty(nextValue)) {

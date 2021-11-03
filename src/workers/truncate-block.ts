@@ -10,57 +10,11 @@ import {
   txGqlDescMapper,
   txOffsetMapper,
 } from "./mapper";
-for await (const block of result) {
-  log.info(
-    `[fork recovery] removing data from abandoned block: ${block.block_hash} at height ${block.block_height}`
-  );
+
+export async function truncateBlock(blockHash: string) {
   const abandonedBlock = await blockMapper.get({
-    indep_hash: block.block_hash,
+    indep_hash: blockHash,
   });
-  await blockMapper.remove({ indep_hash: block.block_hash });
-  await blockHeightToHashMapper.remove({
-    block_height: block.block_height,
-  });
-
-  // BlockGqlAsc
-  const txGqlBlockAscPartitionId = CONST.getGqlBlockHeightAscPartitionName(
-    block.block_height
-  );
-  const txGqlBlockAscBucketName = CONST.getGqlBlockHeightAscBucketName(
-    block.block_height
-  );
-  const txGqlBlockAscBucketNumber = CONST.getGqlBlockHeightAscBucketNumber(
-    block.block_height
-  );
-
-  try {
-    await blockGqlAscMapper.remove({
-      partition_id: txGqlBlockAscPartitionId,
-      bucket_id: txGqlBlockAscBucketName,
-      bucket_number: txGqlBlockAscBucketNumber,
-      height: block.block_height,
-    });
-  } catch {}
-
-  // BlockGqlDesc
-  const txGqlBlockDescPartitionId = CONST.getGqlBlockHeightDescPartitionName(
-    block.block_height
-  );
-  const txGqlBlockDescBucketName = CONST.getGqlBlockHeightDescBucketName(
-    block.block_height
-  );
-  const txGqlBlockDescBucketNumber = CONST.getGqlBlockHeightDescBucketNumber(
-    block.block_height
-  );
-
-  try {
-    await blockGqlDescMapper.remove({
-      partition_id: txGqlBlockDescPartitionId,
-      bucket_id: txGqlBlockDescBucketName,
-      bucket_number: txGqlBlockDescBucketNumber,
-      height: block.block_height,
-    });
-  } catch {}
 
   if (!R.isEmpty(abandonedBlock.txs)) {
     for (const abandonedTx of abandonedBlock.txs) {
@@ -170,3 +124,8 @@ for await (const block of result) {
     }
   }
 }
+
+// await blockMapper.remove({ indep_hash: block.block_hash });
+// await blockHeightToHashMapper.remove({
+//   block_height: block.block_height,
+// });

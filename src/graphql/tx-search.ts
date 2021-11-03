@@ -252,7 +252,7 @@ export const findTxIDsFromTxFilters = async (
   } else {
     const xMillions = toLong(txsMaxHeight).div(1e6).add(1);
 
-    const rangePostFn = sortOrder === "HEIGHT_ASC" ? R.identity : R.reverse;
+    const rangePostFunction = sortOrder === "HEIGHT_ASC" ? R.identity : R.reverse;
 
     const bucketStart =
       typeof maybeCursor.nthMillion !== "undefined" &&
@@ -268,7 +268,7 @@ export const findTxIDsFromTxFilters = async (
         ? maybeCursor.nthMillion + 1
         : (xMillions.add(1).toInt() as number);
 
-    const buckets: number[] = rangePostFn(
+    const buckets: number[] = rangePostFunction(
       (R.range as any)(bucketStart, bucketEnd)
     );
 

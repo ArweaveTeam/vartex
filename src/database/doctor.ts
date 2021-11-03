@@ -42,7 +42,7 @@ export const findBlockGaps = async (
   maxHeight: CassandraTypes.Long
 ): Promise<number[]> => {
   const queryHeightGroups = R.splitEvery(
-    1000000,
+    1_000_000,
     R.range(0, maxHeight.add(1).toInt())
   );
 

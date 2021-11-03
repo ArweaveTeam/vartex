@@ -304,7 +304,7 @@ export const resolvers = {
 
       const xMillions = toLong(blockMaxHeight).div(1e6);
 
-      const rangePostFn = sortOrder === "HEIGHT_ASC" ? R.identity : R.reverse;
+      const rangePostFunction = sortOrder === "HEIGHT_ASC" ? R.identity : R.reverse;
 
       const bucketStart =
         typeof maybeCursor.nthMillion !== "undefined" &&
@@ -318,7 +318,7 @@ export const resolvers = {
           ? maybeCursor.nthMillion + 1
           : (xMillions.add(1).toInt() as number);
 
-      const buckets: number[] = rangePostFn(
+      const buckets: number[] = rangePostFunction(
         (R.range as any)(bucketStart, bucketEnd)
       );
 

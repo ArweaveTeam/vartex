@@ -2,7 +2,6 @@
 import * as cassandra from "cassandra-driver";
 import * as R from "rambda";
 import { BlockType } from "../query/block";
-import { getDataFromChunks } from "../query/node";
 import { mapping, types as CassandraTypes } from "cassandra-driver";
 import { Transaction, TxOffset, UpstreamTag } from "../types/cassandra";
 import { KEYSPACE } from "../constants";
@@ -87,27 +86,6 @@ export const cassandraClient = new cassandra.Client({
     // }),
   ],
 });
-
-// const poaKeys = [
-//   "option",
-//   "tx_path",
-//   "data_path",
-//   "chunk",
-//   "block_hash",
-//   "block_height",
-// ];
-
-const txTagKeys = [
-  "partition_id",
-  "bucket_id",
-  "bucket_number",
-  "tx_id",
-  "tx_index",
-  "tag_index",
-  "next_tag_index",
-  "name",
-  "value",
-];
 
 const txOffsetKeys = ["tx_id", "size", "offset"];
 

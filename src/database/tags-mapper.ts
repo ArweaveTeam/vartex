@@ -319,128 +319,128 @@ export function dropTagQuery({
     tx_tag_gql_desc
     ${commonWhere};
     DELETE FROM ${KEYSPACE}.tx_tag_gql_by_tx_id_asc
-    ${commonWhere} '${txId}';
+    ${commonWhere} AND tx_id='${txId}';
     DELETE FROM ${KEYSPACE}.tx_tag_gql_by_tx_id_desc
-    ${commonWhere} '${txId}';
+    ${commonWhere} AND tx_id='${txId}';
     DELETE FROM ${KEYSPACE}.tx_tag_gql_by_owner_asc
-    ${commonWhere} '${owner}';
+    ${commonWhere} AND owner='${owner}';
     DELETE FROM ${KEYSPACE}.tx_tag_gql_by_owner_desc
-    ${commonWhere} '${owner}';
+    ${commonWhere} AND owner='${owner}';
     DELETE FROM ${KEYSPACE}.tx_tag_gql_by_target_asc
-    ${commonWhere} '${target}';
+    ${commonWhere} AND target='${target}';
     DELETE FROM ${KEYSPACE}.tx_tag_gql_by_target_desc
-    ${commonWhere} '${target}';
+    ${commonWhere} AND target='${target}';
     DELETE FROM ${KEYSPACE}.tx_tag_gql_by_bundled_in_asc
-    ${commonWhere} '${bundledIn}';
+    ${commonWhere} AND bundled_in='${bundledIn}';
     DELETE FROM ${KEYSPACE}.tx_tag_gql_by_bundled_in_desc
-    ${commonWhere} '${bundledIn}';
+    ${commonWhere} AND bundled_in='${bundledIn}';
     DELETE FROM ${KEYSPACE}.tx_tag_gql_by_data_root_asc
-    ${commonWhere} '${dataRoot}';
+    ${commonWhere} AND data_root='${dataRoot}';
     DELETE FROM ${KEYSPACE}.tx_tag_gql_by_data_root_desc
-    ${commonWhere} '${dataRoot}';
+    ${commonWhere} AND data_root='${dataRoot}';
     DELETE FROM ${KEYSPACE}.tx_tag_gql_by_tx_id_and_owner_asc
-    ${commonWhere} '${txId}' '${owner}';
+    ${commonWhere} AND tx_id='${txId}' AND owner='${owner}';
     DELETE FROM ${KEYSPACE}.tx_tag_gql_by_tx_id_and_owner_desc
-    ${commonWhere} '${txId}' '${owner}';
+    ${commonWhere} AND tx_id='${txId}' AND owner='${owner}';
     DELETE FROM ${KEYSPACE}.tx_tag_gql_by_tx_id_and_target_asc
-    ${commonWhere} '${txId}' '${target}';
+    ${commonWhere} AND tx_id='${txId}' AND target='${target}';
     DELETE FROM ${KEYSPACE}.tx_tag_gql_by_tx_id_and_target_desc
-    ${commonWhere} '${txId}' '${target}';
+    ${commonWhere} AND tx_id='${txId}' AND target='${target}';
     DELETE FROM ${KEYSPACE}.tx_tag_gql_by_tx_id_and_bundled_in_asc
-    ${commonWhere} '${txId}' '${bundledIn}';
+    ${commonWhere} AND tx_id='${txId}' AND bundled_in='${bundledIn}';
     DELETE FROM ${KEYSPACE}.tx_tag_gql_by_tx_id_and_bundled_in_desc
-    ${commonWhere} '${txId}' '${bundledIn}';
+    ${commonWhere} AND tx_id='${txId}' AND bundled_in='${bundledIn}';
     DELETE FROM ${KEYSPACE}.tx_tag_gql_by_tx_id_and_data_root_asc
-    ${commonWhere} '${txId}' '${dataRoot}';
+    ${commonWhere} AND tx_id='${txId}' AND data_root='${dataRoot}';
     DELETE FROM ${KEYSPACE}.tx_tag_gql_by_tx_id_and_data_root_desc
-    ${commonWhere} '${txId}' '${dataRoot}';
+    ${commonWhere} AND tx_id='${txId}' AND data_root='${dataRoot}';
     DELETE FROM ${KEYSPACE}.tx_tag_gql_by_owner_and_target_asc
-    ${commonWhere} '${owner}' '${target}';
+    ${commonWhere} AND owner='${owner}' AND target='${target}';
     DELETE FROM ${KEYSPACE}.tx_tag_gql_by_owner_and_target_desc
-    ${commonWhere} '${owner}' '${target}';
+    ${commonWhere} AND owner='${owner}' AND target='${target}';
     DELETE FROM ${KEYSPACE}.tx_tag_gql_by_owner_and_bundled_in_asc
-    ${commonWhere} '${owner}' '${bundledIn}';
+    ${commonWhere} AND owner='${owner}' AND bundled_in='${bundledIn}';
     DELETE FROM ${KEYSPACE}.tx_tag_gql_by_owner_and_bundled_in_desc
-    ${commonWhere} '${owner}' '${bundledIn}';
+    ${commonWhere} AND owner='${owner}' AND bundled_in='${bundledIn}';
     DELETE FROM ${KEYSPACE}.tx_tag_gql_by_owner_and_data_root_asc
-    ${commonWhere} '${owner}' '${dataRoot}';
+    ${commonWhere} AND owner='${owner}' AND data_root='${dataRoot}';
     DELETE FROM ${KEYSPACE}.tx_tag_gql_by_owner_and_data_root_desc
-    ${commonWhere} '${owner}' '${dataRoot}';
+    ${commonWhere} AND owner='${owner}' AND data_root='${dataRoot}';
     DELETE FROM ${KEYSPACE}.tx_tag_gql_by_target_and_bundled_in_asc
-    ${commonWhere} '${target}' '${bundledIn}';
+    ${commonWhere} AND target='${target}' AND bundled_in='${bundledIn}';
     DELETE FROM ${KEYSPACE}.tx_tag_gql_by_target_and_bundled_in_desc
-    ${commonWhere} '${target}' '${bundledIn}';
+    ${commonWhere} AND target='${target}' AND bundled_in='${bundledIn}';
     DELETE FROM ${KEYSPACE}.tx_tag_gql_by_target_and_data_root_asc
-    ${commonWhere} '${target}' '${dataRoot}';
+    ${commonWhere} AND target='${target}' AND data_root='${dataRoot}';
     DELETE FROM ${KEYSPACE}.tx_tag_gql_by_target_and_data_root_desc
-    ${commonWhere} '${target}' '${dataRoot}';
+    ${commonWhere} AND target='${target}' AND data_root='${dataRoot}';
     DELETE FROM ${KEYSPACE}.tx_tag_gql_by_bundled_in_and_data_root_asc
-    ${commonWhere} '${bundledIn}' '${dataRoot}';
+    ${commonWhere} AND bundled_in='${bundledIn}' AND data_root='${dataRoot}';
     DELETE FROM ${KEYSPACE}.tx_tag_gql_by_bundled_in_and_data_root_desc
-    ${commonWhere} '${bundledIn}' '${dataRoot}';
+    ${commonWhere} AND bundled_in='${bundledIn}' AND data_root='${dataRoot}';
     DELETE FROM ${KEYSPACE}.tx_tag_gql_by_tx_id_and_owner_and_target_asc
-    ${commonWhere} '${txId}' '${owner}' '${target}';
+    ${commonWhere} AND tx_id='${txId}' AND owner='${owner}' AND target='${target}';
     DELETE FROM ${KEYSPACE}.tx_tag_gql_by_tx_id_and_owner_and_target_desc
-    ${commonWhere} '${txId}' '${owner}' '${target}';
+    ${commonWhere} AND tx_id='${txId}' AND owner='${owner}' AND target='${target}';
     DELETE FROM ${KEYSPACE}.tx_tag_gql_by_tx_id_and_owner_and_bundled_in_asc
-    ${commonWhere} '${txId}' '${owner}' '${bundledIn}';
+    ${commonWhere} AND tx_id='${txId}' AND owner='${owner}' AND bundled_in='${bundledIn}';
     DELETE FROM ${KEYSPACE}.tx_tag_gql_by_tx_id_and_owner_and_bundled_in_desc
-    ${commonWhere} '${txId}' '${owner}' '${bundledIn}';
+    ${commonWhere} AND tx_id='${txId}' AND owner='${owner}' AND bundled_in='${bundledIn}';
     DELETE FROM ${KEYSPACE}.tx_tag_gql_by_tx_id_and_owner_and_data_root_asc
-    ${commonWhere} '${txId}' '${owner}' '${dataRoot}';
+    ${commonWhere} AND tx_id='${txId}' AND owner='${owner}' AND data_root='${dataRoot}';
     DELETE FROM ${KEYSPACE}.tx_tag_gql_by_tx_id_and_owner_and_data_root_desc
-    ${commonWhere} '${txId}' '${owner}' '${dataRoot}';
+    ${commonWhere} AND tx_id='${txId}' AND owner='${owner}' AND data_root='${dataRoot}';
     DELETE FROM ${KEYSPACE}.tx_tag_gql_by_tx_id_and_target_and_bundled_in_asc
-    ${commonWhere} '${txId}' '${target}' '${bundledIn}';
+    ${commonWhere} AND tx_id='${txId}' AND target='${target}' AND bundled_in='${bundledIn}';
     DELETE FROM ${KEYSPACE}.tx_tag_gql_by_tx_id_and_target_and_bundled_in_desc
-    ${commonWhere} '${txId}' '${target}' '${bundledIn}';
+    ${commonWhere} AND tx_id='${txId}' AND target='${target}' AND bundled_in='${bundledIn}';
     DELETE FROM ${KEYSPACE}.tx_tag_gql_by_tx_id_and_target_and_data_root_asc
-    ${commonWhere} '${txId}' '${target}' '${dataRoot}';
+    ${commonWhere} AND tx_id='${txId}' AND target='${target}' AND data_root='${dataRoot}';
     DELETE FROM ${KEYSPACE}.tx_tag_gql_by_tx_id_and_target_and_data_root_desc
-    ${commonWhere} '${txId}' '${target}' '${dataRoot}';
+    ${commonWhere} AND tx_id='${txId}' AND target='${target}' AND data_root='${dataRoot}';
     DELETE FROM ${KEYSPACE}.tx_tag_gql_by_tx_id_and_bundled_in_and_data_root_asc
-    ${commonWhere} '${txId}' '${bundledIn}' '${dataRoot}';
+    ${commonWhere} AND tx_id='${txId}' AND bundled_in='${bundledIn}' AND data_root='${dataRoot}';
     DELETE FROM ${KEYSPACE}.tx_tag_gql_by_tx_id_and_bundled_in_and_data_root_desc
-    ${commonWhere} '${txId}' '${bundledIn}' '${dataRoot}';
+    ${commonWhere} AND tx_id='${txId}' AND bundled_in='${bundledIn}' AND data_root='${dataRoot}';
     DELETE FROM ${KEYSPACE}.tx_tag_gql_by_owner_and_target_and_bundled_in_asc
-    ${commonWhere} '${owner}' '${target}' '${bundledIn}';
+    ${commonWhere} AND owner='${owner}' AND target='${target}' AND bundled_in='${bundledIn}';
     DELETE FROM ${KEYSPACE}.tx_tag_gql_by_owner_and_target_and_bundled_in_desc
-    ${commonWhere} '${owner}' '${target}' '${bundledIn}';
+    ${commonWhere} AND owner='${owner}' AND target='${target}' AND bundled_in='${bundledIn}';
     DELETE FROM ${KEYSPACE}.tx_tag_gql_by_owner_and_target_and_data_root_asc
-    ${commonWhere} '${owner}' '${target}' '${dataRoot}';
+    ${commonWhere} AND owner='${owner}' AND target='${target}' AND data_root='${dataRoot}';
     DELETE FROM ${KEYSPACE}.tx_tag_gql_by_owner_and_target_and_data_root_desc
-    ${commonWhere} '${owner}' '${target}' '${dataRoot}';
+    ${commonWhere} AND owner='${owner}' AND target='${target}' AND data_root='${dataRoot}';
     DELETE FROM ${KEYSPACE}.tx_tag_gql_by_owner_and_bundled_in_and_data_root_asc
-    ${commonWhere} '${owner}' '${bundledIn}' '${dataRoot}';
+    ${commonWhere} AND owner='${owner}' AND bundled_in='${bundledIn}' AND data_root='${dataRoot}';
     DELETE FROM ${KEYSPACE}.tx_tag_gql_by_owner_and_bundled_in_and_data_root_desc
-    ${commonWhere} '${owner}' '${bundledIn}' '${dataRoot}';
+    ${commonWhere} AND owner='${owner}' AND bundled_in='${bundledIn}' AND data_root='${dataRoot}';
     DELETE FROM ${KEYSPACE}.tx_tag_gql_by_target_and_bundled_in_and_data_root_asc
-    ${commonWhere} '${target}' '${bundledIn}' '${dataRoot}';
+    ${commonWhere} AND target='${target}' AND bundled_in='${bundledIn}' AND data_root='${dataRoot}';
     DELETE FROM ${KEYSPACE}.tx_tag_gql_by_target_and_bundled_in_and_data_root_desc
-    ${commonWhere} '${target}' '${bundledIn}' '${dataRoot}';
+    ${commonWhere} AND target='${target}' AND bundled_in='${bundledIn}' AND data_root='${dataRoot}';
     DELETE FROM ${KEYSPACE}.tx_tag_gql_by_tx_id_and_owner_and_target_and_bundled_in_asc
-    ${commonWhere} '${txId}' '${owner}' '${target}' '${bundledIn}';
+    ${commonWhere} AND tx_id='${txId}' AND owner='${owner}' AND target='${target}' AND bundled_in='${bundledIn}';
     DELETE FROM ${KEYSPACE}.tx_tag_gql_by_tx_id_and_owner_and_target_and_bundled_in_desc
-    ${commonWhere} '${txId}' '${owner}' '${target}' '${bundledIn}';
+    ${commonWhere} AND tx_id='${txId}' AND owner='${owner}' AND target='${target}' AND bundled_in='${bundledIn}';
     DELETE FROM ${KEYSPACE}.tx_tag_gql_by_tx_id_and_owner_and_target_and_data_root_asc
-    ${commonWhere} '${txId}' '${owner}' '${target}' '${dataRoot}';
+    ${commonWhere} AND tx_id='${txId}' AND owner='${owner}' AND target='${target}' AND data_root='${dataRoot}';
     DELETE FROM ${KEYSPACE}.tx_tag_gql_by_tx_id_and_owner_and_target_and_data_root_desc
-    ${commonWhere} '${txId}' '${owner}' '${target}' '${dataRoot}';
+    ${commonWhere} AND tx_id='${txId}' AND owner='${owner}' AND target='${target}' AND data_root='${dataRoot}';
     DELETE FROM ${KEYSPACE}.tx_tag_gql_by_tx_id_and_owner_and_bundled_in_and_data_root_asc
-    ${commonWhere} '${txId}' '${owner}' '${bundledIn}' '${dataRoot}';
+    ${commonWhere} AND tx_id='${txId}' AND owner='${owner}' AND bundled_in='${bundledIn}' AND data_root='${dataRoot}';
     DELETE FROM ${KEYSPACE}.tx_tag_gql_by_tx_id_and_owner_and_bundled_in_and_data_root_desc
-    ${commonWhere} '${txId}' '${owner}' '${bundledIn}' '${dataRoot}';
+    ${commonWhere} AND tx_id='${txId}' AND owner='${owner}' AND bundled_in='${bundledIn}' AND data_root='${dataRoot}';
     DELETE FROM ${KEYSPACE}.tx_tag_gql_by_tx_id_and_target_and_bundled_in_and_data_root_asc
-    ${commonWhere} '${txId}' '${target}' '${bundledIn}' '${dataRoot}';
+    ${commonWhere} AND tx_id='${txId}' AND target='${target}' AND bundled_in='${bundledIn}' AND data_root='${dataRoot}';
     DELETE FROM ${KEYSPACE}.tx_tag_gql_by_tx_id_and_target_and_bundled_in_and_data_root_desc
-    ${commonWhere} '${txId}' '${target}' '${bundledIn}' '${dataRoot}';
+    ${commonWhere} AND tx_id='${txId}' AND target='${target}' AND bundled_in='${bundledIn}' AND data_root='${dataRoot}';
     DELETE FROM ${KEYSPACE}.tx_tag_gql_by_owner_and_target_and_bundled_in_and_data_root_asc
-    ${commonWhere} '${owner}' '${target}' '${bundledIn}' '${dataRoot}';
+    ${commonWhere} AND owner='${owner}' AND target='${target}' AND bundled_in='${bundledIn}' AND data_root='${dataRoot}';
     DELETE FROM ${KEYSPACE}.tx_tag_gql_by_owner_and_target_and_bundled_in_and_data_root_desc
-    ${commonWhere} '${owner}' '${target}' '${bundledIn}' '${dataRoot}';
+    ${commonWhere} AND owner='${owner}' AND target='${target}' AND bundled_in='${bundledIn}' AND data_root='${dataRoot}';
     DELETE FROM ${KEYSPACE}.tx_tag_gql_by_tx_id_and_owner_and_target_and_bundled_in_and_data_root_asc
-    ${commonWhere} '${txId}' '${owner}' '${target}' '${bundledIn}' '${dataRoot}';
+    ${commonWhere} AND tx_id='${txId}' AND owner='${owner}' AND target='${target}' AND bundled_in='${bundledIn}' AND data_root='${dataRoot}';
     DELETE FROM ${KEYSPACE}.tx_tag_gql_by_tx_id_and_owner_and_target_and_bundled_in_and_data_root_desc
-    ${commonWhere} '${txId}' '${owner}' '${target}' '${bundledIn}' '${dataRoot}';
+    ${commonWhere} AND tx_id='${txId}' AND owner='${owner}' AND target='${target}' AND bundled_in='${bundledIn}' AND data_root='${dataRoot}';
 `;
 }

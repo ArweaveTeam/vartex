@@ -4,7 +4,7 @@ import * as R from "rambda";
 import { BlockType } from "../query/block";
 import { mapping, types as CassandraTypes } from "cassandra-driver";
 import { Transaction, TxOffset, UpstreamTag } from "../types/cassandra";
-import { KEYSPACE } from "../constants";
+import { env, KEYSPACE } from "../constants";
 import { config } from "dotenv";
 import { makeTagsMapper, tagModels } from "./tags-mapper";
 import { ownerToAddress } from "../utility/encoding";
@@ -24,27 +24,25 @@ export const toLong = (
     ? CassandraTypes.Long.fromString(R.isEmpty(anyValue) ? "0" : anyValue)
     : CassandraTypes.Long.fromNumber(anyValue);
 
-let contactPoints = ["localhost:9042"];
-try {
-  contactPoints = process.env.CASSANDRA_CONTACT_POINTS
-    ? JSON.parse(process.env.CASSANDRA_CONTACT_POINTS)
-    : ["localhost:9042"];
-} catch {
-  console.error("[cassandra] Invalid array of contact points.");
+if (
+  !Array.isArray(env.CASSANDRA_CONTACT_POINTS) ||
+  R.isEmpty(env.CASSANDRA_CONTACT_POINTS)
+) {
+  console.error(
+    "[cassandra] Invalid or empty array of cassandra contact points."
+  );
+  process.exit(1);
 }
 
 export const cassandraClient = new cassandra.Client({
-  contactPoints,
+  contactPoints: env.CASSANDRA_CONTACT_POINTS,
   localDataCenter: "datacenter1",
   credentials: {
-    username: process.env.CASSANDRA_USERNAME,
-    password: process.env.CASSANDRA_PASSWORD,
+    username: env.CASSANDRA_USERNAME,
+    password: env.CASSANDRA_PASSWORD,
   },
   queryOptions: { isIdempotent: true },
-  // encoding: {
-  //   map: Map,
-  //   set: Set,
-  // },
+
   socketOptions: {
     connectTimeout: 30_000,
     defunctReadTimeoutThreshold: 64,
@@ -55,9 +53,7 @@ export const cassandraClient = new cassandra.Client({
     coalescingThreshold: 65_536,
   },
   protocolOptions: {
-    maxSchemaAgreementWaitSeconds: process.env["DB_TIMEOUT"]
-      ? Number.parseInt(process.env["DB_TIMEOUT"])
-      : 30,
+    maxSchemaAgreementWaitSeconds: 30,
   },
   profiles: [
     new cassandra.ExecutionProfile("fast", {

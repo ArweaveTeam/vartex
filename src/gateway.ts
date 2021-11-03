@@ -1,11 +1,8 @@
-import fs from "node:fs";
 import "colors";
-import path from "node:path";
 import exitHook from "exit-hook";
 import killPort from "kill-port";
 import express, { Express, Request, Response } from "express";
 import gpmeImport from "graphql-playground-middleware-express";
-import { config } from "dotenv";
 import cors from "cors";
 import { log } from "./utility/log";
 import { graphServer } from "./graphql/server";
@@ -26,19 +23,10 @@ import { hashListRoute } from "./route/hash-list";
 import { types as CassandraTypes } from "cassandra-driver";
 import { cassandraClient } from "./database/cassandra";
 import { startSync } from "./database/sync";
-import { isGatewayNodeModeEnabled } from "./constants";
+import { env, isGatewayNodeModeEnabled } from "./constants";
 
 /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
 const { default: expressPlayground } = gpmeImport as any;
-
-const dotenvPath = path.resolve("../.env");
-const dotenvPathFallback = path.resolve("../.env.example");
-
-if (fs.existsSync(dotenvPath)) {
-  config({ path: dotenvPath });
-} else {
-  config({ path: dotenvPathFallback });
-}
 
 export const session: { uuid: CassandraTypes.TimeUuid } = {
   uuid: CassandraTypes.TimeUuid.fromDate(new Date()),
@@ -196,7 +184,7 @@ export function start(): void {
         session.uuid = sessionUuid;
         // just flush
         console.log("...");
-        startSync({ session, isTesting: process.env.NODE_ENV === "test" });
+        startSync({ session });
 
         if (isGatewayNodeModeEnabled) {
           // recheck every minute if session changes
@@ -218,16 +206,67 @@ export function start(): void {
     })
   );
 
-  app.listen(process.env.PORT || 1248, () => {
-    log.info(`[app] Started on http://localhost:${process.env.PORT || 1248}`);
-    log.info(`[app] - Parallel imports: ${process.env.PARALLEL_IMPORTS}`);
-    log.info(`[app] - Parallel workers: ${process.env.PARALLEL_WORKERS}`);
-    log.info(
-      `[app] - Nodes: ${JSON.parse(process.env.ARWEAVE_NODES).join(", ")}`
-    );
+  app.listen(env.PORT || 1248, () => {
+    log.info(`[app] Started on http://localhost:${env.PORT || 1248}`);
+    if (isGatewayNodeModeEnabled) {
+      log.info(
+        `[app] - Gateway only node (no imports of new blocks will be performed)`
+      );
+    } else {
+      log.info(
+        `[app] - Parallel import of blocks: ${env.PARALLEL_BLOCK_IMPORT}`
+      );
+      if (env.OFFLOAD_TX_IMPORT) {
+        log.info(
+          `[app] - Imports of incoming transactions is offloaded\n` +
+            `make sure you are running import txs elsewhere, otherwise the tx import queue will grow big fast!`
+        );
+      } else {
+        log.info(
+          `[app] - Parallel import of incoming transactions: ${env.PARALLEL_TX_IMPORT}`
+        );
+      }
+
+      if (env.OFFLOAD_MANIFEST_IMPORT) {
+        log.info(
+          `[app] - Imports of incoming manifests is offloaded\n` +
+            `make sure you are running import manifests elsewhere if you indend to import them!`
+        );
+      } else {
+        log.info(
+          `[app] - Parallel import of manifests: ${env.PARALLEL_MANIFEST_IMPORT}`
+        );
+      }
+
+      if (env.OFFLOAD_ANS102_IMPORT) {
+        log.info(
+          `[app] - Imports of incoming ANS-102 bundles is offloaded\n` +
+            `make sure you are running import ans102 elsewhere if you indend to import them!`
+        );
+      } else {
+        log.info(
+          `[app] - Parallel import of ANS102 bundles: ${env.PARALLEL_ANS102_IMPORT}`
+        );
+      }
+
+      if (env.OFFLOAD_ANS104_IMPORT) {
+        log.info(
+          `[app] - Imports of incoming ANS-104 bundles is offloaded\n` +
+            `make sure you are running import ans104 elsewhere if you indend to import them!`
+        );
+      } else {
+        log.info(
+          `[app] - Parallel import of ANS104 bundles: ${env.PARALLEL_ANS104_IMPORT}`
+        );
+      }
+
+      log.info(
+        `[app] - Your upstream peers are: ${env.ARWEAVE_NODES.join(", ")}`
+      );
+    }
   });
 }
 
-exitHook(() => killPort(process.env.PORT || 1248));
+exitHook(() => killPort(env.PORT || 1248));
 
 start();

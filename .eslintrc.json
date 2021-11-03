@@ -31,6 +31,7 @@
     "unicorn/no-array-reduce": 0,
     "unicorn/no-array-callback-reference": 0,
     "unicorn/prefer-object-from-entries": 0,
+    "unicorn/prevent-abbreviations": 0,
     "@typescript-eslint/explicit-module-boundary-types": 2,
     "@typescript-eslint/no-unused-vars": 2,
     "@typescript-eslint/no-explicit-any": 1

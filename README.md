@@ -21,8 +21,8 @@ The easiest way to start with your own gateway is by running the service with do
 
 ### Requirements
 
-- Docker
-- Docker Compose
+- Docker Compose (comes with Cassandra image)
+- 1TB or more free disk space for persistent volume
 
 ### Running
 
@@ -62,7 +62,7 @@ You can also run the gateway without using Docker.
 ### Requirements
 
 - NodeJS v16.4.0 or higher
-- Cassandra v3.11.10 or higher
+- Cassandra v4.0.0 or higher
 
 ### Environment
 

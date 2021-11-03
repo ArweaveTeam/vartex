@@ -2,135 +2,42 @@ import * as R from "rambda";
 import pWaitFor from "p-wait-for";
 import pMinDelay from "p-min-delay";
 import pWhilst from "p-whilst";
+import pLimit from "p-limit";
 import exitHook from "exit-hook";
-import Fluture, { fork, parallel } from "fluture/index.js";
 import Gauge from "gauge";
 import GaugeThemes from "gauge/themes";
-import { config } from "dotenv";
 import { types as CassandraTypes } from "cassandra-driver";
-import {
-  KEYSPACE,
-  POLLTIME_DELAY_SECONDS,
-  isGatewayNodeModeEnabled,
-} from "../constants";
+import { env, KEYSPACE, isGatewayNodeModeEnabled } from "../constants";
 import { log } from "../utility/log";
-import mkdirp from "mkdirp";
-import { WorkerPool } from "../gatsby-worker";
-import { MessagesFromWorker } from "../workers/message-types";
 import { getHashList, getNodeInfo } from "../query/node";
 import { BlockType, fetchBlockByHash } from "../query/block";
 import { UnsyncedBlock } from "../types/cassandra";
 import { cassandraClient } from "./cassandra";
 import { statusMapper } from "./mapper";
 import { getMaxHeightBlock, toLong } from "./utils";
+import {
+  blockImportWorkerPool,
+  // txsImportWorkerPool,
+  manifestImportWorkerPool,
+  // ans102ImportWorkerPool,
+  // ans104ImportWorkerPool,
+} from "./worker-pools";
 import * as Dr from "./doctor";
 
 /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
-let gauge_: any;
-/* eslint-disable-next-line @typescript-eslint/no-explicit-any */
 let session_: any;
 
-const PARALLEL_WORKERS = Number.isNaN(process.env["PARALLEL_WORKERS"])
-  ? 1
-  : Number.parseInt(process.env["PARALLEL_WORKERS"] || "1");
-
-process.env.NODE_ENV !== "test" && config();
-mkdirp.sync("cache");
-
-interface WorkerReadyWait {
-  [index: string]: {
-    promise: Promise<void>;
-    resolve: () => void;
-  };
-}
-
-const workerReadyPromises: WorkerReadyWait = R.range(
-  1,
-  PARALLEL_WORKERS + 1
-).reduce((accumulator, index) => {
-  let resolve: (_: unknown) => void;
-  const promise = new Promise<void>((resolve_: () => void) => {
-    resolve = resolve_;
-  });
-  accumulator[index] = { promise, resolve };
-  return accumulator;
-}, {} as Record<string, { promise: Promise<unknown>; resolve: (_: unknown) => unknown }>) as WorkerReadyWait;
-
-const workerPool = new WorkerPool<typeof import("../workers/main")>(
-  process.cwd() + "/src/workers/main",
-  {
-    numWorkers: PARALLEL_WORKERS,
-    logFilter: (data) =>
-      !/ExperimentalWarning:/.test(data) && !/node --trace-warnings/.test(data),
-    env: R.mergeAll([
-      {
-        PWD: process.cwd(),
-        TS_NODE_FILES: true,
-        NODE_PATH: process.cwd() + "/node_modules",
-        NODE_OPTIONS: `--require ${
-          process.cwd() + "/node_modules/ts-node/register"
-        }`,
-      },
-      {},
-    ]),
-  }
-);
+const currentImports = new Set();
 
 /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
-const messagePromiseReceivers: Record<string, any> = {};
+// const messagePromiseReceivers: Record<string, any> = {};
 
-export const txInFlight: Record<string, number> = {};
+// export const txInFlight: Record<string, number> = {};
 
-const numberOr0 = (n: number | undefined): number => (Number.isNaN(n) ? 0 : n);
+// const numberOr0 = (n: number | undefined): number => (Number.isNaN(n) ? 0 : n);
 
-export const getTxsInFlight = (): number =>
-  Object.values(txInFlight).reduce((a, b) => numberOr0(a) + numberOr0(b));
-
-function onWorkerMessage(message: MessagesFromWorker, workerId: number): void {
-  switch (message.type) {
-    case "worker:ready": {
-      workerReadyPromises[workerId].resolve();
-      break;
-    }
-    case "log:info": {
-      log.info(`${message.message}`);
-      break;
-    }
-    case "log:warn": {
-      log.info(`${message.message}`);
-      break;
-    }
-    case "log:error": {
-      log.info(`${message.message}`);
-      break;
-    }
-    case "block:new": {
-      if (typeof messagePromiseReceivers[workerId] === "function") {
-        messagePromiseReceivers[workerId](message.payload);
-        delete messagePromiseReceivers[workerId];
-        delete txInFlight[`${workerId}`];
-      }
-      break;
-    }
-    case "stats:tx:flight": {
-      txInFlight[`${workerId}`] =
-        typeof message.payload === "number"
-          ? message.payload
-          : Number.parseInt(message.payload);
-      gauge_ &&
-        gauge_.show(
-          `blocks: ${currentHeight}/${topHeight}\t tx: ${getTxsInFlight()}`
-        );
-      break;
-    }
-    default: {
-      console.error("unknown worker message arrived", message);
-    }
-  }
-}
-
-/* eslint-disable-next-line @typescript-eslint/no-explicit-any */
-(workerPool.onMessage as any)(onWorkerMessage);
+// export const getTxsInFlight = (): number =>
+//   Object.values(txInFlight).reduce((a, b) => numberOr0(a) + numberOr0(b));
 
 const trackerTheme = GaugeThemes.newTheme(
   GaugeThemes({
@@ -199,7 +106,7 @@ async function resolveFork(previousBlock: BlockType): Promise<void> {
         ? nodeInfo.height
         : Number.parseInt(nodeInfo.height)
     )) {
-      await workerPool.single.importBlock(newForkHeight);
+      await blockImportWorkerPool.single.importBlock(newForkHeight);
     }
 
     log.info(`[fork recovery] all done!`);
@@ -230,7 +137,6 @@ const pollNewBlocks = async (): Promise<void> => {
         }
       }
     );
-    // poller = setInterval(pollNewBlocks, POLLTIME_DELAY_SECONDS * 1000);
     log.info(
       "polling for new blocks every " + POLLTIME_DELAY_SECONDS + " seconds"
     );
@@ -270,7 +176,7 @@ const pollNewBlocks = async (): Promise<void> => {
       isPaused = false;
       log.info("blocks are back in sync!");
     } else {
-      await workerPool.single.importBlock(nodeInfo.height);
+      await blockImportWorkerPool.single.importBlock(nodeInfo.height);
     }
   }
 };
@@ -333,7 +239,10 @@ async function startGatewayNodeMode(): Promise<void> {
 async function startManifestImportWorker(): Promise<void> {
   try {
     /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
-    await (pMinDelay as any)(workerPool.single.importManifests(), 120 * 1000);
+    await (pMinDelay as any)(
+      manifestImportWorkerPool.single.importManifests(),
+      120 * 1000
+    );
   } catch (error) {
     console.error(error);
   }
@@ -342,11 +251,9 @@ async function startManifestImportWorker(): Promise<void> {
 }
 
 export async function startSync({
-  isTesting = false, // eslint-disable-line @typescript-eslint/no-unused-vars
   session,
 }: {
   session: { uuid: CassandraTypes.TimeUuid };
-  isTesting?: boolean;
 }): Promise<void> {
   session_ = session;
 
@@ -370,52 +277,18 @@ export async function startSync({
     const result_ = await getMaxHeightBlock(cassandraClient);
     lastBlock = result_[1];
   } catch {}
-  // let lastTx: CassandraTypes.Long = toLong(-1);
 
   if (!firstRun && !developmentSyncLength) {
-    // await Dr.enqueueUnhandledCache(
-    //   enqueueIncomingTxQueue,
-    //   enqueueTxQueue,
-    //   txImportCallback,
-    //   incomingTxCallback,
-    //   txQueue
-    // );
-
     const isMaybeMissingBlocks = await Dr.checkForBlockGaps(lastBlock);
 
     if (isMaybeMissingBlocks) {
       const blockGap = await Dr.findBlockGaps(lastBlock);
       if (!R.isEmpty(blockGap)) {
         console.error("Repairing missing block(s):", blockGap);
-
-        let doneSignalResolve: () => void;
-        const doneSignal = new Promise<void>(function (resolve) {
-          doneSignalResolve = resolve;
-        });
-
-        fork((error: unknown) => console.error(JSON.stringify(error)))(() => {
-          doneSignalResolve();
-          console.log("Block repair done!");
-        })(
-          parallel(PARALLEL_WORKERS)(
-            blockGap.map((height) =>
-              Fluture(function (
-                reject: (message?: string) => void,
-                fresolve: () => void
-              ) {
-                workerPool.single
-                  .importBlock(height)
-                  .then(fresolve)
-                  .catch(reject);
-                lastBlock = toLong(height);
-                return () => {
-                  console.error(`Fluture.Parallel crashed`);
-                  process.exit(1);
-                };
-              })
-            )
-          )
+        await Promise.all(
+          blockGap.map((height) => workerPool.single.importBlock(height))
         );
+
         await doneSignal;
       }
       try {
@@ -426,7 +299,6 @@ export async function startSync({
   }
 
   const gauge = new Gauge(process.stderr, {
-    // tty: 79,
     template: [
       { type: "progressbar", length: 0 },
       { type: "activityIndicator", kerning: 1, length: 2 },
@@ -465,14 +337,8 @@ export async function startSync({
     });
   }
 
-  // blockQueueState.nextHeight = initialLastBlock.lt(1)
-  //   ? toLong(1)
-  //   : initialLastBlock;
-  // txQueueState.nextTxIndex = initialLastBlock.mul(MAX_TX_PER_BLOCK);
-  // isImportCacheGcRunning = false;
-
   // wait a minute until starting to poll for unimported manifest
-  !process.env.OFFLOAD_MANIFEST_IMPORT &&
+  !env.OFFLOAD_MANIFEST_IMPORT &&
     setTimeout(startManifestImportWorker, 60 * 1000);
 
   if (firstRun) {
@@ -488,66 +354,39 @@ export async function startSync({
       `[sync] missing ${unsyncedBlocks.length} blocks, starting sync...`
     );
   }
-  // check health
-  // if (!firstRun) {
-  //   await Dr.fixNonLinearBlockOrder();
-  // }
 
   gauge.enable();
   gauge_ = gauge;
 
-  const currentImports = new Set();
+  const limit = pLimit(2);
+  const importBlocksJob = unsyncedBlocks.map(({ height }: { height: number }) =>
+    limit(() => {
+      statusMapper.update({
+        session: session.uuid,
+        current_imports: [...currentImports].map((x) => `${x}`),
+      });
+      currentImports.add(height);
+      await singleJob.importBlock(height);
 
-  fork(function (reason: string | void) {
-    console.error("Fatal", reason || "");
-    process.exit(1);
-  })(function () {
-    log.info("Database fully in sync with block_list");
-    !isPollingStarted && pollNewBlocks();
-  })(
-    parallel(PARALLEL_WORKERS)(
-      unsyncedBlocks.map(({ height }: { height: number }) => {
-        return Fluture(function (
-          reject: (message?: string) => void,
-          fresolve: () => void
-        ) {
-          const singleJob = workerPool.single; // you have 1 job!
-          const blockPromise = singleJob.importBlock(height);
-          currentImports.add(height);
-          statusMapper.update({
-            session: session.uuid,
-            current_imports: [...currentImports].map((x) => `${x}`),
-          });
-          currentHeight = height;
-          statusMapper.update({
-            session: session.uuid,
-            gateway_height: `${height}`,
-          });
-          blockPromise
-            .then(() => {
-              fresolve();
-              currentImports.delete(height);
-              statusMapper.update({
-                session: session.uuid,
-                status: "OK",
-                gateway_height: `${currentHeight}`,
-                arweave_height: `${topHeight}`,
-                current_imports: [...currentImports].map((x) => `${x}`),
-              });
-              gauge.show(
-                `blocks: ${currentHeight}/${topHeight}\t tx: ${getTxsInFlight()}`
-              );
-            })
-            .catch(reject);
+      currentImports.delete(height);
 
-          return () => {
-            console.error(
-              "Fatal error while importing block at height",
-              height
-            );
-          };
-        });
-      })
-    )
+      currentHeight = Math.max(currentHeight, height);
+
+      statusMapper.update({
+        session: session.uuid,
+        status: "OK",
+        gateway_height: `${currentHeight}`,
+        arweave_height: `${topHeight}`,
+        current_imports: [...currentImports].map((x) => `${x}`),
+      });
+      gauge.show(
+        `blocks: ${currentHeight}/${topHeight}\t tx: ${getTxsInFlight()}`
+      );
+    })
   );
+
+  await Promise.all(importBlocksJob);
+
+  log.info("Database fully in sync with block_list");
+  !isPollingStarted && pollNewBlocks();
 }

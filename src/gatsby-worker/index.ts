@@ -15,6 +15,7 @@ interface IWorkerOptions {
   numWorkers?: number;
   env?: Record<string, string>;
   logFilter?: (data: string) => boolean;
+  workerPoolPrefix?: string;
 }
 
 type WrapReturnOfAFunctionInAPromise<
@@ -121,6 +122,7 @@ export class WorkerPool<
     >;
   };
 
+  private workerPoolPrefix: string = "";
   private workers: Array<IWorkerInfo<keyof WorkerModuleExports>> = [];
   private taskQueue = new TaskQueue<TaskInfo<keyof WorkerModuleExports>>();
   private idleWorkers: Set<IWorkerInfo<keyof WorkerModuleExports>> = new Set();
@@ -129,6 +131,7 @@ export class WorkerPool<
   > = [];
 
   constructor(private workerPath: string, private options?: IWorkerOptions) {
+    this.workerPoolPrefix = options.workerPoolPrefix || "";
     const single: Partial<WorkerPool<WorkerModuleExports>["single"]> = {};
     const all: Partial<WorkerPool<WorkerModuleExports>["all"]> = {};
 
@@ -260,7 +263,10 @@ export class WorkerPool<
           }
           case CUSTOM_MESSAGE: {
             for (const listener of this.listeners) {
-              listener(message[1] as MessagesFromChild, workerId);
+              listener(
+                message[1] as MessagesFromChild,
+                this.workerPoolPrefix + ":" + workerId
+              );
             }
 
             break;

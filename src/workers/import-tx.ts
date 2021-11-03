@@ -17,7 +17,7 @@ import {
 import { toLong } from "../database/utils";
 import { getMessenger } from "../gatsby-worker/child";
 import { mkWorkerLog } from "../utility/log";
-import { KEYSPACE } from "../constants";
+import { env, KEYSPACE } from "../constants";
 
 enum TxReturnCode {
   OK,
@@ -38,15 +38,7 @@ if (messenger) {
 
 const log = mkWorkerLog(messenger);
 
-let concurrency = 4;
-
-try {
-  if (process.env.PARALLEL_IMPORTS) {
-    concurrency = Number.parseInt(process.env.PARALLEL_IMPORTS);
-  }
-} catch (error) {
-  log(JSON.stringify(error));
-}
+const concurrency = env.PARALLEL_TX_IMPORTS;
 
 const queue = new PQueue({ concurrency });
 

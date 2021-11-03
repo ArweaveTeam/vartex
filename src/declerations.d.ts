@@ -4,8 +4,6 @@ declare module "git-rev-sync";
 declare module "kill-port";
 declare module "mkdirp";
 declare module "random-weighted-choice";
-declare module "fluture";
-declare module "fluture/index.js";
 declare module "cjs";
 declare module "p-whilst";
 declare module "exit-hook";

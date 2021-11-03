@@ -1,43 +1,27 @@
+import { cleanEnv, bool, str, json, num, port } from "envalid";
 import { config } from "dotenv";
 
 process.env.NODE_ENV !== "test" && config();
 
-export const HTTP_TIMEOUT_SECONDS: number = process.env["HTTP_TIMEOUT_SECONDS"]
-  ? Number.parseInt(process.env["HTTP_TIMEOUT_SECONDS"] || "15")
-  : 15;
-
-if (Number.isNaN(HTTP_TIMEOUT_SECONDS)) {
-  console.error("the provided value for HTTP_TIMEOUT_SECONDS was not a number");
-  process.exit(1);
-}
-
-export const KEYSPACE: string = process.env["KEYSPACE"]
-  ? process.env["KEYSPACE"]
-  : "gateway";
+export const env = cleanEnv(process.env, {
+  ARWEAVE_NODES: json({ default: ["https://arweave.net"] }),
+  CASSANDRA_CONTACT_POINTS: json({ default: ["127.0.0.1:9042"] }),
+  CASSANDRA_USERNAME: str({ default: "cassandra" }),
+  CASSANDRA_PASSWORD: str({ default: "cassandra" }),
+  PARALLEL_ANS102_IMPORT: num({ default: 2 }),
+  PARALLEL_ANS104_IMPORT: num({ default: 2 }),
+  PARALLEL_BLOCK_IMPORT: num({ default: 4 }),
+  PARALLEL_MANIFEST_IMPORT: num({ default: 4 }),
+  PARALLEL_TX_IMPORT: num({ default: 8 }),
+  KEYSPACE: str({ default: "gateway" }),
+  PORT: port({ default: 1248 }),
+  // internal defs only applicable to master node
+  OFFLOAD_MANIFEST_IMPORT: bool({ default: false }),
+  OFFLOAD_ANS102_IMPORT: bool({ default: false }),
+  OFFLOAD_ANS104_IMPORT: bool({ default: false }),
+  OFFLOAD_TX_IMPORT: bool({ default: false }),
+});
 
 export const isGatewayNodeModeEnabled = !!process.env["VARTEX_GW_NODE"];
 
-export const IPC_DATA = {};
-
-export const POLLTIME_DELAY_SECONDS: number = process.env[
-  "POLLTIME_DELAY_SECONDS"
-]
-  ? Math.min(1, Number.parseInt(process.env["POLLTIME_DELAY_SECONDS"] || "5"))
-  : 5;
-
-// Table names (because migration requires name change)
-export const TABLE_BLOCK_HEIGHT_BY_BLOCK_HASH = "block_height_by_block_hash";
-export const TABLE_BLOCK = "block";
-export const TABLE_GQL_TX_ASC = "tx_id_gql_asc";
-export const TABLE_GQL_TX_DESC = "tx_id_gql_desc";
-export const TABLE_TX = "transaction";
-export const TABLE_TX_OFFSET = "tx_offset";
-
-export const tableId = {
-  TABLE_BLOCK_HEIGHT_BY_BLOCK_HASH,
-  TABLE_BLOCK,
-  TABLE_GQL_TX_ASC,
-  TABLE_GQL_TX_DESC,
-  TABLE_TX,
-  TABLE_TX_OFFSET,
-};
+export const KEYSPACE = env.KEYSPACE;

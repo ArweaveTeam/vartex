@@ -1,8 +1,10 @@
 import * as R from "rambda";
 import { WorkerPool } from "../gatsby-worker";
 import { MessagesFromWorker } from "../workers/message-types";
+import { env } from "../constants";
+import { log } from "../utility/log";
 
-const processEnv = R.mergeAll([
+const processEnv: Record<string, string> = R.mergeAll([
   {
     PWD: process.cwd(),
     TS_NODE_FILES: true,
@@ -27,14 +29,14 @@ interface WorkerReadyWait {
   };
 }
 
-const workerReadyPromises: WorkerReadyWait = {};
+export const workerReadyPromises: WorkerReadyWait = {};
 
 function appendWorkerReadyPromises(
   workerPoolPrefix: string,
   workerCount: number
 ): void {
   for (const workerIndex of R.range(1, workerCount + 1)) {
-    let resolve: (_: unknown) => void;
+    let resolve: () => void;
     const promise = new Promise<void>((resolve_: () => void) => {
       resolve = resolve_;
     });
@@ -46,26 +48,26 @@ function appendWorkerReadyPromises(
   }
 }
 
-function onWorkerMessage(message: MessagesFromWorker, workerId: number): void {
+function onWorkerMessage(message: MessagesFromWorker, workerId: string): void {
   switch (message.type) {
     case "worker:ready": {
       workerReadyPromises[workerId].resolve();
       break;
     }
     case "log:info": {
-      log.info(`${message.message}`);
+      log.info(`[${workerId}] ${message.message}`);
       break;
     }
     case "log:warn": {
-      log.info(`${message.message}`);
+      log.info(`[${workerId}] ${message.message}`);
       break;
     }
     case "log:error": {
-      log.info(`${message.message}`);
+      log.info(`[${workerId}] ${message.message}`);
       break;
     }
     default: {
-      console.error("unknown worker message arrived", message);
+      log.error("[${workerId}] unknown worker message arrived", message);
     }
   }
 }

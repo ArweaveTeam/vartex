@@ -1,5 +1,5 @@
 import * as R from "rambda";
-// import { mapping, types as CassandraTypes } from "cassandra-driver";
+import { mapping } from "cassandra-driver";
 import { cassandraClient } from "./cassandra";
 import { makeTagsMapper } from "./tags-mapper";
 import { KEYSPACE } from "../constants";
@@ -136,5 +136,3 @@ export const txQueueMapper = mapper.forModel("TxQueue");
 export const tagsMapper = makeTagsMapper(cassandraClient);
 
 export { cassandraClient };
-
-export { tagModels, dropTagsQuery } from "./tags-mapper";

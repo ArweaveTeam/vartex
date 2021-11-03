@@ -1,5 +1,5 @@
 import * as R from "rambda";
-import pWaitFor from "p-wait-for";
+// import pWaitFor from "p-wait-for";
 import pMinDelay from "p-min-delay";
 import pWhilst from "p-whilst";
 import pLimit from "p-limit";
@@ -21,6 +21,7 @@ import {
   manifestImportWorkerPool,
   // ans102ImportWorkerPool,
   // ans104ImportWorkerPool,
+  workerReadyPromises,
 } from "./worker-pools";
 import * as Dr from "./doctor";
 
@@ -77,12 +78,13 @@ async function resolveFork(previousBlock: BlockType): Promise<void> {
 
   if (blockQueryResult.rowLength > 0) {
     log.info("fork diverges at " + blockQueryResult.rows[0].height.toString());
-    if (getTxsInFlight() > 0) {
-      log.info(
-        "waiting for " + getTxsInFlight() + " txs in flight to settle..."
-      );
-      await pWaitFor(() => getTxsInFlight() === 0, { interval: 200 });
-    }
+
+    // if (getTxsInFlight() > 0) {
+    //   log.info(
+    //     "waiting for " + getTxsInFlight() + " txs in flight to settle..."
+    //   );
+    //   await pWaitFor(() => getTxsInFlight() === 0, { interval: 200 });
+    // }
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const result = await cassandraClient.execute(
@@ -137,9 +139,7 @@ const pollNewBlocks = async (): Promise<void> => {
         }
       }
     );
-    log.info(
-      "polling for new blocks every " + POLLTIME_DELAY_SECONDS + " seconds"
-    );
+    log.info("[sync] polling for new incoming blocks..");
   }
 
   const nodeInfo = await getNodeInfo({});
@@ -286,10 +286,10 @@ export async function startSync({
       if (!R.isEmpty(blockGap)) {
         console.error("Repairing missing block(s):", blockGap);
         await Promise.all(
-          blockGap.map((height) => workerPool.single.importBlock(height))
+          blockGap.map((height) =>
+            blockImportWorkerPool.single.importBlock(height)
+          )
         );
-
-        await doneSignal;
       }
       try {
         const result_ = await getMaxHeightBlock(cassandraClient);
@@ -356,33 +356,31 @@ export async function startSync({
   }
 
   gauge.enable();
-  gauge_ = gauge;
 
   const limit = pLimit(2);
-  const importBlocksJob = unsyncedBlocks.map(({ height }: { height: number }) =>
-    limit(() => {
-      statusMapper.update({
-        session: session.uuid,
-        current_imports: [...currentImports].map((x) => `${x}`),
-      });
-      currentImports.add(height);
-      await singleJob.importBlock(height);
+  const importBlocksJob = unsyncedBlocks.map(
+    async ({ height }: { height: number }) =>
+      limit(async () => {
+        statusMapper.update({
+          session: session.uuid,
+          current_imports: [...currentImports].map((x) => `${x}`),
+        });
+        currentImports.add(height);
+        await blockImportWorkerPool.single.importBlock(height);
 
-      currentImports.delete(height);
+        currentImports.delete(height);
 
-      currentHeight = Math.max(currentHeight, height);
+        currentHeight = Math.max(currentHeight, height);
 
-      statusMapper.update({
-        session: session.uuid,
-        status: "OK",
-        gateway_height: `${currentHeight}`,
-        arweave_height: `${topHeight}`,
-        current_imports: [...currentImports].map((x) => `${x}`),
-      });
-      gauge.show(
-        `blocks: ${currentHeight}/${topHeight}\t tx: ${getTxsInFlight()}`
-      );
-    })
+        statusMapper.update({
+          session: session.uuid,
+          status: "OK",
+          gateway_height: `${currentHeight}`,
+          arweave_height: `${topHeight}`,
+          current_imports: [...currentImports].map((x) => `${x}`),
+        });
+        gauge.show(`blocks: ${currentHeight}/${topHeight}\t tx: FIXME`);
+      })
   );
 
   await Promise.all(importBlocksJob);

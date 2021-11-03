@@ -68,7 +68,7 @@ describe("database sync test suite", function () {
   });
 
   test("it writes 100 blocks into cassandra", async () => {
-    await helpers.nuke();
+    await client.execute("DROP KEYSPACE testway IF EXISTS");
     await helpers.initDb();
 
     if (await exists("./cache/hash_list_test.json")) {
@@ -268,7 +268,7 @@ describe("graphql test suite", function () {
       await fs.unlink("./cache/hash_list_test.json");
     }
 
-    await helpers.nuke();
+    await client.execute("DROP KEYSPACE testway IF EXISTS");
     await helpers.initDb();
 
     let shouldStop = false;

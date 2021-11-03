@@ -78,7 +78,6 @@ export async function importManifest(txId: string): Promise<boolean> {
           .subtract(CassandraTypes.Long.fromString(offsetData.size))
           .add(1),
         endOffset: offset,
-        id: txId,
       });
     }
     if (buffer) {
@@ -194,7 +193,7 @@ export async function importManifest(txId: string): Promise<boolean> {
     } else {
       messenger.sendMessage({
         type: "log:warn",
-        message: `Invalid manifest detected ${txId} ${validResult.error}`,
+        message: `Invalid manifest detected ${txId} `,
       });
       await manifestMapper.insert({
         tx_id: txId,

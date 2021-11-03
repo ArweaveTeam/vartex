@@ -1,7 +1,6 @@
 import got from "got";
 import { log } from "../utility/log";
 import { grabNode, warmNode, coolNode } from "./node";
-import { HTTP_TIMEOUT_SECONDS } from "../constants";
 
 export interface BlockType {
   nonce: string;
@@ -48,7 +47,6 @@ export async function getBlock({
     body = (await got.get(url, {
       responseType: "json",
       resolveBodyOnly: true,
-      timeout: HTTP_TIMEOUT_SECONDS * 1000,
       followRedirect: true,
     })) as BlockType;
   } catch (error) {
@@ -65,7 +63,9 @@ export async function getBlock({
   }
 
   if (hash && height !== body.height) {
-    console.error(height, typeof height, body.height, typeof body.height);
+    log.error(
+      [height, typeof height, body.height, typeof body.height].join(" ")
+    );
     log.error(
       "fatal inconsistency: hash and height dont match for hash." +
         "wanted: " +
@@ -97,7 +97,6 @@ export async function fetchBlockByHash(
     body = (await got.get(url, {
       responseType: "json",
       resolveBodyOnly: true,
-      timeout: HTTP_TIMEOUT_SECONDS * 1000,
       followRedirect: true,
     })) as BlockType;
   } catch {

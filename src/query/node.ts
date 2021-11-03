@@ -5,7 +5,6 @@ import rwc from "random-weighted-choice";
 import got from "got";
 import { log } from "../utility/log";
 import { ChunkType, getChunk } from "./chunk";
-import { HTTP_TIMEOUT_SECONDS } from "../constants";
 
 let temporaryNodes = [];
 try {
@@ -110,7 +109,6 @@ export async function getNodeInfo({
     const body: InfoType = await got.get(`${tryNode}/info`, {
       responseType: "json",
       resolveBodyOnly: true,
-      timeout: HTTP_TIMEOUT_SECONDS * 1000,
       followRedirect: true,
     });
 

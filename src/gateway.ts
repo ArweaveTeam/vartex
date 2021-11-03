@@ -62,7 +62,7 @@ function permawebSandboxMiddleware(
     /[\w-]{43}/.test(request.subdomains[0])
   ) {
     request.txid = request.subdomains[0];
-    dataRoute(request, response, next);
+    dataRoute(request, response);
     return;
   } else if (
     request.originalUrl.replace(/^\//, "").replace(/\/.*/, "").length === 43

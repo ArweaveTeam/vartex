@@ -127,7 +127,7 @@ export class WorkerPool<
   private taskQueue = new TaskQueue<TaskInfo<keyof WorkerModuleExports>>();
   private idleWorkers: Set<IWorkerInfo<keyof WorkerModuleExports>> = new Set();
   private listeners: Array<
-    (message: MessagesFromChild, workerId: number) => void
+    (message: MessagesFromChild, workerId: string) => void
   > = [];
 
   constructor(private workerPath: string, private options?: IWorkerOptions) {
@@ -410,7 +410,7 @@ export class WorkerPool<
   }
 
   onMessage(
-    listener: (message: MessagesFromChild, workerId: number) => void
+    listener: (message: MessagesFromChild, workerId: string) => void
   ): void {
     this.listeners.push(listener);
   }

@@ -2,6 +2,7 @@ import * as R from "rambda";
 import { types as CassandraTypes } from "cassandra-driver";
 import { Transaction, TxOffset, UpstreamTag } from "../types/cassandra";
 import { getTransaction, getTxOffset } from "../query/transaction";
+import { ownerToAddress } from "../utility/encoding";
 import {
   blockMapper,
   blockHeightToHashMapper,
@@ -40,7 +41,9 @@ export const insertGqlTag = async (
     for (const tagModelName of Object.keys(tagModels)) {
       const tagMapper = tagsMapper.forModel(tagModelName);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const allFields: any = [...R, ...commonFields].concat(tagModels[tagModelName]);
+      const allFields: any = [...R, ...commonFields].concat(
+        tagModels[tagModelName]
+      );
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const environment: any = R.pickAll(allFields, tx);
 
@@ -48,7 +51,10 @@ export const insertGqlTag = async (
       if (!environment["data_item_index"]) {
         environment["data_item_index"] = toLong(0);
       }
-      if (typeof environment.owner === "string" && environment.owner.length > 43) {
+      if (
+        typeof environment.owner === "string" &&
+        environment.owner.length > 43
+      ) {
         environment.owner = ownerToAddress(environment.owner);
       }
 

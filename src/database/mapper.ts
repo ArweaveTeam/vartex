@@ -49,6 +49,10 @@ const mapper = new Mapper(cassandraClient, {
       keyspace: KEYSPACE,
       tables: ["block_height_sorted_desc"],
     },
+    BlockQueue: {
+      keyspace: KEYSPACE,
+      tables: ["block_queue"],
+    },
     Manifest: {
       keyspace: KEYSPACE,
       tables: ["manifest"],
@@ -81,18 +85,14 @@ const mapper = new Mapper(cassandraClient, {
         withDefault({ name: "tx_uuid", fallback: "" }),
       ]),
     },
-    TxGqlAsc: {
+    TxsSortedAsc: {
       keyspace: KEYSPACE,
-      tables: ["tx_id_gql_asc"],
+      tables: ["txs_sorted_asc"],
     },
-    TxGqlDesc: {
+    TxsSortedDesc: {
       keyspace: KEYSPACE,
-      tables: ["tx_id_gql_desc"],
+      tables: ["txs_sorted_desc"],
     },
-    // TxTag: {
-    //   keyspace: KEYSPACE,
-    //   tables: ["tx_tag"],
-    // },
     TxOffset: {
       keyspace: KEYSPACE,
       tables: ["tx_offset"],
@@ -110,9 +110,11 @@ export const blockHeightToHashMapper = mapper.forModel(
 
 export const blockMapper = mapper.forModel("Block");
 
-export const blockSortedAsc = mapper.forModel("BlockSortedAsc");
+export const blockSortedAscMapper = mapper.forModel("BlockSortedAsc");
 
-export const blockSortedDesc = mapper.forModel("BlockSortedDesc");
+export const blockSortedDescMapper = mapper.forModel("BlockSortedDesc");
+
+export const blockQueueMapper = mapper.forModel("BlockQueue");
 
 export const manifestMapper = mapper.forModel("Manifest");
 
@@ -124,9 +126,9 @@ export const statusMapper = mapper.forModel("Status");
 
 export const transactionMapper = mapper.forModel("Transaction");
 
-export const txGqlAscMapper = mapper.forModel("TxGqlAsc");
+export const txsSortedAscMapper = mapper.forModel("TxsSortedAsc");
 
-export const txGqlDescMapper = mapper.forModel("TxGqlDesc");
+export const txsSortedDescMapper = mapper.forModel("TxsSortedDesc");
 
 export const txOffsetMapper = mapper.forModel("TxOffset");
 
@@ -136,4 +138,5 @@ export const tagsMapper = makeTagsMapper(cassandraClient);
 
 export { cassandraClient };
 
-export { tagModels } from "./tags-mapper";
+export { tagModels, dropTagsQuery } from "./tags-mapper";
+export { dropTxsQuery } from "./txs-mapper";

@@ -40,28 +40,35 @@ export const initializeStatusSession = async (
   cassandraClient: CassandraClient,
   sessionUuid: CassandraTypes.TimeUuid
 ): Promise<CassandraTypes.TimeUuid> => {
-  const maybeLastSession = await cassandraClient.execute(
-    `SELECT * FROM ${KEYSPACE}.status`
-  );
-
-  if (isGatewayNodeModeEnabled && !R.isEmpty(maybeLastSession.rows)) {
-    signalReady();
-    lastKnownSessionUuid = maybeLastSession.rows[0].session;
-    return maybeLastSession.rows[0].session;
-  } else if (isGatewayNodeModeEnabled) {
-    lastKnownSessionUuid = sessionUuid;
-    signalReady();
-    return sessionUuid;
-  }
+  let maybeLastSession;
 
   let lastSession: StatusSchema = {
     status: "BOOTING",
-    arweave_height: "-1",
-    gateway_height: "-1",
+    arweave_height: "0",
+    gateway_height: "0",
     vartex_git_revision: gitRevision,
     current_imports: [],
     current_migrations: {},
   };
+
+  try {
+    maybeLastSession = await cassandraClient.execute(
+      `SELECT * FROM ${KEYSPACE}.status`
+    );
+  } catch {}
+
+  if (!maybeLastSession) {
+    await new Promise<void>((resolve) => setTimeout(resolve, 1000));
+    return initializeStatusSession(cassandraClient, sessionUuid);
+  } else if (isGatewayNodeModeEnabled && !R.isEmpty(maybeLastSession.rows)) {
+    signalReady();
+    lastKnownSessionUuid = maybeLastSession.rows[0].session;
+    return lastKnownSessionUuid;
+  } else if (isGatewayNodeModeEnabled && R.isEmpty(maybeLastSession.rows)) {
+    lastKnownSessionUuid = sessionUuid;
+    signalReady();
+    return lastKnownSessionUuid as CassandraTypes.TimeUuid;
+  }
 
   if (!R.isEmpty(maybeLastSession.rows)) {
     for (const { session } of maybeLastSession.rows) {
@@ -73,12 +80,20 @@ export const initializeStatusSession = async (
     lastSession = (maybeLastSession as any).rows[0] as StatusSchema;
   }
 
-  await statusMapper.insert(
-    R.mergeAll([lastSession, { session: sessionUuid, status: "BOOTING" }])
-  );
+  const newSession = R.mergeAll([
+    lastSession,
+    { session: sessionUuid, status: "BOOTING" },
+  ]);
+  try {
+    await statusMapper.insert(newSession);
+  } catch {
+    await new Promise<void>((resolve) => setTimeout(resolve, 1000));
+    return initializeStatusSession(cassandraClient, sessionUuid);
+  }
+
   signalReady();
   lastKnownSessionUuid = sessionUuid;
-  return sessionUuid;
+  return lastKnownSessionUuid;
 };
 
 export async function statusRoute(
@@ -88,10 +103,14 @@ export async function statusRoute(
   if (!ready) {
     response.send("not ready");
   } else {
+    let currentStatus: StatusSchema;
     try {
-      const currentStatus = await statusMapper.get({
+      currentStatus = await statusMapper.get({
         session: lastKnownSessionUuid,
       });
+    } catch {}
+
+    try {
       const delta =
         Number.parseInt(currentStatus ? currentStatus.arweave_height : "0") -
         Number.parseInt(currentStatus ? currentStatus.gateway_height : "0");

@@ -25,7 +25,7 @@ const mapper = new Mapper(cassandraClient, {
   models: {
     BlockHeightByBlockHash: {
       keyspace: KEYSPACE,
-      tables: ["block_height_to_block_hash"],
+      tables: ["block_height_to_hash"],
     },
     Block: {
       keyspace: KEYSPACE,

@@ -27,7 +27,7 @@ import {
 } from "./types.graphql";
 import { Tag } from "../types/arweave";
 import { KEYSPACE } from "../constants";
-import { findTxIDsFromTagFilters } from "./tag-search";
+// import { findTxIDsFromTagFilters } from "./tag-search";
 import { findTxIDsFromTxFilters } from "./tx-search";
 import {
   ownerToAddress,
@@ -152,12 +152,16 @@ export const resolvers = {
       const fieldsWithSubFields = graphqlFields(info);
       const wantsBlock = R.hasPath("edges.node.block", fieldsWithSubFields);
 
-      const tagSearchMode =
-        queryParameters.tags && !R.isEmpty(queryParameters.tags);
+      // const tagSearchMode =
+      //   queryParameters.tags && !R.isEmpty(queryParameters.tags);
 
-      const [txSearchResult, hasNextPage] = tagSearchMode
-        ? await findTxIDsFromTagFilters(maxHeightBlock[1], queryParameters)
-        : await findTxIDsFromTxFilters(maxHeightBlock[1], queryParameters);
+      const [txSearchResult, hasNextPage] = await findTxIDsFromTxFilters(
+        maxHeightBlock[1],
+        queryParameters
+      );
+      // const [txSearchResult, hasNextPage] = tagSearchMode
+      //   ? await findTxIDsFromTagFilters(maxHeightBlock[1], queryParameters)
+      //   : await findTxIDsFromTxFilters(maxHeightBlock[1], queryParameters);
 
       if (R.isEmpty(txSearchResult)) {
         return {

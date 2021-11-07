@@ -4,6 +4,7 @@ import { toLong } from "../database/utils";
 import { types as CassandraTypes } from "cassandra-driver";
 import { TxSearchResult } from "./resolver-types";
 import { QueryTransactionsArgs as QueryTransactionsArguments } from "./types.graphql";
+import { toB64url } from "../query/transaction";
 import { KEYSPACE } from "../constants";
 
 const filtersToTable: { [direction: string]: Record<string, string> } = {
@@ -212,9 +213,29 @@ export const findTxIDsFromTxFilters = async (
 
   const limit = Math.min(100, queryParameters.first || 10);
 
-  const whereClause = R.isEmpty(txFilterKeys)
+  let tagPairs: string[] = [];
+
+  let allowFiltering = false;
+
+  if (queryParameters.tags && !R.isEmpty(queryParameters.tags)) {
+    allowFiltering = true;
+    tagPairs = queryParameters.tags.reduce((accumulator, tagPairs) => {
+      const tagName = toB64url(tagPairs.name || "");
+      for (const tagValue of tagPairs.values) {
+        accumulator.push(`'${tagName}|${toB64url(tagValue)}'`);
+      }
+      return accumulator;
+    }, []);
+  }
+
+  const txFilterKeys_ = R.isEmpty(tagPairs)
+    ? txFilterKeys
+    : R.append("tags", txFilterKeys);
+
+  console.log(txFilterKeys_, tagPairs, queryParameters.tags);
+  const whereClause = R.isEmpty(txFilterKeys_)
     ? ""
-    : txFilterKeys.reduce((accumulator, key) => {
+    : txFilterKeys_.reduce((accumulator, key) => {
         const k_ =
           key === "target"
             ? "recipients"
@@ -230,23 +251,32 @@ export const findTxIDsFromTxFilters = async (
           owners: "owner",
           dataRoots: "data_root",
           bundledIn: "bundled_in",
+          tags: "tag_pairs",
         });
 
-        const whereValsString =
-          whereVals.length === 1
-            ? ` = '${whereVals[0]}'`
-            : `IN (${whereVals.map((wv: string) => `'${wv}'`).join(",")})`;
-        return `${accumulator} AND ${cqlKey} ${whereValsString}`;
+        if (cqlKey === "tag_pairs") {
+          const whereValsString = tagPairs
+            .map((tp) => `AND tag_pairs CONTAINS ${tp}`)
+            .join(" ");
+          return `${accumulator} ${whereValsString}`;
+        } else {
+          const whereValsString =
+            whereVals.length === 1
+              ? ` = '${whereVals[0]}'`
+              : `IN (${whereVals.map((wv: string) => `'${wv}'`).join(",")})`;
+
+          return `${accumulator} AND ${cqlKey} ${whereValsString}`;
+        }
       }, "");
 
   let hasNextPage = false;
   let txsFilterRows = [];
 
-  if (!R.isEmpty(txFilterKeys)) {
+  if (!R.isEmpty(txFilterKeys_)) {
     const txFilterQ = await cassandraClient.execute(
       `SELECT tx_id, tx_index, data_item_index FROM ${KEYSPACE}.${table} WHERE tx_index <= ${txsMaxHeight} AND tx_index >= ${txsMinHeight} ${whereClause} LIMIT ${
         limit + 1
-      }`
+      } ${allowFiltering ? "ALLOW FILTERING" : ""}`
     );
 
     txsFilterRows = txFilterQ.rows;
@@ -307,7 +337,7 @@ export const findTxIDsFromTxFilters = async (
       sortOrder,
       txIndex: row.tx_index.toString(),
       dataItemIndex: row.data_item_index.toString(),
-      nthMillion: R.isEmpty(txFilterKeys) ? row.nthMillion : -1,
+      nthMillion: R.isEmpty(txFilterKeys_) ? row.nthMillion : -1,
     })
   );
 

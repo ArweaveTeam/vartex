@@ -148,6 +148,26 @@ async function connect() {
          )
          WITH CLUSTERING ORDER BY (tx_index DESC, data_item_index DESC)`,
 
+        `CREATE TABLE IF NOT EXISTS tx_gql_tags_asc (
+           nth_100k int,
+           tx_id text,
+           tx_index bigint,
+           data_item_index bigint,
+           tag_pairs frozen<list<text>>,
+           PRIMARY KEY((nth_100k), tx_index, data_item_index)
+         )
+         WITH CLUSTERING ORDER BY (tx_index ASC, data_item_index ASC)`,
+
+        `CREATE TABLE IF NOT EXISTS tx_gql_tags_desc (
+           nth_100k int,
+           tx_id text,
+           tx_index bigint,
+           data_item_index bigint,
+           tag_pairs frozen<list<text>>,
+           PRIMARY KEY((nth_100k), tx_index, data_item_index)
+         )
+         WITH CLUSTERING ORDER BY (tx_index DESC, data_item_index DESC)`,
+
         `CREATE TABLE IF NOT EXISTS manifest (
           tx_id text,
           manifest_type text,
@@ -176,13 +196,6 @@ async function connect() {
           vartex_git_revision text,
           current_imports list<text>,
           current_migrations map<int, text>,
-          PRIMARY KEY(session)
-        )`,
-
-        `CREATE TABLE IF NOT EXISTS heartbeat (
-          session timeuuid,
-          status text,
-          role text,
           PRIMARY KEY(session)
         )`,
 
@@ -233,7 +246,7 @@ async function connect() {
          )
          WITH CLUSTERING ORDER BY (tx_id ASC)`,
       ]
-        .concat(tagTables.createTableQueries)
+        .concat(tagTables)
         .concat(txFilterTables);
 
       let p = Promise.resolve();

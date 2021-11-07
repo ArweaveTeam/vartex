@@ -52,23 +52,27 @@ function generateFilterTables(filters) {
 
   return [
     `
-    CREATE TABLE IF NOT EXISTS tx_gql_by_${tableName}_asc (
+      CREATE TABLE IF NOT EXISTS tx_gql_by_${tableName}_asc (
            tx_id text,
            tx_index bigint,
            data_item_index bigint,
+           tag_pairs frozen<list<text>>,
            ${columns}
            PRIMARY KEY ((${extraPrimaryKeys}), tx_index, data_item_index)
         )
-    WITH CLUSTERING ORDER BY (tx_index ASC, data_item_index ASC)`,
-
+      WITH CLUSTERING ORDER BY (tx_index ASC, data_item_index ASC);
+    `,
+    `CREATE INDEX IF NOT EXISTS tx_gql_by_${tableName}_asc_tag_pairs_index ON tx_gql_by_${tableName}_asc(full(tag_pairs));`,
     `CREATE TABLE IF NOT EXISTS tx_gql_by_${tableName}_desc (
            tx_id text,
            tx_index bigint,
            data_item_index bigint,
+           tag_pairs frozen<list<text>>,
            ${columns}
            PRIMARY KEY ((${extraPrimaryKeys}), tx_index, data_item_index)
         )
     WITH CLUSTERING ORDER BY (tx_index DESC, data_item_index DESC);`,
+    `CREATE INDEX IF NOT EXISTS tx_gql_by_${tableName}_desc_tag_pairs_index ON tx_gql_by_${tableName}_desc(full(tag_pairs));`,
   ];
 }
 

@@ -1,3 +1,4 @@
+import "colors";
 import * as R from "rambda";
 import { WorkerPool } from "../gatsby-worker";
 import { MessagesFromWorker } from "../workers/message-types";
@@ -55,19 +56,26 @@ function onWorkerMessage(message: MessagesFromWorker, workerId: string): void {
       break;
     }
     case "log:info": {
-      log.info(`[${workerId}] ${message.message}`);
+      if (message.message && message.message !== "{}") {
+        log.info(`[${workerId}] ${message.message}`.blue);
+      }
+
       break;
     }
     case "log:warn": {
-      log.info(`[${workerId}] ${message.message}`);
+      if (message.message && message.message !== "{}") {
+        log.info(`[${workerId}] ${message.message}`.yellow);
+      }
       break;
     }
     case "log:error": {
-      log.info(`[${workerId}] ${message.message}`);
+      if (message.message && message.message !== "{}") {
+        log.info(`[${workerId}] ${message.message}`.red);
+      }
       break;
     }
     default: {
-      log.error("[${workerId}] unknown worker message arrived", message);
+      log.error("[${workerId}] unknown worker message arrived".yellow, message);
     }
   }
 }

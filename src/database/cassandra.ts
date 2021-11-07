@@ -1,6 +1,7 @@
 /* eslint-disable unicorn/prefer-spread */
 import * as cassandra from "cassandra-driver";
 import * as R from "rambda";
+import { EventEmitter } from "node:events";
 import { BlockType } from "../query/block";
 import { mapping, types as CassandraTypes } from "cassandra-driver";
 import { Transaction, TxOffset, UpstreamTag } from "../types/cassandra";
@@ -8,6 +9,7 @@ import { env, KEYSPACE } from "../constants";
 import { config } from "dotenv";
 import { makeTagsMapper, tagModels } from "./tags-mapper";
 import { ownerToAddress } from "../utility/encoding";
+import { log } from "../utility/log";
 
 process.env.NODE_ENV !== "test" && config();
 
@@ -28,9 +30,7 @@ if (
   !Array.isArray(env.CASSANDRA_CONTACT_POINTS) ||
   R.isEmpty(env.CASSANDRA_CONTACT_POINTS)
 ) {
-  console.error(
-    "[cassandra] Invalid or empty array of cassandra contact points."
-  );
+  log.error("[cassandra] Invalid or empty array of cassandra contact points.");
   process.exit(1);
 }
 
@@ -82,6 +82,20 @@ export const cassandraClient = new cassandra.Client({
     // }),
   ],
 });
+
+const requestTracker: Partial<
+  cassandra.tracker.RequestLogger & { emitter: EventEmitter }
+> = new cassandra.tracker.RequestLogger({
+  slowThreshold: 1000,
+});
+
+requestTracker.emitter.on("slow", (message: string) =>
+  log.warn(`[cassandra] ${message}`.yellow)
+);
+
+requestTracker.emitter.on("failure", (message: string) =>
+  log.error(`[cassandra] ${message}`.red)
+);
 
 const txOffsetKeys = ["tx_id", "size", "offset"];
 
@@ -198,7 +212,7 @@ const transformBlockKey = (key: string, object: any) => {
     }
 
     default: {
-      console.error("Unknown key", key);
+      log.error("Unknown key", key);
     }
   }
 };
@@ -269,7 +283,7 @@ const transformTxKey = (
     }
 
     default: {
-      console.error("Unknown key", key);
+      log.error("Unknown key", key);
     }
   }
 };
@@ -307,7 +321,7 @@ const txOffsetInsertQuery = `INSERT INTO ${KEYSPACE}.tx_offset (${txOffsetKeys.j
   ", "
 )}) VALUES (${txOffsetKeys.map(() => "?").join(", ")})`;
 
-const blockHeightToHashInsertQuery = `INSERT INTO ${KEYSPACE}.block_height_to_block_hash (block_height, block_hash) VALUES (?, ?) IF NOT EXISTS`;
+const blockHeightToHashInsertQuery = `INSERT INTO ${KEYSPACE}.block_height_to_hash (block_height, block_hash) VALUES (?, ?) IF NOT EXISTS`;
 
 const tagsMapper = makeTagsMapper(cassandraClient);
 

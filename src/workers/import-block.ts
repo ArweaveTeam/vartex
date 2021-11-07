@@ -47,6 +47,7 @@ export async function importBlock(
     for (const txId of newBlock.txs) {
       await txQueueMapper.insert({
         tx_id: txId,
+        block_hash: newBlock.indep_hash,
         block_height: height,
         import_attempt_cnt: 0,
       });
@@ -59,14 +60,23 @@ export async function importBlock(
       block_hash: newBlock.indep_hash,
     });
   } catch (error) {
-    log(`Error inserting to table blockHeightToHash\n` + JSON.stringify(error));
+    log(
+      `Error inserting to table blockHeightToHash with height: ${height} and hash: ${newBlock.indep_hash}` +
+        error
+        ? "\n" + JSON.stringify(error)
+        : ""
+    );
     return BlockImportReturnCode.REQUEUE;
   }
 
   try {
     await blockMapper.insert(newBlock);
   } catch (error) {
-    log(`Error inserting block to database\n` + JSON.stringify(error));
+    log(
+      `Error inserting block to database` + error
+        ? "\n" + JSON.stringify(error)
+        : ""
+    );
     return BlockImportReturnCode.REQUEUE;
   }
 

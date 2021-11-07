@@ -262,9 +262,11 @@ export const findTxIDsFromTagFilters = async (
   }, "");
 
   const tagFilterQ = await cassandraClient.execute(
-    `SELECT tx_id, tx_index, data_item_index FROM ${KEYSPACE}.${table} WHERE tx_index <= ${txsMaxHeight} AND tx_index >= ${txsMinHeight} AND tag_pair IN (${tagPairsIn.join(
+    `
+    SELECT tx_id, tx_index, data_item_index FROM ${KEYSPACE}.${table} WHERE tx_index <= ${txsMaxHeight} AND tx_index >= ${txsMinHeight} AND tag_pair IN (${tagPairsIn.join(
       ","
-    )})${whereClause} LIMIT ${limit + 1}`
+    )})${whereClause} LIMIT ${limit + 1};
+`
   );
 
   const hasNextPage = tagFilterQ.rows.length > limit;

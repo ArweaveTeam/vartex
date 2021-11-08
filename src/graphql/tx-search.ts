@@ -111,28 +111,28 @@ interface TxFilterCursor {
   txIndex: string;
   dataItemIndex: string;
   sortOrder: string;
-  nthMillion: number;
+  nthBucket: number;
 }
 
 function encodeCursor({
   sortOrder,
   txIndex,
   dataItemIndex,
-  nthMillion,
+  nthBucket,
 }: TxFilterCursor): string {
   const string = JSON.stringify([
     "tx_search",
     sortOrder,
     txIndex,
     dataItemIndex,
-    nthMillion,
+    nthBucket,
   ]);
   return Buffer.from(string).toString("base64url");
 }
 
 function parseTxFilterCursor(cursor: string): TxFilterCursor {
   try {
-    const [cursorType, sortOrder, txIndex, dataItemIndex, nthMillion] =
+    const [cursorType, sortOrder, txIndex, dataItemIndex, nthBucket] =
       JSON.parse(Buffer.from(cursor, "base64url").toString()) as [
         string,
         string,
@@ -140,9 +140,62 @@ function parseTxFilterCursor(cursor: string): TxFilterCursor {
         string,
         number
       ];
-    return { cursorType, sortOrder, txIndex, dataItemIndex, nthMillion };
+    return { cursorType, sortOrder, txIndex, dataItemIndex, nthBucket };
   } catch {
     throw new Error("invalid cursor");
+  }
+}
+
+function optimizeBucketSearch({
+  isBucketSearchTag,
+  isBucketSearchTx,
+  buckets,
+  nthBucket,
+  resultCount,
+}: {
+  isBucketSearchTag: boolean;
+  isBucketSearchTx: boolean;
+  buckets: number[];
+  nthBucket: number;
+  resultCount: number;
+}): number {
+  const bucketsLeft = buckets.length - nthBucket;
+  const thisBlockHeight = toLong(buckets[nthBucket])
+    .mul(isBucketSearchTag ? 1e5 : 1e6)
+    .divide(1000);
+
+  if (thisBlockHeight.lt(5e5)) {
+    return Math.min(
+      bucketsLeft,
+      isBucketSearchTx
+        ? resultCount > 0
+          ? 20
+          : 200
+        : resultCount > 0
+        ? 200
+        : 2000
+    );
+  } else if (thisBlockHeight.lt(6e5)) {
+    return Math.min(
+      bucketsLeft,
+      isBucketSearchTx
+        ? resultCount > 0
+          ? 10
+          : 50
+        : resultCount > 0
+        ? 100
+        : 500
+    );
+  } else if (thisBlockHeight.lt(7e5)) {
+    return Math.min(
+      bucketsLeft,
+      isBucketSearchTx ? (resultCount > 0 ? 5 : 40) : resultCount > 0 ? 50 : 400
+    );
+  } else {
+    return Math.min(
+      bucketsLeft,
+      isBucketSearchTx ? (resultCount > 0 ? 1 : 30) : resultCount > 0 ? 2 : 300
+    );
   }
 }
 
@@ -155,7 +208,18 @@ export const findTxIDsFromTxFilters = async (
 
   const sortOrder =
     queryParameters.sort === "HEIGHT_ASC" ? "HEIGHT_ASC" : "HEIGHT_DESC";
-  const table = R.isEmpty(txFilterKeys)
+  const isBucketSearchTag = Boolean(
+    R.isEmpty(txFilterKeys) && !R.isEmpty(queryParameters.tags)
+  );
+  const isBucketSearchTx = Boolean(
+    R.isEmpty(txFilterKeys) && R.isEmpty(queryParameters.tags)
+  );
+
+  const table = isBucketSearchTag
+    ? sortOrder === "HEIGHT_ASC"
+      ? "tx_gql_tags_asc"
+      : "tx_gql_tags_desc"
+    : isBucketSearchTx
     ? sortOrder === "HEIGHT_ASC"
       ? "txs_sorted_asc"
       : "txs_sorted_desc"
@@ -232,47 +296,47 @@ export const findTxIDsFromTxFilters = async (
     ? txFilterKeys
     : R.append("tags", txFilterKeys);
 
-  console.log(txFilterKeys_, tagPairs, queryParameters.tags);
-  const whereClause = R.isEmpty(txFilterKeys_)
-    ? ""
-    : txFilterKeys_.reduce((accumulator, key) => {
-        const k_ =
-          key === "target"
-            ? "recipients"
-            : (key as keyof QueryTransactionsArguments);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const whereVals: any = queryParameters[k_];
-        const cqlKey = R.propOr(
-          key,
-          key
-        )({
-          ids: "tx_id",
-          recipients: "target",
-          owners: "owner",
-          dataRoots: "data_root",
-          bundledIn: "bundled_in",
-          tags: "tag_pairs",
-        });
+  const whereClause =
+    isBucketSearchTag || isBucketSearchTx
+      ? ""
+      : txFilterKeys_.reduce((accumulator, key) => {
+          const k_ =
+            key === "target"
+              ? "recipients"
+              : (key as keyof QueryTransactionsArguments);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const whereVals: any = queryParameters[k_];
+          const cqlKey = R.propOr(
+            key,
+            key
+          )({
+            ids: "tx_id",
+            recipients: "target",
+            owners: "owner",
+            dataRoots: "data_root",
+            bundledIn: "bundled_in",
+            tags: "tag_pairs",
+          });
 
-        if (cqlKey === "tag_pairs") {
-          const whereValsString = tagPairs
-            .map((tp) => `AND tag_pairs CONTAINS ${tp}`)
-            .join(" ");
-          return `${accumulator} ${whereValsString}`;
-        } else {
-          const whereValsString =
-            whereVals.length === 1
-              ? ` = '${whereVals[0]}'`
-              : `IN (${whereVals.map((wv: string) => `'${wv}'`).join(",")})`;
+          if (cqlKey === "tag_pairs") {
+            const whereValsString = tagPairs
+              .map((tp) => `AND tag_pairs CONTAINS ${tp}`)
+              .join(" ");
+            return `${accumulator} ${whereValsString}`;
+          } else {
+            const whereValsString =
+              whereVals.length === 1
+                ? ` = '${whereVals[0]}'`
+                : `IN (${whereVals.map((wv: string) => `'${wv}'`).join(",")})`;
 
-          return `${accumulator} AND ${cqlKey} ${whereValsString}`;
-        }
-      }, "");
+            return `${accumulator} AND ${cqlKey} ${whereValsString}`;
+          }
+        }, "");
 
   let hasNextPage = false;
   let txsFilterRows = [];
 
-  if (!R.isEmpty(txFilterKeys_)) {
+  if (!isBucketSearchTag && !isBucketSearchTx) {
     const txFilterQ = await cassandraClient.execute(
       `SELECT tx_id, tx_index, data_item_index FROM ${KEYSPACE}.${table} WHERE tx_index <= ${txsMaxHeight} AND tx_index >= ${txsMinHeight} ${whereClause} LIMIT ${
         limit + 1
@@ -282,24 +346,28 @@ export const findTxIDsFromTxFilters = async (
     txsFilterRows = txFilterQ.rows;
     hasNextPage = txFilterQ.rows.length > limit;
   } else {
-    const xMillions = toLong(txsMaxHeight).div(1e6).add(1);
+    const xBuckets = toLong(txsMaxHeight)
+      .div(isBucketSearchTag ? 1e5 : 1e6)
+      .add(1);
 
     const rangePostFunction =
       sortOrder === "HEIGHT_ASC" ? R.identity : R.reverse;
 
     const bucketStart =
-      typeof maybeCursor.nthMillion !== "undefined" &&
-      maybeCursor.nthMillion !== -1 &&
+      typeof maybeCursor.nthBucket !== "undefined" &&
+      maybeCursor.nthBucket !== -1 &&
       sortOrder === "HEIGHT_ASC"
-        ? maybeCursor.nthMillion
-        : 0;
+        ? maybeCursor.nthBucket
+        : toLong(txsMinHeight)
+            .div(isBucketSearchTag ? 1e5 : 1e6)
+            .toInt();
 
     const bucketEnd =
-      typeof maybeCursor.nthMillion !== "undefined" &&
-      maybeCursor.nthMillion !== -1 &&
+      typeof maybeCursor.nthBucket !== "undefined" &&
+      maybeCursor.nthBucket !== -1 &&
       sortOrder === "HEIGHT_DESC"
-        ? maybeCursor.nthMillion + 1
-        : (xMillions.add(1).toInt() as number);
+        ? maybeCursor.nthBucket + 1
+        : (xBuckets.add(1).toInt() as number);
 
     const buckets: number[] = rangePostFunction(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -308,18 +376,43 @@ export const findTxIDsFromTxFilters = async (
 
     let resultCount = 0;
     let nthBucket = 0;
+    let requestCount = 0;
 
     while (nthBucket < buckets.length && resultCount < limit) {
+      if (requestCount > 100) {
+        throw new Error("Query timeout: please use more specific queries!");
+      }
+
+      const bucketsInThisRequest = optimizeBucketSearch({
+        isBucketSearchTag,
+        isBucketSearchTx,
+        resultCount,
+        buckets,
+        nthBucket,
+      });
+
+      const bucketQuery = `AND ${
+        isBucketSearchTag ? "nth_100k" : "nth_million"
+      } IN (${buckets
+        .slice(nthBucket, nthBucket + bucketsInThisRequest)
+        .map((bucket: number) => `${bucket}`)
+        .join(",")}) `;
+
+      const whereQuery = isBucketSearchTag
+        ? tagPairs.map((tp) => `AND tag_pairs CONTAINS ${tp}`).join(" ")
+        : "";
+
       const nextResult = await cassandraClient.execute(
-        `SELECT tx_id, tx_index, data_item_index FROM ${KEYSPACE}.${table} WHERE tx_index <= ${txsMaxHeight} AND tx_index >= ${txsMinHeight} AND nth_million=${
-          buckets[nthBucket]
-        } LIMIT ${limit - resultCount + 1}`
+        `SELECT tx_id, tx_index, data_item_index FROM ${KEYSPACE}.${table} WHERE tx_index <= ${txsMaxHeight} AND tx_index >= ${txsMinHeight} ${bucketQuery} ${whereQuery} LIMIT ${
+          limit - resultCount + 1
+        } ${isBucketSearchTag ? "ALLOW FILTERING" : ""}`,
+        { prepare: true }
       );
       for (const row of nextResult.rows) {
         !hasNextPage &&
           txsFilterRows.push(
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (R.assoc as any)("nthMillion", buckets[nthBucket], row)
+            (R.assoc as any)("nthBucket", buckets[nthBucket], row)
           );
         if (resultCount !== limit) {
           resultCount += 1;
@@ -328,7 +421,8 @@ export const findTxIDsFromTxFilters = async (
         }
       }
 
-      nthBucket += 1;
+      nthBucket += bucketsInThisRequest;
+      requestCount += 1;
     }
   }
 
@@ -337,7 +431,7 @@ export const findTxIDsFromTxFilters = async (
       sortOrder,
       txIndex: row.tx_index.toString(),
       dataItemIndex: row.data_item_index.toString(),
-      nthMillion: R.isEmpty(txFilterKeys_) ? row.nthMillion : -1,
+      nthBucket: R.isEmpty(txFilterKeys_) ? row.nthBucket : -1,
     })
   );
 

@@ -149,23 +149,23 @@ async function connect() {
          WITH CLUSTERING ORDER BY (tx_index DESC, data_item_index DESC)`,
 
         `CREATE TABLE IF NOT EXISTS tx_gql_tags_asc (
-           nth_100k int,
+           tag_pair text,
            tx_id text,
            tx_index bigint,
            data_item_index bigint,
            tag_pairs frozen<list<text>>,
-           PRIMARY KEY((nth_100k), tx_index, data_item_index)
+           PRIMARY KEY((tag_pair), tx_index, data_item_index)
          )
          WITH CLUSTERING ORDER BY (tx_index ASC, data_item_index ASC);`,
         `CREATE INDEX IF NOT EXISTS tx_gql_tags_asc_index ON tx_gql_tags_asc(full(tag_pairs))`,
 
         `CREATE TABLE IF NOT EXISTS tx_gql_tags_desc (
-           nth_100k int,
+           tag_pair text,
            tx_id text,
            tx_index bigint,
            data_item_index bigint,
            tag_pairs frozen<list<text>>,
-           PRIMARY KEY((nth_100k), tx_index, data_item_index)
+           PRIMARY KEY((tag_pair), tx_index, data_item_index)
          )
          WITH CLUSTERING ORDER BY (tx_index DESC, data_item_index DESC);`,
         `CREATE INDEX IF NOT EXISTS tx_gql_tags_desc_index ON tx_gql_tags_desc(full(tag_pairs))`,

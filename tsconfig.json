@@ -19,6 +19,7 @@
     "preserveSymlinks": true,
     "skipLibCheck": true,
     "allowUmdGlobalAccess": true,
+    "resolveJsonModule": true,
     "types": ["jest"]
   },
   "include": ["src/**/*", "test/**/*.ts"],

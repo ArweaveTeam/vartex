@@ -23,7 +23,7 @@
     ".": "./cli/vartex.mjs"
   },
   "scripts": {
-    "test": "yarn run gql && TS_NODE_FILES=true node --experimental-vm-modules node_modules/jest/bin/jest.js --verbose false --ci --forceExit --runInBand --detectOpenHandles ./{src,test}/*",
+    "test": "yarn run gql && TS_NODE_FILES=true node --experimental-vm-modules node_modules/jest/bin/jest.js --verbose false --ci --forceExit --runInBand --detectOpenHandles ./test/integration2.test.ts",
     "lint": "eslint 'src/**/*.ts'",
     "gql": "node_modules/@graphql-codegen/cli/bin.js --config codegen.yml",
     "prestart": "yarn run gql && yarn run migrate:init",
@@ -32,7 +32,6 @@
     "start:prod": "yarn run prestart && node start.cjs",
     "cache:purge": "rm -rf cache/imports",
     "migrate:init": "node cassandra/init.cjs",
-    "migrate:nuke": "yarn run cache:purge && node cassandra/nuke.cjs",
     "prepare": "husky install"
   },
   "resolutions": {
@@ -79,6 +78,7 @@
     "p-wait-for": "^4.1.0",
     "p-whilst": "^3.0.0",
     "rambda": "^6.9.0",
+    "ramda": "^0.27.1",
     "random-weighted-choice": "^0.1.4",
     "rfc4648": "^1.5.0",
     "rimraf": "^3.0.2",
@@ -104,6 +104,7 @@
     "@types/morgan": "^1.9.3",
     "@types/node": "^16.11.6",
     "@types/node-cron": "^3.0.0",
+    "@types/ramda": "^0.27.48",
     "@types/shortid": "^0.0.29",
     "@typescript-eslint/eslint-plugin": "^5.2.0",
     "@typescript-eslint/parser": "^5.2.0",
@@ -112,6 +113,7 @@
     "eslint-plugin-unicorn": "^37.0.1",
     "husky": "^7.0.4",
     "jest": "^27.3.1",
+    "mock-socket": "^9.0.7",
     "nock": "^13.1.4",
     "ts-jest": "^27.0.7",
     "typescript": "^4.4.4",

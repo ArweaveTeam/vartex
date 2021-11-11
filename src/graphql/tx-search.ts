@@ -247,7 +247,6 @@ export const findTxIDsFromTxFilters = async (
   let tagPairs: string[] = [];
 
   if (queryParameters.tags && !R.isEmpty(queryParameters.tags)) {
-    allowFiltering = true;
     tagPairs = queryParameters.tags.reduce((accumulator, tagPairs) => {
       const tagName = toB64url(tagPairs.name || "");
       for (const tagValue of tagPairs.values) {

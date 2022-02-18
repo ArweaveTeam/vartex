@@ -56,7 +56,7 @@ export async function importBlock(
 
   try {
     await blockHeightToHashMapper.insert({
-      block_heigh: height,
+      block_height: height,
       block_hash: newBlock.indep_hash,
     });
   } catch (error) {

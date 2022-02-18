@@ -94,6 +94,7 @@ export async function importBlock(
 
   try {
     await blockSortedAscMapper.insert({
+      block_height: height,
       block_hash: newBlock.indep_hash,
       nth_million: nthMillBlock,
     });
@@ -103,6 +104,7 @@ export async function importBlock(
 
   try {
     await blockSortedDescMapper.insert({
+      block_height: height,
       block_hash: newBlock.indep_hash,
       nth_million: nthMillBlock,
     });

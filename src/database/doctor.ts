@@ -47,10 +47,9 @@ export const findBlockGaps = async (
   );
 
   const missingHeights: number[] = [];
-
-  for (const heightGroup of queryHeightGroups) {
+  for (const [index, heightGroup] of queryHeightGroups.entries()) {
     const blockQ: { rows: unknown[] } = await cassandraClient.execute(
-      `SELECT block_height FROM ${KEYSPACE}.block_height_sorted_asc  WHERE block_height >= ${R.head(
+      `SELECT block_height FROM ${KEYSPACE}.block_height_sorted_asc  WHERE nth_million = ${index} AND block_height >= ${R.head(
         heightGroup
       )} AND block_height <= ${R.last(heightGroup)}`
     );

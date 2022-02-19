@@ -45,9 +45,13 @@ services:
       cassandra:
         condition: service_healthy
     restart: unless-stopped
+    volumes:
+      - "cache:/app/cache"
     networks:
       - arlocal
 
 volumes:
   cassandra_data:
+    driver: local
+  cache:
     driver: local

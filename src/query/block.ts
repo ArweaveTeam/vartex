@@ -82,6 +82,9 @@ export async function getBlock({
     // REVIEW: does assuming re-forking condition work better than fatal error?
     process.exit(1);
   }
+  if (body.cumulative_diff) { // HACK: Fix some cumulative_diff is number
+    body.cumulative_diff = body.cumulative_diff.toString();
+  }
   warmNode(tryNode);
   return body;
 }

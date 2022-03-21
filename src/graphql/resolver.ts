@@ -127,16 +127,18 @@ export const resolvers = {
           ? await transactionMapper.get({ tx_id: queryId })
           : undefined;
 
-      const maybeBlock =
+      let maybeBlock = {};
+
+      if (
         fieldsWithSubFields.block &&
         maybeTx &&
         typeof maybeTx.block_hash === "string"
-          ? (
-              await cassandraClient.execute(
-                `SELECT timestamp,height,previous_block FROM ${KEYSPACE}.block WHERE indep_hash='${maybeTx.block_hash}'`
-              )
-            ).rows[0] || {}
-          : {};
+      ) {
+        const qResult = await cassandraClient.execute(
+          `SELECT timestamp,height,previous_block FROM ${KEYSPACE}.block WHERE indep_hash='${maybeTx.block_hash}'`
+        );
+        maybeBlock = qResult.rows[0] || {};
+      }
 
       return R.assoc("block", maybeBlock, maybeTx) as Transaction;
     },
@@ -183,20 +185,19 @@ export const resolvers = {
 
       const txsClean = R.reject(R.isNil)(txs);
       const edges = await Promise.all(
-        txsClean.map(async ({ tx, cursor }) => ({
-          cursor,
-          node: R.assoc(
-            "block",
-            wantsBlock && tx.block_hash
-              ? (
-                  await cassandraClient.execute(
-                    `SELECT indep_hash,timestamp,height,previous_block FROM ${KEYSPACE}.block WHERE indep_hash='${tx.block_hash}'`
-                  )
-                ).rows[0] || {}
-              : {},
-            tx
-          ),
-        }))
+        txsClean.map(async ({ tx, cursor }) => {
+          let block = {};
+          if (wantsBlock && tx.block_hash) {
+            const qResult = await cassandraClient.execute(
+              `SELECT indep_hash,timestamp,height,previous_block FROM ${KEYSPACE}.block WHERE indep_hash='${tx.block_hash}'`
+            );
+            block = qResult.rows[0] || {};
+          }
+          return {
+            cursor,
+            node: R.assoc("block", block, tx),
+          };
+        })
       );
 
       return {

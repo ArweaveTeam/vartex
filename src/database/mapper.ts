@@ -135,4 +135,4 @@ export const txQueueMapper = mapper.forModel("TxQueue");
 
 export const tagsMapper = makeTagsMapper(cassandraClient);
 
-export { cassandraClient };
+export { cassandraClient } from "./cassandra";

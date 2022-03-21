@@ -127,7 +127,8 @@ export async function streamToBuffer(stream: Readable): Promise<Buffer> {
 }
 
 export async function streamToString(stream: Readable): Promise<string> {
-  return (await streamToBuffer(stream)).toString("utf-8");
+  const buffer = await streamToBuffer(stream);
+  return buffer.toString("utf8");
 }
 
 export function bufferToJson<T = unknown | undefined>(input: Buffer): T {

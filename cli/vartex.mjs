@@ -116,7 +116,7 @@ async function main() {
     .description("a one shot action to import block manually into database")
     .action(importBlock);
 
-  oneShots
+  oneShot
     .command("import-tx <txid> <block_height>")
     .description(
       "a one shot action to import single tx manually into database. " +

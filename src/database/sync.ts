@@ -5,7 +5,6 @@ import pWhilst from "p-whilst";
 import pLimit from "p-limit";
 import exitHook from "exit-hook";
 import Gauge from "gauge";
-import GaugeThemes from "gauge/themes";
 import { types as CassandraTypes } from "cassandra-driver";
 import { env, KEYSPACE, isGatewayNodeModeEnabled } from "../constants";
 import { log } from "../utility/log";
@@ -39,13 +38,6 @@ const currentImports = new Set();
 
 // export const getTxsInFlight = (): number =>
 //   Object.values(txInFlight).reduce((a, b) => numberOr0(a) + numberOr0(b));
-
-const trackerTheme = GaugeThemes.newTheme(
-  GaugeThemes({
-    hasUnicode: false,
-    hasColor: true,
-  })
-);
 
 export let topHash = "";
 export let gatewayHeight: CassandraTypes.Long = toLong(0);
@@ -305,8 +297,11 @@ export async function startSync({
       { type: "section", kerning: 1, default: "" },
       { type: "subsection", kerning: 1, default: "" },
     ],
+    theme: {
+      hasUnicode: false,
+      hasColor: true,
+    },
   });
-  gauge.setTheme(trackerTheme);
 
   let unsyncedBlocks: UnsyncedBlock[] = firstRun
     ? hashList.map((hash, height) => ({ hash, height }))

@@ -24,6 +24,7 @@ import {
   QueryTransactionArgs as QueryTransactionArguments,
   QueryTransactionsArgs as QueryTransactionsArguments,
   Transaction,
+  TransactionEdge,
 } from "./types.graphql";
 import { Tag } from "../types/arweave";
 import { KEYSPACE } from "../constants";
@@ -184,7 +185,7 @@ export const resolvers = {
       );
 
       const txsClean = R.reject(R.isNil)(txs);
-      const edges = await Promise.all(
+      const edges = (await Promise.all(
         txsClean.map(async ({ tx, cursor }) => {
           let block = {};
           if (wantsBlock && tx.block_hash) {
@@ -198,7 +199,7 @@ export const resolvers = {
             node: R.assoc("block", block, tx),
           };
         })
-      );
+      )) as TransactionEdge[];
 
       return {
         pageInfo: {

@@ -1,9 +1,10 @@
 import { GraphQLResolveInfo } from 'graphql';
 export type Maybe<T> = T | null;
+export type InputMaybe<T> = Maybe<T>;
 export type Exact<T extends { [key: string]: unknown }> = { [K in keyof T]: T[K] };
 export type MakeOptional<T, K extends keyof T> = Omit<T, K> & { [SubKey in K]?: Maybe<T[SubKey]> };
 export type MakeMaybe<T, K extends keyof T> = Omit<T, K> & { [SubKey in K]: Maybe<T[SubKey]> };
-export type RequireFields<T, K extends keyof T> = { [X in Exclude<keyof T, K>]?: T[X] } & { [P in K]-?: NonNullable<T[P]> };
+export type RequireFields<T, K extends keyof T> = Omit<T, K> & { [P in K]-?: NonNullable<T[P]> };
 /** All built-in and custom scalars, mapped to their actual values */
 export type Scalars = {
   ID: string;
@@ -60,9 +61,9 @@ export type BlockEdge = {
 /** Find blocks within a given range */
 export type BlockFilter = {
   /** Maximum block height to filter to */
-  max?: Maybe<Scalars['Int']>;
+  max?: InputMaybe<Scalars['Int']>;
   /** Minimum block height to filter from */
-  min?: Maybe<Scalars['Int']>;
+  min?: InputMaybe<Scalars['Int']>;
 };
 
 /**
@@ -120,16 +121,16 @@ export type Query = {
 
 
 export type QueryBlockArgs = {
-  id?: Maybe<Scalars['String']>;
+  id?: InputMaybe<Scalars['String']>;
 };
 
 
 export type QueryBlocksArgs = {
-  after?: Maybe<Scalars['String']>;
-  first?: Maybe<Scalars['Int']>;
-  height?: Maybe<BlockFilter>;
-  ids?: Maybe<Array<Scalars['ID']>>;
-  sort?: Maybe<SortOrder>;
+  after?: InputMaybe<Scalars['String']>;
+  first?: InputMaybe<Scalars['Int']>;
+  height?: InputMaybe<BlockFilter>;
+  ids?: InputMaybe<Array<Scalars['ID']>>;
+  sort?: InputMaybe<SortOrder>;
 };
 
 
@@ -139,16 +140,16 @@ export type QueryTransactionArgs = {
 
 
 export type QueryTransactionsArgs = {
-  after?: Maybe<Scalars['String']>;
-  block?: Maybe<BlockFilter>;
-  bundledIn?: Maybe<Array<Scalars['ID']>>;
-  dataRoots?: Maybe<Array<Scalars['String']>>;
-  first?: Maybe<Scalars['Int']>;
-  ids?: Maybe<Array<Scalars['ID']>>;
-  owners?: Maybe<Array<Scalars['String']>>;
-  recipients?: Maybe<Array<Scalars['String']>>;
-  sort?: Maybe<SortOrder>;
-  tags?: Maybe<Array<TagFilter>>;
+  after?: InputMaybe<Scalars['String']>;
+  block?: InputMaybe<BlockFilter>;
+  bundledIn?: InputMaybe<Array<Scalars['ID']>>;
+  dataRoots?: InputMaybe<Array<Scalars['String']>>;
+  first?: InputMaybe<Scalars['Int']>;
+  ids?: InputMaybe<Array<Scalars['ID']>>;
+  owners?: InputMaybe<Array<Scalars['String']>>;
+  recipients?: InputMaybe<Array<Scalars['String']>>;
+  sort?: InputMaybe<SortOrder>;
+  tags?: InputMaybe<Array<TagFilter>>;
 };
 
 /** Optionally reverse the result sort order from `HEIGHT_DESC` (default) to `HEIGHT_ASC`. */
@@ -172,7 +173,7 @@ export type TagFilter = {
   /** The tag name */
   name: Scalars['String'];
   /** @deprecated (now ignored) The operator to apply to to the tag filter. Defaults to EQ (equal). */
-  op?: Maybe<TagOperator>;
+  op?: InputMaybe<TagOperator>;
   /**
    * An array of values to match against. If multiple values are passed then transactions with _any_ matching tag value from the set will be returned.
    *
@@ -268,7 +269,7 @@ export type SubscriptionSubscribeFn<TResult, TParent, TContext, TArgs> = (
   args: TArgs,
   context: TContext,
   info: GraphQLResolveInfo
-) => AsyncIterator<TResult> | Promise<AsyncIterator<TResult>>;
+) => AsyncIterable<TResult> | Promise<AsyncIterable<TResult>>;
 
 export type SubscriptionResolveFn<TResult, TParent, TContext, TArgs> = (
   parent: TParent,
@@ -417,7 +418,7 @@ export type ParentResolvers<ContextType = any, ParentType extends ResolversParen
 };
 
 export type QueryResolvers<ContextType = any, ParentType extends ResolversParentTypes['Query'] = ResolversParentTypes['Query']> = {
-  block?: Resolver<Maybe<ResolversTypes['Block']>, ParentType, ContextType, RequireFields<QueryBlockArgs, never>>;
+  block?: Resolver<Maybe<ResolversTypes['Block']>, ParentType, ContextType, Partial<QueryBlockArgs>>;
   blocks?: Resolver<ResolversTypes['BlockConnection'], ParentType, ContextType, RequireFields<QueryBlocksArgs, 'first' | 'sort'>>;
   transaction?: Resolver<Maybe<ResolversTypes['Transaction']>, ParentType, ContextType, RequireFields<QueryTransactionArgs, 'id'>>;
   transactions?: Resolver<ResolversTypes['TransactionConnection'], ParentType, ContextType, RequireFields<QueryTransactionsArgs, 'first' | 'sort'>>;

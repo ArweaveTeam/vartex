@@ -48,25 +48,33 @@ export const findBlockGaps = async (
 
   const missingHeights: number[] = [];
   for (const [index, heightGroup] of queryHeightGroups.entries()) {
-    const blockQ: { rows: unknown[] } = await cassandraClient.execute(
-      `SELECT block_height FROM ${KEYSPACE}.block_height_sorted_asc  WHERE nth_million = ${index} AND block_height >= ${R.head(
-        heightGroup
-      )} AND block_height <= ${R.last(heightGroup)}`
+    const startHeight =  R.head(heightGroup);
+    const endHeight = R.last(heightGroup);
+    const queryHeightSubGroups = R.splitEvery(
+      5000, // TODO: cassandra-driver has a limit of 5000, should refactor to `eachRow()`
+      R.range(startHeight, endHeight + 1)
     );
-    for (const height of R.range(
-      R.head(heightGroup),
-      R.last(heightGroup) + 1
-    )) {
-      const findResult = R.findIndex(
-        (row: { block_height: CassandraTypes.Long }) =>
-          row.block_height.equals(height)
-      )(blockQ.rows as { block_height: CassandraTypes.Long }[]);
-      if (findResult < 0) {
-        missingHeights.push(height);
+    for (const subHeightGroup of queryHeightSubGroups) {
+      const blockQ: { rows: unknown[] } = await cassandraClient.execute(
+        `SELECT block_height FROM ${KEYSPACE}.block_height_sorted_asc WHERE nth_million = ${index} AND block_height >= ${R.head(
+          subHeightGroup
+        )} AND block_height <= ${R.last(subHeightGroup)}`
+      );
+      for (const height of R.range(
+        R.head(subHeightGroup),
+        R.last(subHeightGroup) + 1
+      )) {
+        const findResult = R.findIndex(
+          (row: { block_height: CassandraTypes.Long }) =>
+            row.block_height.equals(height)
+        )(blockQ.rows as { block_height: CassandraTypes.Long }[]);
+        if (findResult < 0) {
+          missingHeights.push(height);
+        }
       }
     }
-    return missingHeights;
   }
+  return missingHeights;
 };
 
 /*

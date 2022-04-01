@@ -81,9 +81,8 @@ async function resolveFork(previousBlock: BlockType): Promise<void> {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const result = await cassandraClient.execute(
       `SELECT block_height,block_hash
-       FROM ${KEYSPACE}.block_height_by_block_hash
-       WHERE block_height > ${blockQueryResult.rows[0].height.toString()}
-       ALLOW FILTERING`,
+       FROM ${KEYSPACE}.block_height_to_hash
+       WHERE block_height > ${blockQueryResult.rows[0].height.toString()}`,
       [],
       { prepare: true }
     );

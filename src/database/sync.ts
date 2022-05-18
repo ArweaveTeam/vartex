@@ -196,24 +196,28 @@ async function findMissingBlocks(hashList: string[]): Promise<UnsyncedBlock[]> {
   );
 
   for await (const rowResult of result) {
-    const matchingRow = hashListObject[rowResult.height.toString()];
+    const matchingRow = hashListObject[rowResult.height.toNumber()];
 
     if (
       matchingRow &&
-      R.equals(matchingRow["hash"], rowResult.indep_hash) &&
-      R.equals(matchingRow["height"], rowResult.height)
+      R.equals(matchingRow["hash"], rowResult.indep_hash.toString()) &&
+      R.equals(matchingRow["height"], rowResult.height.toNumber())
     ) {
-      delete hashListObject[rowResult.height];
+      delete hashListObject[rowResult.height.toNumber()];
     } else {
       if (!matchingRow) {
         log.info(`Found missing block: ${rowResult.height}`);
-      } else if (!R.equals(matchingRow["height"], rowResult.height)) {
+      } else if (!R.equals(matchingRow["height"], rowResult.height.toNumber())) {
         log.info(
           `Found mismatching block at: ${rowResult.height} because ${matchingRow["height"]} != ${rowResult.height}`
         );
-      } else if (!R.equals(matchingRow["hash"], rowResult.indep_hash)) {
+      } else if (!R.equals(matchingRow["hash"], rowResult.indep_hash.toString())) {
         log.info(
           `Found mismatching block at: ${rowResult.height} because ${matchingRow["hash"]} != ${rowResult.indep_hash}`
+        );
+      } else {
+        log.info(
+          `Found mismatching block at: ${rowResult.height} for unknown reason`
         );
       }
     }
